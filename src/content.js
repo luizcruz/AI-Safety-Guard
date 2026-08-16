@@ -210,10 +210,10 @@
 
     const title = document.createElement("h2");
     title.id = "ai-dlp-title";
-    title.textContent = "Envio bloqueado: possível dado sensível";
+    title.textContent = "AI Safety Guard - Envio bloqueado";
     title.style.cssText = "font-size:20px;margin:0 0 10px";
     const description = document.createElement("p");
-    description.textContent = "Remova ou anonimize os dados do prompt ou anexo antes de tentar novamente. A análise ocorreu localmente no seu navegador.";
+    description.textContent = "Possível dado sensível detectado. Remova ou anonimize os dados abaixo antes de tentar novamente.";
     description.style.cssText = "font-size:14px;line-height:1.5;margin:0 0 16px;color:#475569";
     const categoryWarning = document.createElement("p");
     const categoryNames = result.categories.map((category) => AISafetyGuard.CATEGORIES[category]);

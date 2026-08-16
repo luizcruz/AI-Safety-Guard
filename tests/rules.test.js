@@ -39,6 +39,8 @@ test("seed da API corresponde ao catálogo embarcado", () => {
 
 test("alerta explicita as categorias possivelmente infringidas", () => {
   const content = fs.readFileSync(path.join(__dirname, "..", "src", "content.js"), "utf8");
+  assert.match(content, /AI Safety Guard - Envio bloqueado/);
+  assert.match(content, /Possível dado sensível detectado\. Remova ou anonimize os dados abaixo antes de tentar novamente\./);
   assert.match(content, /Possível infração nas categorias/);
   assert.match(content, /result\.categories\.map/);
   assert.match(content, /captureDroppedFiles/);
