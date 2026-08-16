@@ -9,6 +9,14 @@
   if (!catalog || !catalog.categories || !catalog.patterns) throw new Error("Catálogo de regras DLP indisponível");
   const CATEGORIES = {};
   let compiledPatterns = [];
+  let compiledFileNameRules = [];
+
+  function compareVersions(left, right) {
+    const a = String(left).split(".").map(Number);
+    const b = String(right).split(".").map(Number);
+    for (let index = 0; index < 3; index += 1) if ((a[index] || 0) !== (b[index] || 0)) return (a[index] || 0) - (b[index] || 0);
+    return 0;
+  }
 
   function compileCatalog(nextCatalog) {
     if (!nextCatalog || typeof nextCatalog.version !== "string" || !nextCatalog.categories || !Array.isArray(nextCatalog.patterns) || !nextCatalog.keywords || !Array.isArray(nextCatalog.heuristics)) {
@@ -17,6 +25,10 @@
     const patterns = nextCatalog.patterns.map((item) => {
       if (!nextCatalog.categories[item.category] || typeof item.source !== "string" || item.source.length > 5000 || typeof item.score !== "number" || ![null, undefined, "luhn", "iban"].includes(item.validator)) throw new Error("Regra de padrão inválida");
       return { ...item, regex: new RegExp(item.source, item.flags) };
+    });
+    const fileNameRules = (nextCatalog.fileNameRules || []).map((item) => {
+      if (!nextCatalog.categories[item.category] || typeof item.label !== "string" || !Array.isArray(item.names) || !item.names.length || typeof item.score !== "number") throw new Error("Regra de nome de arquivo inválida");
+      return { ...item, normalizedNames: new Set(item.names.map(normalizeFileName)) };
     });
     for (const [category, words] of Object.entries(nextCatalog.keywords)) {
       if (!nextCatalog.categories[category] || !Array.isArray(words) || words.some((word) => typeof word !== "string")) throw new Error("Regra de palavra-chave inválida");
@@ -27,6 +39,7 @@
     for (const key of Object.keys(CATEGORIES)) delete CATEGORIES[key];
     Object.assign(CATEGORIES, nextCatalog.categories);
     compiledPatterns = patterns;
+    compiledFileNameRules = fileNameRules;
     catalog = nextCatalog;
   }
 
@@ -180,10 +193,33 @@
     };
   }
 
+  function normalizeFileName(value) {
+    const basename = String(value || "").replace(/\\/g, "/").split("/").pop().trim().toLocaleLowerCase("pt-BR");
+    return basename.replace(/\s*\(\d+\)(?=\.[^.]+$)/, "");
+  }
+
+  function analyzeFileName(fileName, options) {
+    const enabledCategories = new Set((options && options.enabledCategories) || Object.keys(CATEGORIES));
+    if (!enabledCategories.has("sensitiveFileNames")) return { blocked: false, findings: [], categories: [], categoryScores: {}, rulesVersion: catalog.version };
+    const normalized = normalizeFileName(fileName);
+    const findings = [];
+    for (const rule of compiledFileNameRules) {
+      if (rule.normalizedNames.has(normalized)) findings.push({ category: rule.category, label: rule.label, score: rule.score, sample: normalized, source: fileName });
+    }
+    return {
+      blocked: findings.some((finding) => finding.score >= 70),
+      findings,
+      categories: findings.length ? ["sensitiveFileNames"] : [],
+      categoryScores: findings.length ? { sensitiveFileNames: findings.reduce((sum, finding) => sum + finding.score, 0) } : {},
+      rulesVersion: catalog.version
+    };
+  }
+
   function updateCatalog(nextCatalog) {
+    if (compareVersions(nextCatalog.version, catalog.version) < 0) throw new Error("Catálogo remoto é mais antigo que o catálogo ativo");
     compileCatalog(nextCatalog);
     return catalog.version;
   }
 
-  return Object.freeze({ analyze, updateCatalog, CATEGORIES, _internal: Object.freeze({ isLuhnMatch, isIbanMatch, redact }) });
+  return Object.freeze({ analyze, analyzeFileName, updateCatalog, CATEGORIES, get version() { return catalog.version; }, _internal: Object.freeze({ isLuhnMatch, isIbanMatch, redact, normalizeFileName }) });
 });

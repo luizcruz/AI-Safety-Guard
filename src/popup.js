@@ -11,12 +11,17 @@
   initialize().catch((error) => showStatus(error.message, true));
 
   async function initialize() {
-    const remote = await chrome.storage.local.get({ apiUrl: "http://127.0.0.1:8000", apiToken: "", rulesVersion: "1.1.0", rulesCatalog: null, rulesLastError: "" });
+    const remote = await chrome.storage.local.get({ apiUrl: "http://127.0.0.1:8000", apiToken: "", rulesVersion: AISafetyGuard.version, rulesCatalog: null, rulesLastError: "" });
     if (remote.rulesCatalog) {
       try { AISafetyGuard.updateCatalog(remote.rulesCatalog); } catch { /* bundled catalog remains active */ }
     }
     renderCategories();
-    const settings = await chrome.storage.sync.get({ enabled: true, enabledCategories: Object.keys(AISafetyGuard.CATEGORIES) });
+    const settings = await chrome.storage.sync.get({ enabled: true, enabledCategories: Object.keys(AISafetyGuard.CATEGORIES), knownCategories: [] });
+    const currentCategories = Object.keys(AISafetyGuard.CATEGORIES);
+    const knownCategories = settings.knownCategories.length ? settings.knownCategories : currentCategories.filter((category) => category !== "sensitiveFileNames");
+    const addedCategories = currentCategories.filter((category) => !knownCategories.includes(category));
+    settings.enabledCategories = [...new Set([...settings.enabledCategories, ...addedCategories])];
+    await chrome.storage.sync.set({ enabledCategories: settings.enabledCategories, knownCategories: currentCategories });
     enabled.checked = settings.enabled !== false;
     for (const [key, input] of categoryInputs) input.checked = settings.enabledCategories.includes(key);
     apiUrl.value = remote.apiUrl;
@@ -62,7 +67,7 @@
       showStatus("Consultando regras mais recentes…", false);
       const response = await chrome.runtime.sendMessage({ type: "REFRESH_RULES" });
       if (!response || !response.ok) return showStatus(`Falha: ${response ? response.error : "serviço indisponível"}`, true);
-      const state = await chrome.storage.local.get({ rulesVersion: "1.1.0" });
+      const state = await chrome.storage.local.get({ rulesVersion: AISafetyGuard.version });
       showStatus(`Regras ativas: v${state.rulesVersion}`, false);
     } catch (error) {
       showStatus(error.message, true);

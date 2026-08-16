@@ -19,6 +19,8 @@ Configure a URL e o Bearer token no popup da extensão. O token fica apenas no a
 
 O envio permanece bloqueado enquanto a análise estiver pendente ou quando o arquivo não puder ser lido. PDFs digitalizados e documentos compostos apenas por imagens exigem OCR/conversão prévia; o conteúdo dos anexos nunca é enviado à API de regras.
 
+O nome de todo anexo é comparado localmente com a categoria `Nomes de arquivos sensíveis`, inclusive quando não existe leitor ou a extração falha. O catálogo inicial contém 79 nomes em sete grupos, administráveis pela API através de regras `kind: filename`.
+
 ## Instalação local
 
 1. Acesse `chrome://extensions`.

@@ -37,6 +37,12 @@ test("seed da API corresponde ao catálogo embarcado", () => {
   assert.deepEqual(seed, catalog);
 });
 
+test("catálogo contém os nomes de arquivos sensíveis iniciais", () => {
+  assert.equal(catalog.fileNameRules.length, 7);
+  assert.equal(catalog.fileNameRules.reduce((total, rule) => total + rule.names.length, 0), 79);
+  assert.ok(catalog.fileNameRules.every((rule) => rule.category === "sensitiveFileNames"));
+});
+
 test("alerta explicita as categorias possivelmente infringidas", () => {
   const content = fs.readFileSync(path.join(__dirname, "..", "src", "content.js"), "utf8");
   assert.match(content, /AI Safety Guard - Envio bloqueado/);

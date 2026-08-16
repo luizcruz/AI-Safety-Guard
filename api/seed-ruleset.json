@@ -1,7 +1,7 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "categories": {
-    "personal": "Documentos pessoais", "medical": "Documentos médicos", "financial": "Documentos financeiros", "corporate": "Documentos corporativos", "credentials": "Credenciais e chaves de acesso", "infrastructure": "Infraestrutura e bancos de dados", "intellectualProperty": "Propriedade intelectual e código-fonte", "pciBanking": "Dados de cartão e transações globais (PCI/Banking)", "hrPayroll": "Registros de RH e folha de pagamento", "telemetryLogs": "PII em telemetria e logs de aplicação"
+    "personal": "Documentos pessoais", "medical": "Documentos médicos", "financial": "Documentos financeiros", "corporate": "Documentos corporativos", "credentials": "Credenciais e chaves de acesso", "infrastructure": "Infraestrutura e bancos de dados", "intellectualProperty": "Propriedade intelectual e código-fonte", "pciBanking": "Dados de cartão e transações globais (PCI/Banking)", "hrPayroll": "Registros de RH e folha de pagamento", "telemetryLogs": "PII em telemetria e logs de aplicação", "sensitiveFileNames": "Nomes de arquivos sensíveis"
   },
   "patterns": [
     {"category":"personal","label":"CPF","source":"\\b\\d{3}\\.\\d{3}\\.\\d{3}-\\d{2}\\b","flags":"g","score":90,"validator":null},
@@ -51,6 +51,15 @@
     "hrPayroll":["demonstrativo de pagamento","holerite","plano de demissão","plano de demissao","bônus executivo","bonus executivo","avaliação de desempenho","avaliacao de desempenho","stock options"],
     "telemetryLogs":["stacktrace","uncaught exception","authorization: bearer","set-cookie","request_body"]
   },
+  "fileNameRules": [
+    {"category":"sensitiveFileNames","label":"Arquivos de configuração e código","names":[".env",".env.local",".env.production","config.json","settings.py","application.yml","database.php","terraform.tfstate","kubeconfig","docker-compose.yml","id_rsa","id_rsa.pub","private.key","certificate.pem","credentials.csv"],"score":90},
+    {"category":"sensitiveFileNames","label":"Documentos pessoais e identificação","names":["cnh.pdf","cnh_digital.pdf","rg.jpg","rg_frente_verso.pdf","cpf.pdf","passaporte.pdf","titulo_eleitor.pdf","certidao_nascimento.pdf","certidao_casamento.pdf","comprovante_residencia.pdf","comprovante_endereco.pdf"],"score":90},
+    {"category":"sensitiveFileNames","label":"Documentos médicos e de saúde","names":["receita_medica.pdf","atestado_medico.pdf","atestado.pdf","prontuario_paciente.pdf","prontuario.pdf","laudo_exame.pdf","resultado_laboratorial.pdf","exame_sangue.pdf","solicitacao_exame.pdf","receita_controle_especial.pdf"],"score":90},
+    {"category":"sensitiveFileNames","label":"Documentos financeiros e fiscais","names":["extrato_bancario.pdf","extrato_conta.pdf","comprovante_pix.pdf","fatura_cartao.pdf","fatura_consolidada.pdf","informe_rendimentos.pdf","declaracao_irpf.pdf","irpf_2025.pdf","balancete.xlsx","relatorio_financeiro.xlsx","fluxo_de_caixa.xlsx"],"score":90},
+    {"category":"sensitiveFileNames","label":"Documentos de RH e folha de pagamento","names":["holerite.pdf","demonstrativo_pagamento.pdf","contra_cheque.pdf","folha_de_pagamento.xlsx","tabela_salarial.xlsx","salarios_2026.xlsx","dados_colaboradores.csv","lista_demissoes.xlsx","bonus_executivos.xlsx","avaliacao_desempenho.docx","ficha_cadastral.pdf"],"score":90},
+    {"category":"sensitiveFileNames","label":"Documentos corporativos e jurídicos","names":["contrato_social.pdf","estatuto_social.pdf","nda.pdf","nda_assinado.pdf","termo_confidencialidade.pdf","procuracao.pdf","ata_assembleia.docx","ata_reuniao_diretoria.pdf","proposta_comercial_confidencial.pdf","acordo_socios.pdf"],"score":90},
+    {"category":"sensitiveFileNames","label":"Logs, diagnostic traces e backups","names":["error.log","app.log","access.log","debug.log","production.log","stacktrace.txt","trace.json","requests_dump.json","dump.sql","backup_database.sql","db_backup.tar.gz"],"score":90}
+  ],
   "heuristics": [
     {"id":"officialDocument","category":"personal","label":"Estrutura de documento oficial","score":65},
     {"id":"clinicalDocument","category":"medical","label":"Estrutura de documento clínico","score":70},

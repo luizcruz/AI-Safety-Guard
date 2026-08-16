@@ -6,7 +6,7 @@
   "use strict";
 
   return Object.freeze({
-    version: "1.1.0",
+    version: "1.2.0",
     categories: Object.freeze({
       personal: "Documentos pessoais",
       medical: "Documentos médicos",
@@ -17,7 +17,8 @@
       intellectualProperty: "Propriedade intelectual e código-fonte",
       pciBanking: "Dados de cartão e transações globais (PCI/Banking)",
       hrPayroll: "Registros de RH e folha de pagamento",
-      telemetryLogs: "PII em telemetria e logs de aplicação"
+      telemetryLogs: "PII em telemetria e logs de aplicação",
+      sensitiveFileNames: "Nomes de arquivos sensíveis"
     }),
     patterns: Object.freeze([
       p("personal", "CPF", "\\b\\d{3}\\.\\d{3}\\.\\d{3}-\\d{2}\\b", "g", 90),
@@ -67,6 +68,15 @@
       hrPayroll: ["demonstrativo de pagamento", "holerite", "plano de demissão", "plano de demissao", "bônus executivo", "bonus executivo", "avaliação de desempenho", "avaliacao de desempenho", "stock options"],
       telemetryLogs: ["stacktrace", "uncaught exception", "authorization: bearer", "set-cookie", "request_body"]
     }),
+    fileNameRules: Object.freeze([
+      f("Arquivos de configuração e código", [".env", ".env.local", ".env.production", "config.json", "settings.py", "application.yml", "database.php", "terraform.tfstate", "kubeconfig", "docker-compose.yml", "id_rsa", "id_rsa.pub", "private.key", "certificate.pem", "credentials.csv"]),
+      f("Documentos pessoais e identificação", ["cnh.pdf", "cnh_digital.pdf", "rg.jpg", "rg_frente_verso.pdf", "cpf.pdf", "passaporte.pdf", "titulo_eleitor.pdf", "certidao_nascimento.pdf", "certidao_casamento.pdf", "comprovante_residencia.pdf", "comprovante_endereco.pdf"]),
+      f("Documentos médicos e de saúde", ["receita_medica.pdf", "atestado_medico.pdf", "atestado.pdf", "prontuario_paciente.pdf", "prontuario.pdf", "laudo_exame.pdf", "resultado_laboratorial.pdf", "exame_sangue.pdf", "solicitacao_exame.pdf", "receita_controle_especial.pdf"]),
+      f("Documentos financeiros e fiscais", ["extrato_bancario.pdf", "extrato_conta.pdf", "comprovante_pix.pdf", "fatura_cartao.pdf", "fatura_consolidada.pdf", "informe_rendimentos.pdf", "declaracao_irpf.pdf", "irpf_2025.pdf", "balancete.xlsx", "relatorio_financeiro.xlsx", "fluxo_de_caixa.xlsx"]),
+      f("Documentos de RH e folha de pagamento", ["holerite.pdf", "demonstrativo_pagamento.pdf", "contra_cheque.pdf", "folha_de_pagamento.xlsx", "tabela_salarial.xlsx", "salarios_2026.xlsx", "dados_colaboradores.csv", "lista_demissoes.xlsx", "bonus_executivos.xlsx", "avaliacao_desempenho.docx", "ficha_cadastral.pdf"]),
+      f("Documentos corporativos e jurídicos", ["contrato_social.pdf", "estatuto_social.pdf", "nda.pdf", "nda_assinado.pdf", "termo_confidencialidade.pdf", "procuracao.pdf", "ata_assembleia.docx", "ata_reuniao_diretoria.pdf", "proposta_comercial_confidencial.pdf", "acordo_socios.pdf"]),
+      f("Logs, diagnostic traces e backups", ["error.log", "app.log", "access.log", "debug.log", "production.log", "stacktrace.txt", "trace.json", "requests_dump.json", "dump.sql", "backup_database.sql", "db_backup.tar.gz"])
+    ]),
     heuristics: Object.freeze([
       h("officialDocument", "personal", "Estrutura de documento oficial", 65),
       h("clinicalDocument", "medical", "Estrutura de documento clínico", 70),
@@ -86,5 +96,8 @@
   }
   function h(id, category, label, score) {
     return Object.freeze({ id, category, label, score });
+  }
+  function f(label, names) {
+    return Object.freeze({ category: "sensitiveFileNames", label, names: Object.freeze(names), score: 90 });
   }
 });

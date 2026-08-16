@@ -157,10 +157,35 @@
     return { type, text: normalized };
   }
 
-  async function scanFile(file, analyze, settings, options, dependencies) {
-    const extracted = await extractText(file, options, dependencies);
-    const result = analyze(extracted.text, settings);
-    return { fileName: file.name || "documento", type: extracted.type, textLength: extracted.text.length, result };
+  async function scanFile(file, analyze, settings, options, dependencies, analyzeFileName) {
+    try {
+      const extracted = await extractText(file, options, dependencies);
+      const contentResult = analyze(extracted.text, settings);
+      const fileNameResult = analyzeFileName ? analyzeFileName(file.name, settings) : null;
+      const result = fileNameResult ? mergeResults(contentResult, fileNameResult) : contentResult;
+      return { fileName: file.name || "documento", type: extracted.type, textLength: extracted.text.length, result };
+    } catch (error) {
+      if (analyzeFileName) {
+        const result = analyzeFileName(file.name, settings);
+        if (result.blocked || (error instanceof AttachmentError && error.code === "unsupported")) {
+          return { fileName: file.name || "documento", type: "filename", textLength: 0, result, extractionError: error.message };
+        }
+      }
+      throw error;
+    }
+  }
+
+  function mergeResults(first, second) {
+    const findings = [...first.findings, ...second.findings];
+    const categoryScores = { ...first.categoryScores };
+    for (const [category, score] of Object.entries(second.categoryScores || {})) categoryScores[category] = (categoryScores[category] || 0) + score;
+    return {
+      blocked: first.blocked || second.blocked,
+      findings,
+      categories: [...new Set([...first.categories, ...second.categories])],
+      categoryScores,
+      rulesVersion: second.rulesVersion || first.rulesVersion
+    };
   }
 
   class Registry {
@@ -173,7 +198,6 @@
     add(files) {
       const ids = [];
       for (const file of Array.from(files || [])) {
-        if (!fileType(file)) continue;
         const id = fingerprint(file);
         ids.push(id);
         if (this._records.has(id)) continue;

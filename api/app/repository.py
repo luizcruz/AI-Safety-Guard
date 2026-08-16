@@ -66,10 +66,12 @@ class RuleRepository:
                 if value.keyword.casefold() in {item.casefold() for item in keywords}:
                     raise RuleValidationError("Palavra-chave já cadastrada nesta categoria")
                 keywords.append(value.keyword)
-            else:
+            elif value.kind == "heuristic":
                 if any(item["id"] == value.heuristic_id for item in catalog["heuristics"]):
                     raise RuleValidationError("Heurística já cadastrada")
                 catalog["heuristics"].append(self._heuristic(value))
+            else:
+                catalog["fileNameRules"].append(self._file_name_rule(value))
             self._commit(catalog)
             return self._find_equivalent(value)
 
@@ -83,8 +85,10 @@ class RuleRepository:
                 catalog["patterns"].append(self._pattern(value))
             elif value.kind == "keyword":
                 catalog["keywords"].setdefault(value.category, []).append(value.keyword)
-            else:
+            elif value.kind == "heuristic":
                 catalog["heuristics"].append(self._heuristic(value))
+            else:
+                catalog["fileNameRules"].append(self._file_name_rule(value))
             self._commit(catalog)
             return self._find_equivalent(value)
 
@@ -96,19 +100,33 @@ class RuleRepository:
             self._commit(catalog)
 
     def _load_or_seed(self) -> dict:
+        seed = self._read_json(self._seed_file)
+        self._validate_catalog(seed)
         latest = self._data_dir / "latest.json"
         if latest.exists():
-            return self._read_json(latest)
+            return self._upgrade_schema(self._read_json(latest), seed)
         snapshots = list(self._data_dir.glob("ruleset-v*.json"))
         if snapshots:
             recovered = max(snapshots, key=lambda path: self._version_key(path.stem.removeprefix("ruleset-v")))
             catalog = self._read_json(recovered)
             self._atomic_write(latest, catalog, replace=True)
+            return self._upgrade_schema(catalog, seed)
+        self._write_snapshot(seed)
+        return seed
+
+    def _upgrade_schema(self, catalog: dict, seed: dict) -> dict:
+        if "fileNameRules" in catalog:
             return catalog
-        catalog = self._read_json(self._seed_file)
-        self._validate_catalog(catalog)
-        self._write_snapshot(catalog)
-        return catalog
+        upgraded = deepcopy(catalog)
+        for category, label in seed["categories"].items():
+            upgraded["categories"].setdefault(category, label)
+            upgraded["keywords"].setdefault(category, [])
+        upgraded["fileNameRules"] = deepcopy(seed["fileNameRules"])
+        upgraded["version"] = seed["version"] if self._version_key(seed["version"]) > self._version_key(catalog["version"]) else self._next_version(catalog["version"])
+        upgraded["updatedAt"] = datetime.now(UTC).isoformat()
+        self._validate_catalog(upgraded)
+        self._write_snapshot(upgraded)
+        return upgraded
 
     @staticmethod
     def _read_json(path: Path) -> dict:
@@ -178,12 +196,14 @@ class RuleRepository:
                 output.append({"id": self._id("keyword", category, keyword), "kind": "keyword", "category": category, "keyword": keyword})
         for item in catalog["heuristics"]:
             output.append({"id": self._id("heuristic", item["id"]), "kind": "heuristic", "category": item["category"], "label": item["label"], "score": item["score"], "heuristic_id": item["id"]})
+        for item in catalog["fileNameRules"]:
+            output.append({"id": self._id("filename", item["category"], item["label"]), "kind": "filename", "category": item["category"], "label": item["label"], "score": item["score"], "file_names": item["names"]})
         return output
 
     def _find_equivalent(self, value: RuleInput) -> dict:
         for rule in self.list(kind=value.kind):
-            identity = rule.get("source") if value.kind == "pattern" else rule.get("keyword") if value.kind == "keyword" else rule.get("heuristic_id")
-            expected = value.source if value.kind == "pattern" else value.keyword if value.kind == "keyword" else value.heuristic_id
+            identity = rule.get("source") if value.kind == "pattern" else rule.get("keyword") if value.kind == "keyword" else rule.get("heuristic_id") if value.kind == "heuristic" else rule.get("label")
+            expected = value.source if value.kind == "pattern" else value.keyword if value.kind == "keyword" else value.heuristic_id if value.kind == "heuristic" else value.label
             if rule["category"] == value.category and identity == expected:
                 return rule
         raise RuntimeError("Regra persistida não encontrada")
@@ -193,8 +213,10 @@ class RuleRepository:
             catalog["patterns"] = [item for item in catalog["patterns"] if self._id("pattern", item["category"], item["label"], item["source"]) != rule["id"]]
         elif rule["kind"] == "keyword":
             catalog["keywords"][rule["category"]] = [item for item in catalog["keywords"][rule["category"]] if self._id("keyword", rule["category"], item) != rule["id"]]
-        else:
+        elif rule["kind"] == "heuristic":
             catalog["heuristics"] = [item for item in catalog["heuristics"] if self._id("heuristic", item["id"]) != rule["id"]]
+        else:
+            catalog["fileNameRules"] = [item for item in catalog["fileNameRules"] if self._id("filename", item["category"], item["label"]) != rule["id"]]
 
     @staticmethod
     def _pattern(value: RuleInput) -> dict:
@@ -205,6 +227,10 @@ class RuleRepository:
         return {"id": value.heuristic_id, "category": value.category, "label": value.label, "score": value.score}
 
     @staticmethod
+    def _file_name_rule(value: RuleInput) -> dict:
+        return {"category": value.category, "label": value.label, "names": value.file_names, "score": value.score}
+
+    @staticmethod
     def _validate(value: RuleInput, catalog: dict) -> None:
         if value.category not in catalog["categories"]:
             raise RuleValidationError("Categoria inexistente")
@@ -212,6 +238,7 @@ class RuleRepository:
             "pattern": (value.label, value.source, value.score is not None),
             "keyword": (value.keyword,),
             "heuristic": (value.heuristic_id, value.label, value.score is not None),
+            "filename": (value.label, value.file_names, value.score is not None),
         }[value.kind]
         if not all(required):
             raise RuleValidationError(f"Campos obrigatórios ausentes para regra {value.kind}")
@@ -219,14 +246,16 @@ class RuleRepository:
             raise RuleValidationError("Validador não suportado pela extensão")
         if value.kind == "heuristic" and value.heuristic_id not in RuleRepository.SUPPORTED_HEURISTICS:
             raise RuleValidationError("Heurística não suportada pela extensão")
+        if value.kind == "filename" and any(not name.strip() or "/" in name or "\\" in name for name in value.file_names):
+            raise RuleValidationError("Nomes de arquivos devem ser basenames válidos")
 
     @staticmethod
     def _validate_catalog(catalog: dict) -> None:
-        required = {"version", "categories", "patterns", "keywords", "heuristics"}
+        required = {"version", "categories", "patterns", "keywords", "heuristics", "fileNameRules"}
         if not required.issubset(catalog):
             raise RuleValidationError("Catálogo incompleto")
         categories = catalog["categories"]
-        for item in [*catalog["patterns"], *catalog["heuristics"]]:
+        for item in [*catalog["patterns"], *catalog["heuristics"], *catalog["fileNameRules"]]:
             if item["category"] not in categories:
                 raise RuleValidationError(f"Categoria desconhecida: {item['category']}")
         if set(catalog["keywords"]) - set(categories):
@@ -235,5 +264,9 @@ class RuleRepository:
         identities.extend(("pattern", item["category"], item["label"], item["source"]) for item in catalog["patterns"])
         identities.extend(("keyword", category, keyword.casefold()) for category, keywords in catalog["keywords"].items() for keyword in keywords)
         identities.extend(("heuristic", item["id"]) for item in catalog["heuristics"])
+        identities.extend(("filename", item["category"], item["label"].casefold()) for item in catalog["fileNameRules"])
+        file_names = [name.casefold() for item in catalog["fileNameRules"] for name in item["names"]]
+        if len(file_names) != len(set(file_names)):
+            raise RuleValidationError("Catálogo contém nomes de arquivos duplicados")
         if len(identities) != len(set(identities)):
             raise RuleValidationError("Catálogo contém regras duplicadas")

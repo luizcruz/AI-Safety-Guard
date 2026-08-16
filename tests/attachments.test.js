@@ -102,7 +102,7 @@ test("registro acompanha análises pendentes, bloqueadas e removidas", async () 
   let finish;
   const registry = new Registry(() => new Promise((resolve) => { finish = resolve; }));
   const attachment = file("dados.pdf", createPdf("x"));
-  const ids = registry.add([attachment, { name: "image.png" }]);
+  const ids = registry.add([attachment]);
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(registry.state().pending.length, 1);
   finish({ result: { blocked: true, findings: [], categories: [] } });
@@ -110,4 +110,19 @@ test("registro acompanha análises pendentes, bloqueadas e removidas", async () 
   assert.equal(registry.state().blocked.length, 1);
   registry.remove(ids);
   assert.equal(registry.state().blocked.length, 0);
+});
+
+test("usa nome do arquivo quando não existe leitor para o formato", async () => {
+  const result = await scanFile(file("credentials.csv", new TextEncoder().encode("ignored")), analyze, {}, undefined, undefined, require("../src/detector.js").analyzeFileName);
+  assert.equal(result.type, "filename");
+  assert.equal(result.result.blocked, true);
+  const benign = await scanFile(file("photo.jpg", new Uint8Array()), analyze, {}, undefined, undefined, require("../src/detector.js").analyzeFileName);
+  assert.equal(benign.result.blocked, false);
+});
+
+test("aplica regra de nome mesmo quando a extração é bem-sucedida", async () => {
+  const attachment = file("cnh.pdf", createPdf("documento sem padrões internos"));
+  const result = await scanFile(attachment, analyze, {}, {}, { pdfLoader: () => import("pdfjs-dist/legacy/build/pdf.mjs") }, require("../src/detector.js").analyzeFileName);
+  assert.equal(result.result.blocked, true);
+  assert.ok(result.result.categories.includes("sensitiveFileNames"));
 });

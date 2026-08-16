@@ -13,10 +13,11 @@ def repository(tmp_path):
         json.dumps(
             {
                 "version": "1.0.0",
-                "categories": {"credentials": "Credenciais"},
+                "categories": {"credentials": "Credenciais", "sensitiveFileNames": "Nomes de arquivos sensíveis"},
                 "patterns": [],
-                "keywords": {"credentials": []},
+                "keywords": {"credentials": [], "sensitiveFileNames": []},
                 "heuristics": [],
+                "fileNameRules": [],
             }
         ),
         encoding="utf-8",
@@ -55,6 +56,14 @@ def test_supports_keyword_and_heuristic_rules(repository):
     assert {item["kind"] for item in repository.list()} == {"keyword", "heuristic"}
 
 
+def test_supports_filename_rules(repository):
+    created = repository.create(RuleInput(kind="filename", category="sensitiveFileNames", label="Configuração", score=90, file_names=[".env", "config.json"]))
+    assert created["kind"] == "filename"
+    assert created["file_names"] == [".env", "config.json"]
+    updated = repository.update(created["id"], RuleInput(kind="filename", category="sensitiveFileNames", label="Configuração", score=95, file_names=[".env.production"]))
+    assert updated["score"] == 95
+
+
 def test_rejects_unknown_category_missing_fields_and_duplicates(repository):
     with pytest.raises(RuleValidationError, match="Categoria inexistente"):
         repository.create(RuleInput(kind="keyword", category="unknown", keyword="x"))
@@ -82,3 +91,17 @@ def test_recovers_latest_pointer_from_immutable_snapshots(repository):
     recovered = RuleRepository(repository._data_dir, repository._seed_file)
     assert recovered.version == "1.0.1"
     assert (repository._data_dir / "latest.json").exists()
+
+
+def test_migrates_old_catalog_to_filename_schema(tmp_path):
+    old = {"version": "1.1.5", "categories": {"credentials": "Credenciais"}, "patterns": [], "keywords": {"credentials": []}, "heuristics": []}
+    seed = {"version": "1.2.0", "categories": {"credentials": "Credenciais", "sensitiveFileNames": "Nomes"}, "patterns": [], "keywords": {"credentials": [], "sensitiveFileNames": []}, "heuristics": [], "fileNameRules": [{"category": "sensitiveFileNames", "label": "Config", "names": [".env"], "score": 90}]}
+    seed_file = tmp_path / "seed.json"
+    seed_file.write_text(json.dumps(seed), encoding="utf-8")
+    data_dir = tmp_path / "snapshots"
+    data_dir.mkdir()
+    (data_dir / "latest.json").write_text(json.dumps(old), encoding="utf-8")
+    migrated = RuleRepository(data_dir, seed_file)
+    assert migrated.version == "1.2.0"
+    assert migrated.latest()["fileNameRules"][0]["names"] == [".env"]
+    assert (data_dir / "ruleset-v1.2.0.json").exists()

@@ -13,9 +13,17 @@
   let settings = DEFAULTS;
   let overlay = null;
   const fileInputRecords = new WeakMap();
-  const attachments = new AISafetyAttachmentScanner.Registry((file) => AISafetyAttachmentScanner.scanFile(file, AISafetyGuard.analyze, settings));
+  const attachments = new AISafetyAttachmentScanner.Registry((file) => AISafetyAttachmentScanner.scanFile(
+    file, AISafetyGuard.analyze, settings, undefined, undefined, AISafetyGuard.analyzeFileName
+  ));
 
-  chrome.storage.sync.get(DEFAULTS, (stored) => { settings = normalizeSettings(stored); });
+  chrome.storage.sync.get(["enabled", "enabledCategories", "knownCategories"], (stored) => {
+    const currentCategories = Object.keys(AISafetyGuard.CATEGORIES);
+    const knownCategories = Array.isArray(stored.knownCategories) ? stored.knownCategories : currentCategories.filter((category) => category !== "sensitiveFileNames");
+    const addedCategories = currentCategories.filter((category) => !knownCategories.includes(category));
+    settings = normalizeSettings({ enabled: stored.enabled, enabledCategories: [...new Set([...(stored.enabledCategories || currentCategories), ...addedCategories])] });
+    chrome.storage.sync.set({ enabledCategories: settings.enabledCategories, knownCategories: currentCategories });
+  });
   chrome.storage.local.get("rulesCatalog", ({ rulesCatalog }) => {
     if (rulesCatalog) applyRemoteCatalog(rulesCatalog);
   });
@@ -51,7 +59,7 @@
       const added = Object.keys(AISafetyGuard.CATEGORIES).filter((category) => !previousCategories.has(category));
       if (added.length) {
         settings.enabledCategories = [...new Set([...previous, ...added])];
-        chrome.storage.sync.set({ enabledCategories: settings.enabledCategories });
+        chrome.storage.sync.set({ enabledCategories: settings.enabledCategories, knownCategories: Object.keys(AISafetyGuard.CATEGORIES) });
       }
     } catch (error) {
       console.warn("AI Safety Guard ignorou um catálogo remoto inválido.", error);

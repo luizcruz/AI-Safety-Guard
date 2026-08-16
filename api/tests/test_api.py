@@ -12,7 +12,7 @@ AUTH = {"Authorization": f"Bearer {TOKEN}"}
 
 def make_client(tmp_path):
     seed = tmp_path / "seed.json"
-    seed.write_text(json.dumps({"version": "2.0.0", "categories": {"credentials": "Credenciais"}, "patterns": [], "keywords": {"credentials": []}, "heuristics": []}), encoding="utf-8")
+    seed.write_text(json.dumps({"version": "2.0.0", "categories": {"credentials": "Credenciais", "sensitiveFileNames": "Nomes sensíveis"}, "patterns": [], "keywords": {"credentials": [], "sensitiveFileNames": []}, "heuristics": [], "fileNameRules": []}), encoding="utf-8")
     settings = Settings(api_token=TOKEN, data_dir=tmp_path / "rules", seed_file=seed)
     return TestClient(create_app(settings))
 
@@ -58,3 +58,15 @@ def test_validation_and_not_found(tmp_path):
     invalid = {"kind": "pattern", "category": "unknown", "label": "X", "score": 90, "source": "x"}
     assert client.post("/v1/rules", headers=AUTH, json=invalid).status_code == 422
     assert client.delete("/v1/rules/missing", headers=AUTH).status_code == 404
+
+
+def test_filename_rule_crud_through_api(tmp_path):
+    client = make_client(tmp_path)
+    payload = {"kind": "filename", "category": "sensitiveFileNames", "label": "Backups", "score": 90, "file_names": ["dump.sql", "db_backup.tar.gz"]}
+    created = client.post("/v1/rules", headers=AUTH, json=payload)
+    assert created.status_code == 201
+    rule = created.json()
+    assert rule["file_names"] == ["dump.sql", "db_backup.tar.gz"]
+    listed = client.get("/v1/rules?kind=filename", headers=AUTH).json()
+    assert [item["id"] for item in listed] == [rule["id"]]
+    assert client.delete(f"/v1/rules/{rule['id']}", headers=AUTH).status_code == 204

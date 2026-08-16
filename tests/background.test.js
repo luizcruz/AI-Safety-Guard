@@ -15,6 +15,7 @@ test("valida catálogo antes de persistir", () => {
   assert.equal(validateCatalog(bundled), true);
   assert.equal(validateCatalog({ ...bundled, version: "latest" }), false);
   assert.equal(validateCatalog({ ...bundled, patterns: [{ category: "personal", source: "[", score: 90 }] }), false);
+  assert.equal(validateCatalog({ ...bundled, fileNameRules: [{ category: "missing", label: "X", names: ["x"], score: 90 }] }), false);
 });
 
 test("baixa catálogo autenticado mais recente", async () => {
@@ -45,7 +46,7 @@ test("não substitui catálogo por versão igual ou anterior", async () => {
   assert.equal(result.reason, "not-newer");
 });
 
-test("registra eventos do Chrome e persiste catálogo atualizado", async () => {
+test("registra eventos do Chrome, descarta cache antigo e persiste catálogo atualizado", async () => {
   const state = { apiUrl: "https://rules.example", apiToken: "secret", rulesVersion: "1.1.0" };
   const listeners = {};
   const chromeApi = {
@@ -59,12 +60,12 @@ test("registra eventos do Chrome e persiste catálogo atualizado", async () => {
       onMessage: { addListener: (listener) => { listeners.message = listener; } }
     }
   };
-  const catalog = { ...bundled, version: "1.1.1" };
+  const catalog = { ...bundled, version: "1.2.1" };
   const updater = register(chromeApi, async () => ({ ok: true, json: async () => catalog }));
   const result = await updater.refresh();
   assert.equal(result.updated, true);
-  assert.equal(state.rulesVersion, "1.1.1");
-  assert.equal(state.rulesCatalog.version, "1.1.1");
+  assert.equal(state.rulesVersion, "1.2.1");
+  assert.equal(state.rulesCatalog.version, "1.2.1");
   assert.equal(typeof listeners.startup, "function");
   assert.equal(typeof listeners.installed, "function");
   assert.equal(listeners.message({ type: "IGNORED" }, null, () => undefined), false);

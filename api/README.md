@@ -24,12 +24,26 @@ Em produção, use volume persistente para `/data/rulesets`, HTTPS e apenas um w
 - `PUT /v1/rules/{id}` — edição completa.
 - `DELETE /v1/rules/{id}` — remoção.
 
+Tipos aceitos em `kind`: `pattern`, `keyword`, `heuristic` e `filename`. Regras `filename` usam `label`, `score` e `file_names`, e são distribuídas à extensão dentro de `fileNameRules`.
+
 Use `If-Match: "<versão>"` nas mutações para evitar sobrescrita concorrente. A resposta devolve a versão atual em `ETag`.
 
 ```powershell
 $headers = @{ Authorization = "Bearer $env:AI_SAFETY_API_TOKEN"; "If-Match" = '"1.1.0"' }
 $body = @{ kind="keyword"; category="credentials"; keyword="client_secret" } | ConvertTo-Json
 Invoke-RestMethod http://127.0.0.1:8000/v1/rules -Method Post -Headers $headers -ContentType application/json -Body $body
+```
+
+Exemplo de regra de nome de arquivo:
+
+```json
+{
+  "kind": "filename",
+  "category": "sensitiveFileNames",
+  "label": "Backups de banco",
+  "score": 90,
+  "file_names": ["dump.sql", "db_backup.tar.gz"]
+}
 ```
 
 Documentação OpenAPI: `http://127.0.0.1:8000/docs`.

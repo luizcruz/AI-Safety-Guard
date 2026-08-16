@@ -1,7 +1,9 @@
+if (typeof importScripts === "function" && typeof globalThis.AISafetyGuardRules === "undefined") importScripts("rules.js");
+
 (function rulesUpdater(root, factory) {
   const api = factory();
   if (typeof module === "object" && module.exports) module.exports = api;
-  if (typeof chrome !== "undefined" && chrome.runtime && chrome.storage) api.register(chrome);
+  if (typeof chrome !== "undefined" && chrome.runtime && chrome.storage) api.register(chrome, fetch, root.AISafetyGuardRules ? root.AISafetyGuardRules.version : "0.0.0");
 })(typeof globalThis !== "undefined" ? globalThis : this, function createRulesUpdater() {
   "use strict";
 
@@ -18,7 +20,7 @@
 
   function validateCatalog(catalog) {
     if (!catalog || typeof catalog.version !== "string" || !/^\d+\.\d+\.\d+$/.test(catalog.version)) return false;
-    if (!catalog.categories || !Object.keys(catalog.categories).length || !Array.isArray(catalog.patterns) || !catalog.keywords || !Array.isArray(catalog.heuristics)) return false;
+    if (!catalog.categories || !Object.keys(catalog.categories).length || !Array.isArray(catalog.patterns) || !catalog.keywords || !Array.isArray(catalog.heuristics) || !Array.isArray(catalog.fileNameRules || [])) return false;
     try {
       for (const rule of catalog.patterns) {
         if (!catalog.categories[rule.category] || typeof rule.source !== "string" || rule.source.length > 5000 || rule.score < 0 || rule.score > 100 || ![null, undefined, "luhn", "iban"].includes(rule.validator)) return false;
@@ -29,6 +31,9 @@
       }
       for (const rule of catalog.heuristics) {
         if (!catalog.categories[rule.category] || typeof rule.id !== "string" || typeof rule.score !== "number" || rule.score < 0 || rule.score > 100) return false;
+      }
+      for (const rule of catalog.fileNameRules || []) {
+        if (!catalog.categories[rule.category] || typeof rule.label !== "string" || !Array.isArray(rule.names) || !rule.names.length || rule.names.some((name) => typeof name !== "string") || rule.score < 0 || rule.score > 100) return false;
       }
     } catch {
       return false;
@@ -53,11 +58,17 @@
     return { updated: true, catalog };
   }
 
-  function register(chromeApi, fetchImpl = fetch) {
+  function register(chromeApi, fetchImpl = fetch, bundledVersion = "1.2.0") {
     const refresh = async () => {
-      const config = await chromeApi.storage.local.get({ apiUrl: DEFAULT_API_URL, apiToken: "", rulesVersion: "1.1.0" });
+      const config = await chromeApi.storage.local.get({ apiUrl: DEFAULT_API_URL, apiToken: "", rulesVersion: bundledVersion });
       try {
-        const result = await downloadRules({ ...config, currentVersion: config.rulesVersion }, fetchImpl);
+        const bundledIsNewer = compareVersions(bundledVersion, config.rulesVersion) > 0;
+        if (bundledIsNewer) {
+          if (chromeApi.storage.local.remove) await chromeApi.storage.local.remove("rulesCatalog");
+          await chromeApi.storage.local.set({ rulesVersion: bundledVersion });
+        }
+        const currentVersion = bundledIsNewer ? bundledVersion : config.rulesVersion;
+        const result = await downloadRules({ ...config, currentVersion }, fetchImpl);
         if (result.updated) {
           await chromeApi.storage.local.set({ rulesCatalog: result.catalog, rulesVersion: result.catalog.version, rulesLastUpdated: new Date().toISOString(), rulesLastError: "" });
         } else {

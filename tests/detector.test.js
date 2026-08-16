@@ -2,7 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { analyze, _internal } = require("../src/detector.js");
+const { analyze, analyzeFileName, updateCatalog, _internal } = require("../src/detector.js");
 
 test("detecta documentos pessoais", () => {
   const result = analyze("CPF: 123.456.789-09\nRG: 12.345.678-X\nÓrgão Emissor: SSP");
@@ -145,6 +145,20 @@ test("valida checksum IBAN", () => {
   assert.equal(analyze("IBAN inválido GB00WEST12345698765432").findings.some((item) => item.label === "IBAN"), false);
 });
 
+test("detecta nomes de arquivos sensíveis com normalização segura", () => {
+  const config = analyzeFileName("C:\\temp\\CONFIG.JSON");
+  const copy = analyzeFileName("cpf (1).pdf");
+  assert.equal(config.blocked, true);
+  assert.equal(copy.blocked, true);
+  assert.equal(config.categories[0], "sensitiveFileNames");
+  assert.equal(analyzeFileName("relatorio_publico.pdf").blocked, false);
+  assert.equal(analyzeFileName(".env", { enabledCategories: ["personal"] }).blocked, false);
+});
+
+test("não permite downgrade do catálogo ativo", () => {
+  assert.throws(() => updateCatalog({ version: "1.0.0", categories: {}, patterns: [], keywords: {}, heuristics: [], fileNameRules: [] }), /mais antigo/);
+});
+
 test("aplica catálogo remoto sem recarregar a página", () => {
   const remote = {
     version: "9.0.0",
@@ -153,7 +167,7 @@ test("aplica catálogo remoto sem recarregar a página", () => {
     keywords: { custom: [] },
     heuristics: []
   };
-  assert.equal(require("../src/detector.js").updateCatalog(remote), "9.0.0");
+  assert.equal(updateCatalog(remote), "9.0.0");
   const result = analyze("REMOTE_SECRET_123");
   assert.equal(result.blocked, true);
   assert.deepEqual(result.categories, ["custom"]);
