@@ -5,7 +5,7 @@
   "description": "AI Safety Guard v1.0 Chrome extension for preventing sensitive data exposure in AI chats.",
   "scripts": {
     "test": "node --test tests/*.test.js",
-    "check": "node --check src/rules.js && node --check src/detector.js && node --check src/content.js && node --check src/popup.js"
+    "check": "node --check src/rules.js && node --check src/detector.js && node --check src/content.js && node --check src/background.js && node --check src/popup.js"
   },
   "engines": {
     "node": ">=18"

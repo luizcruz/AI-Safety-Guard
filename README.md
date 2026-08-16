@@ -4,7 +4,11 @@ Extensão Chrome Manifest V3 que analisa localmente mensagens destinadas ao Chat
 
 ## Arquitetura de regras
 
-O catálogo declarativo fica em `src/rules.js`: categorias, expressões regulares, palavras-chave, pontuações, validadores e heurísticas. Expressões são armazenadas como `source` e `flags`, mantendo o catálogo serializável para uma futura API. `src/detector.js` compila e executa esse catálogo localmente.
+O catálogo declarativo embarcado fica em `src/rules.js`: categorias, expressões regulares, palavras-chave, pontuações, validadores e heurísticas. Expressões são armazenadas como `source` e `flags`, no mesmo formato serializável entregue pela API. `src/detector.js` compila e executa esse catálogo localmente.
+
+A API em `api/` oferece CRUD autenticado e snapshots versionados. O service worker consulta `/v1/rulesets/latest` ao instalar/iniciar o Chrome, aceita somente versões mais recentes e catálogos válidos, e os distribui aos content scripts via `chrome.storage.local`. Falhas de rede preservam o último catálogo válido ou o conjunto embarcado.
+
+Configure a URL e o Bearer token no popup da extensão. O token fica apenas no armazenamento local do perfil do Chrome; nenhuma mensagem de chat é enviada à API.
 
 ## Instalação local
 
@@ -17,6 +21,13 @@ O catálogo declarativo fica em `src/rules.js`: categorias, expressões regulare
 ```powershell
 npm test
 npm run check
+```
+
+Testes da API:
+
+```powershell
+pip install -r api/requirements-dev.txt
+pytest api/tests --cov=api/app
 ```
 
 ## Privacidade

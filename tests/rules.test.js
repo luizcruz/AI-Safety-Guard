@@ -21,6 +21,13 @@ test("todas as regras apontam para categorias existentes", () => {
 test("manifest carrega catálogo antes do detector", () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "manifest.json"), "utf8"));
   assert.deepEqual(manifest.content_scripts[0].js, ["src/rules.js", "src/detector.js", "src/content.js"]);
+  assert.equal(manifest.background.service_worker, "src/background.js");
+  assert.ok(manifest.permissions.includes("storage"));
+});
+
+test("seed da API corresponde ao catálogo embarcado", () => {
+  const seed = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "api", "seed-ruleset.json"), "utf8"));
+  assert.deepEqual(seed, catalog);
 });
 
 test("alerta explicita as categorias possivelmente infringidas", () => {

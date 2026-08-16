@@ -144,3 +144,17 @@ test("valida checksum IBAN", () => {
   assert.equal(_internal.isIbanMatch("GB00WEST12345698765432"), false);
   assert.equal(analyze("IBAN inválido GB00WEST12345698765432").findings.some((item) => item.label === "IBAN"), false);
 });
+
+test("aplica catálogo remoto sem recarregar a página", () => {
+  const remote = {
+    version: "9.0.0",
+    categories: { custom: "Categoria remota" },
+    patterns: [{ category: "custom", label: "Regra remota", source: "REMOTE_SECRET_[0-9]+", flags: "g", score: 100, validator: null }],
+    keywords: { custom: [] },
+    heuristics: []
+  };
+  assert.equal(require("../src/detector.js").updateCatalog(remote), "9.0.0");
+  const result = analyze("REMOTE_SECRET_123");
+  assert.equal(result.blocked, true);
+  assert.deepEqual(result.categories, ["custom"]);
+});

@@ -14,12 +14,17 @@
   let overlay = null;
 
   chrome.storage.sync.get(DEFAULTS, (stored) => { settings = normalizeSettings(stored); });
+  chrome.storage.local.get("rulesCatalog", ({ rulesCatalog }) => {
+    if (rulesCatalog) applyRemoteCatalog(rulesCatalog);
+  });
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area !== "sync") return;
-    settings = normalizeSettings({
-      enabled: changes.enabled ? changes.enabled.newValue : settings.enabled,
-      enabledCategories: changes.enabledCategories ? changes.enabledCategories.newValue : settings.enabledCategories
-    });
+    if (area === "local" && changes.rulesCatalog && changes.rulesCatalog.newValue) applyRemoteCatalog(changes.rulesCatalog.newValue);
+    if (area === "sync") {
+      settings = normalizeSettings({
+        enabled: changes.enabled ? changes.enabled.newValue : settings.enabled,
+        enabledCategories: changes.enabledCategories ? changes.enabledCategories.newValue : settings.enabledCategories
+      });
+    }
   });
 
   document.addEventListener("submit", interceptSubmit, true);
@@ -31,6 +36,21 @@
       enabled: value.enabled !== false,
       enabledCategories: Array.isArray(value.enabledCategories) ? value.enabledCategories : DEFAULTS.enabledCategories
     };
+  }
+
+  function applyRemoteCatalog(catalog) {
+    try {
+      const previous = new Set(settings.enabledCategories);
+      const previousCategories = new Set(Object.keys(AISafetyGuard.CATEGORIES));
+      AISafetyGuard.updateCatalog(catalog);
+      const added = Object.keys(AISafetyGuard.CATEGORIES).filter((category) => !previousCategories.has(category));
+      if (added.length) {
+        settings.enabledCategories = [...new Set([...previous, ...added])];
+        chrome.storage.sync.set({ enabledCategories: settings.enabledCategories });
+      }
+    } catch (error) {
+      console.warn("AI Safety Guard ignorou um catálogo remoto inválido.", error);
+    }
   }
 
   function interceptSubmit(event) {

@@ -7,8 +7,30 @@
   "use strict";
 
   if (!catalog || !catalog.categories || !catalog.patterns) throw new Error("Catálogo de regras DLP indisponível");
-  const CATEGORIES = catalog.categories;
-  const compiledPatterns = catalog.patterns.map((item) => ({ ...item, regex: new RegExp(item.source, item.flags) }));
+  const CATEGORIES = {};
+  let compiledPatterns = [];
+
+  function compileCatalog(nextCatalog) {
+    if (!nextCatalog || typeof nextCatalog.version !== "string" || !nextCatalog.categories || !Array.isArray(nextCatalog.patterns) || !nextCatalog.keywords || !Array.isArray(nextCatalog.heuristics)) {
+      throw new Error("Catálogo de regras DLP inválido");
+    }
+    const patterns = nextCatalog.patterns.map((item) => {
+      if (!nextCatalog.categories[item.category] || typeof item.source !== "string" || item.source.length > 5000 || typeof item.score !== "number" || ![null, undefined, "luhn", "iban"].includes(item.validator)) throw new Error("Regra de padrão inválida");
+      return { ...item, regex: new RegExp(item.source, item.flags) };
+    });
+    for (const [category, words] of Object.entries(nextCatalog.keywords)) {
+      if (!nextCatalog.categories[category] || !Array.isArray(words) || words.some((word) => typeof word !== "string")) throw new Error("Regra de palavra-chave inválida");
+    }
+    for (const heuristic of nextCatalog.heuristics) {
+      if (!nextCatalog.categories[heuristic.category] || typeof heuristic.id !== "string" || typeof heuristic.score !== "number") throw new Error("Regra heurística inválida");
+    }
+    for (const key of Object.keys(CATEGORIES)) delete CATEGORIES[key];
+    Object.assign(CATEGORIES, nextCatalog.categories);
+    compiledPatterns = patterns;
+    catalog = nextCatalog;
+  }
+
+  compileCatalog(catalog);
 
   function isLuhnMatch(value) {
     const digits = value.replace(/\D/g, "");
@@ -136,7 +158,9 @@
     const documentFacts = facts(input);
     for (const heuristic of catalog.heuristics) {
       if (!enabledCategories.has(heuristic.category)) continue;
-      const sample = heuristicHandlers[heuristic.id](documentFacts);
+      const handler = heuristicHandlers[heuristic.id];
+      if (!handler) continue;
+      const sample = handler(documentFacts);
       if (sample) addFinding(findings, { category: heuristic.category, label: heuristic.label, score: heuristic.score, sample });
     }
     for (const [category, words] of Object.entries(catalog.keywords)) {
@@ -156,5 +180,10 @@
     };
   }
 
-  return Object.freeze({ analyze, CATEGORIES, _internal: Object.freeze({ isLuhnMatch, isIbanMatch, redact }) });
+  function updateCatalog(nextCatalog) {
+    compileCatalog(nextCatalog);
+    return catalog.version;
+  }
+
+  return Object.freeze({ analyze, updateCatalog, CATEGORIES, _internal: Object.freeze({ isLuhnMatch, isIbanMatch, redact }) });
 });

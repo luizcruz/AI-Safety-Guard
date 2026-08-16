@@ -2,3 +2,9 @@ node_modules/
 coverage/
 dist/
 *.zip
+api/.env
+api/data/rulesets/*.json
+!api/data/rulesets/.gitkeep
+__pycache__/
+.pytest_cache/
+.coverage

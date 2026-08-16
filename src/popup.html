@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>AI Safety Guard v1.0</title>
     <style>
-      body{font:14px system-ui,sans-serif;width:320px;margin:0;padding:18px;color:#172033}h1{font-size:17px;margin:0 0 6px}p{color:#64748b;margin:0 0 16px;line-height:1.4}.row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid #e2e8f0}.row:first-of-type{font-weight:700;border-bottom:2px solid #cbd5e1}input{accent-color:#b42318}.note{font-size:11px;margin:14px 0 0}
+      body{font:14px system-ui,sans-serif;width:340px;max-height:580px;overflow:auto;margin:0;padding:18px;color:#172033}h1{font-size:17px;margin:0 0 6px}h2{font-size:14px;margin:18px 0 8px}p{color:#64748b;margin:0 0 16px;line-height:1.4}.row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid #e2e8f0}.row:first-of-type{font-weight:700;border-bottom:2px solid #cbd5e1}input{accent-color:#b42318}.field{display:block;margin:8px 0}.field input{box-sizing:border-box;width:100%;margin-top:4px;padding:8px;border:1px solid #cbd5e1;border-radius:7px}button{width:100%;padding:9px;border:0;border-radius:7px;background:#172033;color:#fff;font-weight:700;cursor:pointer}.note{font-size:11px;margin:12px 0 0}.status{padding:8px;border-radius:7px;background:#f1f5f9;color:#475569;font-size:12px}
     </style>
   </head>
   <body>
@@ -13,6 +13,15 @@
     <p>Bloqueio local de dados sensíveis em chats de IA.</p>
     <label class="row">Proteção ativa <input id="enabled" type="checkbox"></label>
     <div id="categories"></div>
+    <section>
+      <h2>Atualização de regras</h2>
+      <form id="api-settings">
+        <label class="field">URL da API <input id="api-url" type="url" required placeholder="http://127.0.0.1:8000"></label>
+        <label class="field">Bearer token <input id="api-token" type="password" autocomplete="off" required></label>
+        <button type="submit">Salvar e atualizar agora</button>
+      </form>
+      <p id="rules-status" class="status">Carregando status…</p>
+    </section>
     <p class="note">Nenhum conteúdo é enviado para servidores externos.</p>
     <script src="rules.js"></script>
     <script src="detector.js"></script>

@@ -1,0 +1,18 @@
+services:
+  rules-api:
+    build: ./api
+    environment:
+      AI_SAFETY_API_TOKEN: ${AI_SAFETY_API_TOKEN:?configure AI_SAFETY_API_TOKEN}
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - rules-data:/data/rulesets
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  rules-data:

@@ -4,6 +4,11 @@
   "version": "1.0.0",
   "description": "Proteção local contra o envio de dados sensíveis para chats de IA.",
   "permissions": ["storage"],
+  "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
+  "optional_host_permissions": ["https://*/*"],
+  "background": {
+    "service_worker": "src/background.js"
+  },
   "action": {
     "default_title": "AI Safety Guard v1.0",
     "default_popup": "src/popup.html"
