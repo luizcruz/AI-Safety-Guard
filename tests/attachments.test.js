@@ -55,6 +55,14 @@ test("extrai texto de PDF real com PDF.js", async () => {
   assert.match(extracted.text, /123\.456\.789-09/);
 });
 
+test("bundle do worker PDF inicializa no contexto principal da extensão", async () => {
+  delete globalThis.pdfjsWorker;
+  const workerUrl = `${pathToFileURL(path.join(__dirname, "..", "vendor", "pdf.worker.mjs")).href}?test=main-thread-worker`;
+  await import(workerUrl);
+  assert.equal(typeof globalThis.pdfjsWorker.WorkerMessageHandler, "function");
+  delete globalThis.pdfjsWorker;
+});
+
 test("extrai texto de DOCX real com Mammoth", async () => {
   const attachment = file("dados.docx", await createDocx("api_key: segredo-interno"));
   const extracted = await extractText(attachment, {}, {

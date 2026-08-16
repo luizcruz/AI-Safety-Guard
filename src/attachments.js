@@ -50,8 +50,10 @@
 
   async function defaultPdfLoader() {
     if (!root.chrome || !root.chrome.runtime) throw new AttachmentError("pdf-unavailable", "Leitor de PDF indisponível");
+    const workerUrl = root.chrome.runtime.getURL("vendor/pdf.worker.mjs");
+    await import(workerUrl);
     const pdfjs = await import(root.chrome.runtime.getURL("vendor/pdf.mjs"));
-    pdfjs.GlobalWorkerOptions.workerSrc = root.chrome.runtime.getURL("vendor/pdf.worker.mjs");
+    pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
     return pdfjs;
   }
 

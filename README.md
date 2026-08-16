@@ -12,7 +12,7 @@ Configure a URL e o Bearer token no popup da extensão. O token fica apenas no a
 
 ## Análise de anexos
 
-- PDF: extração textual local com PDF.js, limitada a 200 páginas.
+- PDF: extração textual local com PDF.js, limitada a 200 páginas e executada sem worker `blob:`, para respeitar a CSP dos sites suportados.
 - DOCX: extração textual local com Mammoth.js.
 - DOC legado: recuperação defensiva de cadeias textuais embutidas.
 - Limites: 15 MB por arquivo, 2 milhões de caracteres e 20 segundos por operação.
