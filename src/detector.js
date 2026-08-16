@@ -1,8 +1,8 @@
 (function exposeDetector(root, factory) {
-  const catalog = typeof module === "object" && module.exports ? require("./rules.js") : root.AIChatDLPRules;
+  const catalog = typeof module === "object" && module.exports ? require("./rules.js") : root.AISafetyGuardRules;
   const api = factory(catalog);
   if (typeof module === "object" && module.exports) module.exports = api;
-  root.AIChatDLP = api;
+  root.AISafetyGuard = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, function createDetector(catalog) {
   "use strict";
 

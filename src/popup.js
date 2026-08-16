@@ -4,7 +4,7 @@
   const container = document.querySelector("#categories");
   const categoryInputs = new Map();
 
-  for (const [key, label] of Object.entries(AIChatDLP.CATEGORIES)) {
+  for (const [key, label] of Object.entries(AISafetyGuard.CATEGORIES)) {
     const row = document.createElement("label");
     row.className = "row";
     row.append(document.createTextNode(label));
@@ -17,7 +17,7 @@
     categoryInputs.set(key, input);
   }
 
-  chrome.storage.sync.get({ enabled: true, enabledCategories: Object.keys(AIChatDLP.CATEGORIES) }, (settings) => {
+  chrome.storage.sync.get({ enabled: true, enabledCategories: Object.keys(AISafetyGuard.CATEGORIES) }, (settings) => {
     enabled.checked = settings.enabled !== false;
     for (const [key, input] of categoryInputs) input.checked = settings.enabledCategories.includes(key);
   });

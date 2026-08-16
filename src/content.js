@@ -1,7 +1,7 @@
 (function protectAIChat() {
   "use strict";
 
-  const DEFAULTS = { enabled: true, enabledCategories: Object.keys(AIChatDLP.CATEGORIES) };
+  const DEFAULTS = { enabled: true, enabledCategories: Object.keys(AISafetyGuard.CATEGORIES) };
   const SEND_SELECTOR = [
     "button[data-testid*='send']",
     "button[aria-label*='Send' i]",
@@ -74,7 +74,7 @@
 
   function inspectAndBlock(event, input) {
     if (!settings.enabled) return false;
-    const result = AIChatDLP.analyze(readInput(input), settings);
+    const result = AISafetyGuard.analyze(readInput(input), settings);
     if (!result.blocked) return false;
     event.preventDefault();
     event.stopPropagation();
@@ -86,7 +86,7 @@
   function showAlert(result, input) {
     if (overlay) overlay.remove();
     overlay = document.createElement("div");
-    overlay.id = "ai-chat-dlp-alert";
+    overlay.id = "ai-safety-guard-alert";
     overlay.style.cssText = "position:fixed;inset:0;z-index:2147483647;background:rgba(15,23,42,.72);display:grid;place-items:center;padding:20px;font-family:system-ui,sans-serif";
     const panel = document.createElement("section");
     panel.setAttribute("role", "alertdialog");
@@ -102,14 +102,14 @@
     description.textContent = "Remova ou anonimize os dados abaixo antes de tentar novamente. A análise ocorreu localmente no seu navegador.";
     description.style.cssText = "font-size:14px;line-height:1.5;margin:0 0 16px;color:#475569";
     const categoryWarning = document.createElement("p");
-    const categoryNames = result.categories.map((category) => AIChatDLP.CATEGORIES[category]);
+    const categoryNames = result.categories.map((category) => AISafetyGuard.CATEGORIES[category]);
     categoryWarning.textContent = `Possível infração nas categorias: ${categoryNames.join(", ")}.`;
     categoryWarning.style.cssText = "font-size:14px;line-height:1.5;margin:0 0 16px;padding:12px;border-radius:9px;background:#fef3f2;color:#912018;font-weight:700";
     const list = document.createElement("ul");
     list.style.cssText = "margin:0 0 20px;padding-left:20px;font-size:14px;line-height:1.7";
     result.findings.forEach((finding) => {
       const item = document.createElement("li");
-      item.textContent = `${AIChatDLP.CATEGORIES[finding.category]} — ${finding.label} (${finding.sample})`;
+      item.textContent = `${AISafetyGuard.CATEGORIES[finding.category]} — ${finding.label} (${finding.sample})`;
       list.appendChild(item);
     });
     const close = document.createElement("button");

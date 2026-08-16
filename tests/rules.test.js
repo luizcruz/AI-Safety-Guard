@@ -28,3 +28,13 @@ test("alerta explicita as categorias possivelmente infringidas", () => {
   assert.match(content, /Possível infração nas categorias/);
   assert.match(content, /result\.categories\.map/);
 });
+
+test("identidade pública usa exclusivamente AI Safety Guard v1.0", () => {
+  const root = path.join(__dirname, "..");
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, "manifest.json"), "utf8"));
+  const popup = fs.readFileSync(path.join(root, "src", "popup.html"), "utf8");
+  const readme = fs.readFileSync(path.join(root, "README.md"), "utf8");
+  assert.equal(manifest.name, "AI Safety Guard v1.0");
+  assert.equal(manifest.action.default_title, "AI Safety Guard v1.0");
+  assert.doesNotMatch(`${popup}\n${readme}`, /AI Chat DLP Guard/i);
+});

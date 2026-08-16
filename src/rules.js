@@ -1,7 +1,7 @@
 (function exposeRuleCatalog(root, factory) {
   const catalog = factory();
   if (typeof module === "object" && module.exports) module.exports = catalog;
-  root.AIChatDLPRules = catalog;
+  root.AISafetyGuardRules = catalog;
 })(typeof globalThis !== "undefined" ? globalThis : this, function createRuleCatalog() {
   "use strict";
 

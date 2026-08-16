@@ -1,11 +1,11 @@
 {
   "manifest_version": 3,
-  "name": "AI Chat DLP Guard",
-  "version": "1.1.0",
-  "description": "Detecta e bloqueia o envio de dados sensíveis para chats de IA.",
+  "name": "AI Safety Guard v1.0",
+  "version": "1.0.0",
+  "description": "Proteção local contra o envio de dados sensíveis para chats de IA.",
   "permissions": ["storage"],
   "action": {
-    "default_title": "AI Chat DLP Guard",
+    "default_title": "AI Safety Guard v1.0",
     "default_popup": "src/popup.html"
   },
   "content_scripts": [
