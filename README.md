@@ -1,6 +1,10 @@
 # AI Chat DLP Guard
 
-Extensão Chrome Manifest V3 que analisa localmente mensagens destinadas ao ChatGPT, Claude, Perplexity e Gemini. Quando encontra evidências de documentos pessoais, médicos, financeiros, corporativos ou credenciais, interrompe o evento de envio e solicita a remoção/anonimização dos dados.
+Extensão Chrome Manifest V3 que analisa localmente mensagens destinadas ao ChatGPT, Claude, Perplexity e Gemini. Quando encontra evidências de dados sensíveis, infraestrutura, propriedade intelectual, PCI/Banking, RH ou PII em logs, interrompe o evento de envio, informa as categorias possivelmente infringidas e solicita a remoção/anonimização.
+
+## Arquitetura de regras
+
+O catálogo declarativo fica em `src/rules.js`: categorias, expressões regulares, palavras-chave, pontuações, validadores e heurísticas. Expressões são armazenadas como `source` e `flags`, mantendo o catálogo serializável para uma futura API. `src/detector.js` compila e executa esse catálogo localmente.
 
 ## Instalação local
 

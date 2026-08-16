@@ -101,6 +101,10 @@
     const description = document.createElement("p");
     description.textContent = "Remova ou anonimize os dados abaixo antes de tentar novamente. A análise ocorreu localmente no seu navegador.";
     description.style.cssText = "font-size:14px;line-height:1.5;margin:0 0 16px;color:#475569";
+    const categoryWarning = document.createElement("p");
+    const categoryNames = result.categories.map((category) => AIChatDLP.CATEGORIES[category]);
+    categoryWarning.textContent = `Possível infração nas categorias: ${categoryNames.join(", ")}.`;
+    categoryWarning.style.cssText = "font-size:14px;line-height:1.5;margin:0 0 16px;padding:12px;border-radius:9px;background:#fef3f2;color:#912018;font-weight:700";
     const list = document.createElement("ul");
     list.style.cssText = "margin:0 0 20px;padding-left:20px;font-size:14px;line-height:1.7";
     result.findings.forEach((finding) => {
@@ -120,7 +124,7 @@
     overlay.addEventListener("keydown", (event) => {
       if (event.key === "Escape") close.click();
     });
-    panel.append(title, description, list, close);
+    panel.append(title, description, categoryWarning, list, close);
     overlay.appendChild(panel);
     document.documentElement.appendChild(overlay);
     close.focus();

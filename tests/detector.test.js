@@ -71,3 +71,76 @@ test("redação não expõe o valor completo", () => {
   assert.equal(_internal.redact("123.456.789-09"), "123••••-09");
   assert.equal(_internal.isLuhnMatch("4111 1111 1111 1111"), true);
 });
+
+test("detecta infraestrutura e bancos de dados", () => {
+  const result = analyze("DATABASE_URL=postgres://admin:secret@10.1.2.3:5432/producao");
+  assert.equal(result.blocked, true);
+  assert.ok(result.findings.some((item) => item.label === "String de conexão"));
+  assert.ok(result.categories.includes("infrastructure"));
+});
+
+test("detecta artefatos expostos de infraestrutura", () => {
+  const result = analyze("https://backup-prod.s3.amazonaws.com/dump.sql\nterraform/prod.tfstate\nredis_auth=segredo");
+  assert.ok(result.findings.some((item) => item.label === "Bucket S3 exposto"));
+  assert.ok(result.findings.some((item) => item.label === "Estado do Terraform"));
+});
+
+test("detecta configuração com segredo em texto puro", () => {
+  const result = analyze("Arquivo .env commitado\ndb_password=segredo123");
+  assert.ok(result.findings.some((item) => item.label === "Arquivo de configuração com senha em texto puro"));
+});
+
+test("detecta propriedade intelectual e compartilhamento público", () => {
+  const result = analyze("CONFIDENTIAL\nhttps://gist.github.com/user/abc\n```js\nconst trade_secret = true;\n```");
+  assert.equal(result.blocked, true);
+  assert.ok(result.findings.some((item) => item.label === "Código potencialmente interno em compartilhamento público"));
+});
+
+test("detecta licença e pacote potencialmente proprietários", () => {
+  const result = analyze("Copyright (c) 2026 ACME Corp\nimport '@acme/pacote-interno';");
+  assert.ok(result.findings.some((item) => item.label === "Aviso de copyright corporativo"));
+  assert.ok(result.findings.some((item) => item.label === "Pacote privado"));
+});
+
+test("detecta dados PCI e bancários globais", () => {
+  const result = analyze('IBAN GB82WEST12345698765432, SWIFT DEUTDEFF e "cvv": "123"');
+  assert.equal(result.blocked, true);
+  assert.ok(result.findings.some((item) => item.label === "IBAN"));
+  assert.ok(result.findings.some((item) => item.label === "SWIFT/BIC"));
+  assert.ok(result.findings.some((item) => item.label === "CVV/CVC exposto"));
+});
+
+test("detecta payload de pagamento sem masking", () => {
+  const result = analyze('application log payload {"card_number":"4111111111111111","cvv":"123"}');
+  assert.ok(result.findings.some((item) => item.label === "Payload de pagamento sem mascaramento"));
+});
+
+test("detecta estrutura de folha de pagamento", () => {
+  const result = analyze("folha.xlsx\nNome;CPF;Cargo;Salário\nAna;123.456.789-09;Diretora;R$ 25.000,00");
+  assert.equal(result.blocked, true);
+  assert.ok(result.findings.some((item) => item.label === "Tabela de RH/folha de pagamento"));
+});
+
+test("detecta matrícula funcional e termos de RH", () => {
+  const result = analyze("Holerite da matrícula ABC-123456 com Bônus Executivo");
+  assert.ok(result.findings.some((item) => item.label === "Matrícula funcional"));
+  assert.ok(result.categories.includes("hrPayroll"));
+});
+
+test("detecta PII em telemetria e logs", () => {
+  const result = analyze("Datadog request_body={nome: Ana, cpf: 123.456.789-09}\nGET /login?password=segredo");
+  assert.equal(result.blocked, true);
+  assert.ok(result.findings.some((item) => item.label === "Credencial em parâmetro GET"));
+  assert.ok(result.findings.some((item) => item.label === "PII não sanitizada em observabilidade"));
+});
+
+test("detecta stacktrace de aplicação", () => {
+  const result = analyze("Uncaught Exception\n  at handler (/app/server.js:10:15)");
+  assert.ok(result.findings.some((item) => item.label === "Stacktrace"));
+});
+
+test("valida checksum IBAN", () => {
+  assert.equal(_internal.isIbanMatch("GB82WEST12345698765432"), true);
+  assert.equal(_internal.isIbanMatch("GB00WEST12345698765432"), false);
+  assert.equal(analyze("IBAN inválido GB00WEST12345698765432").findings.some((item) => item.label === "IBAN"), false);
+});
