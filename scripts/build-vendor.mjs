@@ -1,4 +1,4 @@
-import { copyFile, mkdir } from "node:fs/promises";
+import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -13,3 +13,15 @@ const files = [
 
 await mkdir(resolve(root, "vendor"), { recursive: true });
 for (const [source, destination] of files) await copyFile(resolve(root, source), resolve(root, destination));
+
+for (const license of ["vendor/LICENSE.mammoth", "vendor/LICENSE.pdfjs"]) {
+  const licensePath = resolve(root, license);
+  const source = await readFile(licensePath, "utf8");
+  await writeFile(licensePath, source.replace(/[ \t]+$/gm, ""));
+}
+
+const pdfPath = resolve(root, "vendor/pdf.mjs");
+const pdfSource = await readFile(pdfPath, "utf8");
+const workerFlag = "static #isWorkerDisabled = false;";
+if (!pdfSource.includes(workerFlag)) throw new Error("Não foi possível desabilitar o Web Worker do PDF.js");
+await writeFile(pdfPath, pdfSource.replace(workerFlag, "static #isWorkerDisabled = true;"));

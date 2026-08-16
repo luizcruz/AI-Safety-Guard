@@ -34,9 +34,12 @@ test("bibliotecas de documentos são empacotadas localmente", () => {
 
 test("worker PDF é carregado antes da biblioteca para evitar worker blob", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "src", "attachments.js"), "utf8");
+  const pdfBundle = fs.readFileSync(path.join(__dirname, "..", "vendor", "pdf.mjs"), "utf8");
   const workerImport = source.indexOf("await import(workerUrl)");
   const pdfImport = source.indexOf('await import(root.chrome.runtime.getURL("vendor/pdf.mjs"))');
   assert.ok(workerImport >= 0 && pdfImport > workerImport);
+  assert.match(pdfBundle, /static #isWorkerDisabled = true;/);
+  assert.doesNotMatch(pdfBundle, /static #isWorkerDisabled = false;/);
 });
 
 test("seed da API corresponde ao catálogo embarcado", () => {
@@ -70,7 +73,7 @@ test("identidade pública usa exclusivamente AI Safety Guard v1.1", () => {
   const packageLock = JSON.parse(fs.readFileSync(path.join(root, "package-lock.json"), "utf8"));
   const popup = fs.readFileSync(path.join(root, "src", "popup.html"), "utf8");
   const readme = fs.readFileSync(path.join(root, "README.md"), "utf8");
-  assert.equal(manifest.version, "1.1.2");
+  assert.equal(manifest.version, "1.1.3");
   assert.equal(packageManifest.version, manifest.version);
   assert.equal(packageLock.version, manifest.version);
   assert.equal(packageLock.packages[""].version, manifest.version);
