@@ -20,9 +20,16 @@ test("todas as regras apontam para categorias existentes", () => {
 
 test("manifest carrega catálogo antes do detector", () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "manifest.json"), "utf8"));
-  assert.deepEqual(manifest.content_scripts[0].js, ["src/rules.js", "src/detector.js", "src/content.js"]);
+  assert.deepEqual(manifest.content_scripts[0].js, ["src/rules.js", "src/detector.js", "src/attachments.js", "src/content.js"]);
   assert.equal(manifest.background.service_worker, "src/background.js");
   assert.ok(manifest.permissions.includes("storage"));
+});
+
+test("bibliotecas de documentos são empacotadas localmente", () => {
+  const root = path.join(__dirname, "..");
+  for (const name of ["pdf.mjs", "pdf.worker.mjs", "mammoth.browser.min.mjs"]) {
+    assert.ok(fs.statSync(path.join(root, "vendor", name)).size > 100_000, name);
+  }
 });
 
 test("seed da API corresponde ao catálogo embarcado", () => {
@@ -34,6 +41,8 @@ test("alerta explicita as categorias possivelmente infringidas", () => {
   const content = fs.readFileSync(path.join(__dirname, "..", "src", "content.js"), "utf8");
   assert.match(content, /Possível infração nas categorias/);
   assert.match(content, /result\.categories\.map/);
+  assert.match(content, /captureDroppedFiles/);
+  assert.match(content, /finding\.source/);
 });
 
 test("identidade pública usa exclusivamente AI Safety Guard v1.0", () => {

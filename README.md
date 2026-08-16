@@ -1,6 +1,6 @@
 # AI Safety Guard v1.0
 
-Extensão Chrome Manifest V3 que analisa localmente mensagens destinadas ao ChatGPT, Claude, Perplexity e Gemini. Quando encontra evidências de dados sensíveis, infraestrutura, propriedade intelectual, PCI/Banking, RH ou PII em logs, interrompe o evento de envio, informa as categorias possivelmente infringidas e solicita a remoção/anonimização.
+Extensão Chrome Manifest V3 que analisa localmente mensagens e anexos PDF/DOCX/DOC destinados ao ChatGPT, Claude, Perplexity e Gemini. Quando encontra evidências de dados sensíveis, infraestrutura, propriedade intelectual, PCI/Banking, RH ou PII em logs, interrompe o evento de envio, informa as categorias possivelmente infringidas e solicita a remoção/anonimização.
 
 ## Arquitetura de regras
 
@@ -9,6 +9,15 @@ O catálogo declarativo embarcado fica em `src/rules.js`: categorias, expressõe
 A API em `api/` oferece CRUD autenticado e snapshots versionados. O service worker consulta `/v1/rulesets/latest` ao instalar/iniciar o Chrome, aceita somente versões mais recentes e catálogos válidos, e os distribui aos content scripts via `chrome.storage.local`. Falhas de rede preservam o último catálogo válido ou o conjunto embarcado.
 
 Configure a URL e o Bearer token no popup da extensão. O token fica apenas no armazenamento local do perfil do Chrome; nenhuma mensagem de chat é enviada à API.
+
+## Análise de anexos
+
+- PDF: extração textual local com PDF.js, limitada a 200 páginas.
+- DOCX: extração textual local com Mammoth.js.
+- DOC legado: recuperação defensiva de cadeias textuais embutidas.
+- Limites: 15 MB por arquivo, 2 milhões de caracteres e 20 segundos por operação.
+
+O envio permanece bloqueado enquanto a análise estiver pendente ou quando o arquivo não puder ser lido. PDFs digitalizados e documentos compostos apenas por imagens exigem OCR/conversão prévia; o conteúdo dos anexos nunca é enviado à API de regras.
 
 ## Instalação local
 
@@ -21,6 +30,7 @@ Configure a URL e o Bearer token no popup da extensão. O token fica apenas no a
 ```powershell
 npm test
 npm run check
+npm run build:vendor
 ```
 
 Testes da API:

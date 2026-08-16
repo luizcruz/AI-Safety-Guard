@@ -23,8 +23,17 @@
         "https://perplexity.ai/*",
         "https://gemini.google.com/*"
       ],
-      "js": ["src/rules.js", "src/detector.js", "src/content.js"],
+      "js": ["src/rules.js", "src/detector.js", "src/attachments.js", "src/content.js"],
       "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["vendor/pdf.mjs", "vendor/pdf.worker.mjs", "vendor/mammoth.browser.min.mjs"],
+      "matches": [
+        "https://chatgpt.com/*", "https://chat.openai.com/*", "https://claude.ai/*",
+        "https://www.perplexity.ai/*", "https://perplexity.ai/*", "https://gemini.google.com/*"
+      ]
     }
   ]
 }
