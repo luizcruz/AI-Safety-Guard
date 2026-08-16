@@ -13,6 +13,9 @@
   let settings = DEFAULTS;
   let overlay = null;
   const fileInputRecords = new WeakMap();
+  const fileInputGates = new WeakMap();
+  const releasedFileInputEvents = new WeakMap();
+  const releasedTransferEvents = new WeakSet();
   const attachments = new AISafetyAttachmentScanner.Registry((file) => AISafetyAttachmentScanner.scanFile(
     file, AISafetyGuard.analyze, settings, undefined, undefined, AISafetyGuard.analyzeFileName
   ));
@@ -40,6 +43,7 @@
   document.addEventListener("submit", interceptSubmit, true);
   document.addEventListener("click", interceptClick, true);
   document.addEventListener("keydown", interceptEnter, true);
+  document.addEventListener("input", captureFileInput, true);
   document.addEventListener("change", captureFileInput, true);
   document.addEventListener("drop", captureDroppedFiles, true);
   document.addEventListener("paste", capturePastedFiles, true);
@@ -82,17 +86,99 @@
   function captureFileInput(event) {
     const input = event.target;
     if (!(input instanceof HTMLInputElement) || input.type !== "file") return;
+    const releasedTypes = releasedFileInputEvents.get(input);
+    if (releasedTypes && releasedTypes.delete(event.type)) {
+      if (!releasedTypes.size) releasedFileInputEvents.delete(input);
+      return;
+    }
+    const files = Array.from(input.files || []);
+    if (!files.length) return;
+    blockEvent(event);
+    const selectionKey = files.map(AISafetyAttachmentScanner.fingerprint).join("|");
+    const currentGate = fileInputGates.get(input);
+    if (currentGate && currentGate.selectionKey === selectionKey) return;
+    if (currentGate) attachments.remove(currentGate.ids);
     attachments.remove(fileInputRecords.get(input));
-    const ids = attachments.add(input.files);
+    const ids = attachments.add(files);
     fileInputRecords.set(input, ids);
+    const gate = { ids, selectionKey };
+    fileInputGates.set(input, gate);
+    attachments.wait(ids).then((records) => {
+      if (fileInputGates.get(input) !== gate) return;
+      fileInputGates.delete(input);
+      if (!sameSelection(input.files, selectionKey)) {
+        attachments.remove(ids);
+        return;
+      }
+      const promptInput = findInput(input.closest("form") || document) || input;
+      if (!approveAttachmentRecords(records, promptInput)) {
+        input.value = "";
+        attachments.remove(ids);
+        fileInputRecords.delete(input);
+        return;
+      }
+      releasedFileInputEvents.set(input, new Set(["input", "change"]));
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
   }
 
   function captureDroppedFiles(event) {
-    if (event.dataTransfer && event.dataTransfer.files) attachments.add(event.dataTransfer.files);
+    if (releasedTransferEvents.has(event)) return;
+    gateTransferEvent(event, event.dataTransfer);
   }
 
   function capturePastedFiles(event) {
-    if (event.clipboardData && event.clipboardData.files) attachments.add(event.clipboardData.files);
+    if (releasedTransferEvents.has(event)) return;
+    gateTransferEvent(event, event.clipboardData);
+  }
+
+  function gateTransferEvent(event, transfer) {
+    const files = Array.from((transfer && transfer.files) || []);
+    if (!files.length) return;
+    blockEvent(event);
+    const ids = attachments.add(files);
+    attachments.wait(ids).then((records) => {
+      const promptInput = findInput(event.target && event.target.closest ? event.target.closest("form") || document : document);
+      if (!approveAttachmentRecords(records, promptInput || event.target)) {
+        attachments.remove(ids);
+        return;
+      }
+      try {
+        const replayTransfer = new DataTransfer();
+        for (const type of Array.from(transfer.types || [])) {
+          if (type !== "Files") replayTransfer.setData(type, transfer.getData(type));
+        }
+        for (const file of files) replayTransfer.items.add(file);
+        const replay = event.type === "drop"
+          ? new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: replayTransfer })
+          : new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: replayTransfer });
+        releasedTransferEvents.add(replay);
+        event.target.dispatchEvent(replay);
+      } catch (error) {
+        attachments.remove(ids);
+        showInspectionAlert("Anexo não pôde ser liberado", "Use o botão de anexar arquivo para realizar a análise segura.", [{ fileName: files.map((file) => file.name).join(", "), error: error.message }], promptInput || event.target);
+      }
+    });
+  }
+
+  function sameSelection(files, expected) {
+    return Array.from(files || []).map(AISafetyAttachmentScanner.fingerprint).join("|") === expected;
+  }
+
+  function approveAttachmentRecords(records, input) {
+    const errors = records.filter((record) => record.status === "error");
+    if (errors.length) {
+      showInspectionAlert("Anexo não pôde ser analisado", "Por segurança, remova o arquivo ou converta-o para um PDF/DOCX com texto extraível.", errors, input);
+      return false;
+    }
+    const blocked = records.filter((record) => record.status === "blocked");
+    if (blocked.length) {
+      const findings = blocked.flatMap((record) => record.scan.result.findings.map((finding) => ({ ...finding, source: record.fileName })));
+      showAlert({ blocked: true, findings, categories: [...new Set(findings.map((finding) => finding.category))] }, input);
+      return false;
+    }
+    return true;
   }
 
   function reconcileRemovedAttachment(event) {

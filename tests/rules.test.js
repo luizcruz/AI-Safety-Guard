@@ -51,6 +51,9 @@ test("alerta explicita as categorias possivelmente infringidas", () => {
   assert.match(content, /result\.categories\.map/);
   assert.match(content, /captureDroppedFiles/);
   assert.match(content, /finding\.source/);
+  assert.match(content, /document\.addEventListener\("input", captureFileInput, true\)/);
+  assert.match(content, /blockEvent\(event\);[\s\S]*attachments\.wait\(ids\)/);
+  assert.match(content, /dispatchEvent\(new Event\("change", \{ bubbles: true \}\)\)/);
 });
 
 test("identidade pública usa exclusivamente AI Safety Guard v1.1", () => {
@@ -60,7 +63,7 @@ test("identidade pública usa exclusivamente AI Safety Guard v1.1", () => {
   const packageLock = JSON.parse(fs.readFileSync(path.join(root, "package-lock.json"), "utf8"));
   const popup = fs.readFileSync(path.join(root, "src", "popup.html"), "utf8");
   const readme = fs.readFileSync(path.join(root, "README.md"), "utf8");
-  assert.equal(manifest.version, "1.1.0");
+  assert.equal(manifest.version, "1.1.1");
   assert.equal(packageManifest.version, manifest.version);
   assert.equal(packageLock.version, manifest.version);
   assert.equal(packageLock.packages[""].version, manifest.version);

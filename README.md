@@ -19,6 +19,8 @@ Configure a URL e o Bearer token no popup da extensão. O token fica apenas no a
 
 O envio permanece bloqueado enquanto a análise estiver pendente ou quando o arquivo não puder ser lido. PDFs digitalizados e documentos compostos apenas por imagens exigem OCR/conversão prévia; o conteúdo dos anexos nunca é enviado à API de regras.
 
+Eventos de seleção, arrastar/soltar e colar arquivos são interrompidos antes de chegarem ao site. A extensão somente libera um novo evento de upload após concluir localmente que todos os anexos são seguros; arquivos suspeitos ou ilegíveis nunca são liberados para o fluxo de upload da página.
+
 O nome de todo anexo é comparado localmente com a categoria `Nomes de arquivos sensíveis`, inclusive quando não existe leitor ou a extração falha. O catálogo inicial contém 79 nomes em sete grupos, administráveis pela API através de regras `kind: filename`.
 
 ## Instalação local

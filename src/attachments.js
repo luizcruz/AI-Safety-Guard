@@ -203,7 +203,7 @@
         if (this._records.has(id)) continue;
         const record = { id, fileName: file.name || "documento", status: "pending", createdAt: this._now(), scan: null, error: null };
         this._records.set(id, record);
-        Promise.resolve().then(() => this._scan(file)).then((scan) => {
+        record.completion = Promise.resolve().then(() => this._scan(file)).then((scan) => {
           record.scan = scan;
           record.status = scan.result.blocked ? "blocked" : "safe";
         }).catch((error) => {
@@ -212,6 +212,12 @@
         });
       }
       return ids;
+    }
+
+    async wait(ids) {
+      const records = (ids || []).map((id) => this._records.get(id)).filter(Boolean);
+      await Promise.all(records.map((record) => record.completion));
+      return records;
     }
 
     remove(ids) {

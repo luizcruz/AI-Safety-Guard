@@ -106,10 +106,19 @@ test("registro acompanha análises pendentes, bloqueadas e removidas", async () 
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(registry.state().pending.length, 1);
   finish({ result: { blocked: true, findings: [], categories: [] } });
-  await new Promise((resolve) => setImmediate(resolve));
+  const completed = await registry.wait(ids);
+  assert.equal(completed[0].status, "blocked");
   assert.equal(registry.state().blocked.length, 1);
   registry.remove(ids);
   assert.equal(registry.state().blocked.length, 0);
+});
+
+test("registro aguarda falhas de leitura antes de liberar o fluxo", async () => {
+  const registry = new Registry(async () => { throw new Error("falha local"); });
+  const ids = registry.add([file("dados.pdf", createPdf("x"))]);
+  const completed = await registry.wait(ids);
+  assert.equal(completed[0].status, "error");
+  assert.match(completed[0].error, /falha local/);
 });
 
 test("usa nome do arquivo quando não existe leitor para o formato", async () => {
