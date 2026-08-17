@@ -1,0 +1,76 @@
+#!/usr/bin/env python3
+"""Production launcher for the AI Safety Guard Rules API."""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from collections.abc import Callable, Sequence
+from pathlib import Path
+from typing import Any
+
+
+API_ROOT = Path(__file__).resolve().parents[1]
+if str(API_ROOT) not in sys.path:
+    sys.path.insert(0, str(API_ROOT))
+
+
+class ConfigurationError(RuntimeError):
+    """Raised when runtime settings cannot be loaded."""
+
+
+def build_parser(settings: Any) -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Inicia a AI Safety Guard Rules API.")
+    parser.add_argument("--host", default=settings.api_host)
+    parser.add_argument("--port", type=int, default=settings.api_port)
+    parser.add_argument(
+        "--log-level",
+        choices=("critical", "error", "warning", "info", "debug", "trace"),
+        default=settings.log_level,
+    )
+    return parser
+
+
+def load_settings() -> Any:
+    from app.config import Settings
+
+    try:
+        return Settings()
+    except Exception as error:
+        raise ConfigurationError from error
+
+
+def run_server(*args: Any, **kwargs: Any) -> None:
+    import uvicorn
+
+    uvicorn.run(*args, **kwargs)
+
+
+def main(
+    argv: Sequence[str] | None = None,
+    *,
+    settings_loader: Callable[[], Any] = load_settings,
+    server_runner: Callable[..., None] = run_server,
+) -> int:
+    try:
+        settings = settings_loader()
+    except ConfigurationError as error:
+        raise SystemExit(
+            f"Configuração inválida. Defina AI_SAFETY_API_TOKEN em {API_ROOT / '.env'} "
+            "com pelo menos 16 caracteres."
+        ) from error
+    args = build_parser(settings).parse_args(argv)
+
+    server_runner(
+        "app.main:create_app",
+        factory=True,
+        host=args.host,
+        port=args.port,
+        log_level=args.log_level,
+        server_header=False,
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -4,13 +4,26 @@ API FastAPI para administrar o catálogo do AI Safety Guard. Todos os endpoints 
 
 ## Execução
 
+Crie `api/.env` a partir do exemplo e substitua o token:
+
+```dotenv
+AI_SAFETY_API_TOKEN=gere-um-token-aleatorio-com-pelo-menos-32-caracteres
+```
+
+Instale as dependências uma vez e execute o launcher a partir de qualquer diretório:
+
 ```powershell
-cd api
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -r requirements-dev.txt
-$env:AI_SAFETY_API_TOKEN = "gere-um-token-aleatorio-com-pelo-menos-32-caracteres"
-uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8000
+python -m venv api\.venv
+api\.venv\Scripts\python.exe -m pip install -r api\requirements.txt
+api\.venv\Scripts\python.exe api\bin\deploy
+```
+
+Em Linux/macOS:
+
+```bash
+python3 -m venv api/.venv
+api/.venv/bin/python -m pip install -r api/requirements.txt
+api/.venv/bin/python api/bin/deploy
 ```
 
 Em produção, use volume persistente para `/data/rulesets`, HTTPS e apenas um worker por instância, pois o repositório é baseado em arquivos.
