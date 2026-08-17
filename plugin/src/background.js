@@ -24,7 +24,7 @@ if (typeof importScripts === "function" && typeof globalThis.AISafetyGuardRules 
     if (!catalog.categories || !Object.keys(catalog.categories).length || !Array.isArray(catalog.patterns) || !catalog.keywords || !Array.isArray(catalog.heuristics) || !Array.isArray(catalog.fileNameRules || [])) return false;
     try {
       for (const rule of catalog.patterns) {
-        if (!catalog.categories[rule.category] || typeof rule.source !== "string" || rule.source.length > 5000 || rule.score < 0 || rule.score > 100 || ![null, undefined, "luhn", "iban"].includes(rule.validator)) return false;
+        if (!catalog.categories[rule.category] || typeof rule.source !== "string" || rule.source.length > 5000 || rule.score < 0 || rule.score > 100 || ![null, undefined, "luhn", "iban", "cpf", "cnpj", "pis"].includes(rule.validator)) return false;
         new RegExp(rule.source, rule.flags);
       }
       for (const [category, words] of Object.entries(catalog.keywords)) {
@@ -66,6 +66,8 @@ if (typeof importScripts === "function" && typeof globalThis.AISafetyGuardRules 
     return {
       timestamp,
       ai: clean(entry && entry.ai, 80) || "Desconhecida",
+      confidence: Math.max(0, Math.min(100, Number(entry && entry.confidence) || 0)),
+      decision: ["block", "warn", "allow"].includes(entry && entry.decision) ? entry.decision : "allow",
       findings: Array.isArray(entry && entry.findings) ? entry.findings.slice(0, 10).map((finding) => ({
         category: clean(finding.category, 120),
         label: clean(finding.label, 180),
@@ -82,7 +84,7 @@ if (typeof importScripts === "function" && typeof globalThis.AISafetyGuardRules 
     return auditLog.at(-1);
   }
 
-  function register(chromeApi, fetchImpl = fetch, bundledVersion = "1.2.0") {
+  function register(chromeApi, fetchImpl = fetch, bundledVersion = "1.3.0") {
     let auditQueue = Promise.resolve();
     const refresh = async () => {
       const config = await chromeApi.storage.local.get({ apiUrl: DEFAULT_API_URL, apiToken: "", rulesVersion: bundledVersion });

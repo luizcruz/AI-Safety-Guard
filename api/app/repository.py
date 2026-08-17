@@ -23,7 +23,7 @@ class RuleValidationError(ValueError):
 class RuleRepository:
     """Thread-safe repository backed by immutable versioned JSON snapshots."""
 
-    SUPPORTED_VALIDATORS = {None, "luhn", "iban"}
+    SUPPORTED_VALIDATORS = {None, "luhn", "iban", "cpf", "cnpj", "pis"}
     SUPPORTED_HEURISTICS = {
         "officialDocument", "clinicalDocument", "financialStatement", "corporateContract",
         "encodedConfigSecret", "plaintextConfig", "publicCodeShare", "unmaskedPaymentLog",
@@ -115,14 +115,22 @@ class RuleRepository:
         return seed
 
     def _upgrade_schema(self, catalog: dict, seed: dict) -> dict:
-        if "fileNameRules" in catalog:
+        seed_is_newer = self._version_key(seed["version"]) > self._version_key(catalog["version"])
+        if "fileNameRules" in catalog and not seed_is_newer:
             return catalog
         upgraded = deepcopy(catalog)
         for category, label in seed["categories"].items():
             upgraded["categories"].setdefault(category, label)
             upgraded["keywords"].setdefault(category, [])
-        upgraded["fileNameRules"] = deepcopy(seed["fileNameRules"])
-        upgraded["version"] = seed["version"] if self._version_key(seed["version"]) > self._version_key(catalog["version"]) else self._next_version(catalog["version"])
+        upgraded.setdefault("fileNameRules", deepcopy(seed["fileNameRules"]))
+        seed_patterns = {(item["category"], item["label"], item["source"]): item for item in seed["patterns"]}
+        for item in upgraded["patterns"]:
+            seeded = seed_patterns.get((item["category"], item["label"], item["source"]))
+            if seeded and seeded.get("validator") and not item.get("validator"):
+                item["validator"] = seeded["validator"]
+        upgraded["version"] = seed["version"] if seed_is_newer else self._next_version(catalog["version"])
+        while (self._data_dir / f"ruleset-v{upgraded['version']}.json").exists():
+            upgraded["version"] = self._next_version(upgraded["version"])
         upgraded["updatedAt"] = datetime.now(UTC).isoformat()
         self._validate_catalog(upgraded)
         self._write_snapshot(upgraded)
@@ -258,6 +266,8 @@ class RuleRepository:
         for item in [*catalog["patterns"], *catalog["heuristics"], *catalog["fileNameRules"]]:
             if item["category"] not in categories:
                 raise RuleValidationError(f"Categoria desconhecida: {item['category']}")
+        if any(item.get("validator") not in RuleRepository.SUPPORTED_VALIDATORS for item in catalog["patterns"]):
+            raise RuleValidationError("Catálogo contém validador não suportado")
         if set(catalog["keywords"]) - set(categories):
             raise RuleValidationError("Palavras-chave possuem categoria desconhecida")
         identities = []

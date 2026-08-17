@@ -16,9 +16,9 @@
       <div id="categories"></div>
     </section>
     <section>
-      <h2>Modo de bloqueio</h2>
+      <h2>Modo de proteção</h2>
       <div class="modes">
-        <label class="mode"><input type="radio" name="protection-mode" value="block"><div><strong>Bloquear</strong><span>Impede o envio até que os dados sejam anonimizados.</span></div></label>
+        <label class="mode"><input type="radio" name="protection-mode" value="heuristic"><div><strong>Heurística</strong><span>Avalia validade, contexto e combinação de evidências. Bloqueia alta confiança e avisa em confiança média.</span></div></label>
         <label class="mode"><input type="radio" name="protection-mode" value="warn"><div><strong>Avisar</strong><span>Exibe um único aviso e permite o envio.</span></div></label>
         <label class="mode"><input type="radio" name="protection-mode" value="log"><div><strong>Registrar</strong><span>Permite o envio e grava a auditoria local silenciosamente.</span></div></label>
       </div>
@@ -38,6 +38,7 @@
     <script src="rules.js"></script>
     <script src="detector.js"></script>
     <script src="audit-log.js"></script>
+    <script src="protection-policy.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>

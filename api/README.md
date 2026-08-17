@@ -71,7 +71,7 @@ Em produção, use volume persistente para `/data/rulesets`, HTTPS e apenas um w
 - `PUT /v1/rules/{id}` — edição completa.
 - `DELETE /v1/rules/{id}` — remoção.
 
-Tipos aceitos em `kind`: `pattern`, `keyword`, `heuristic` e `filename`. Regras `filename` usam `label`, `score` e `file_names`, e são distribuídas à extensão dentro de `fileNameRules`.
+Tipos aceitos em `kind`: `pattern`, `keyword`, `heuristic` e `filename`. Regras `filename` usam `label`, `score` e `file_names`, e são distribuídas à extensão dentro de `fileNameRules`. Regras `pattern` aceitam os validadores `luhn`, `iban`, `cpf`, `cnpj` e `pis`.
 
 Use `If-Match: "<versão>"` nas mutações para evitar sobrescrita concorrente. A resposta devolve a versão atual em `ETag`.
 
@@ -79,7 +79,7 @@ Use `If-Match: "<versão>"` nas mutações para evitar sobrescrita concorrente. 
 AI_SAFETY_TOKEN="$(sed -n 's/^AI_SAFETY_API_TOKEN=//p' api/.env)"
 curl --fail-with-body -X POST http://127.0.0.1:8000/v1/rules \
   -H "Authorization: Bearer ${AI_SAFETY_TOKEN}" \
-  -H 'If-Match: "1.2.0"' \
+  -H 'If-Match: "1.3.0"' \
   -H 'Content-Type: application/json' \
   --data '{"kind":"keyword","category":"credentials","keyword":"client_secret"}'
 unset AI_SAFETY_TOKEN

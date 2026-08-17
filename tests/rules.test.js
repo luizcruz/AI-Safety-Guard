@@ -20,7 +20,7 @@ test("todas as regras apontam para categorias existentes", () => {
 
 test("manifest carrega catálogo antes do detector", () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "plugin", "manifest.json"), "utf8"));
-  assert.deepEqual(manifest.content_scripts[0].js, ["src/platforms.js", "src/rules.js", "src/detector.js", "src/attachments.js", "src/content.js"]);
+  assert.deepEqual(manifest.content_scripts[0].js, ["src/platforms.js", "src/protection-policy.js", "src/rules.js", "src/detector.js", "src/attachments.js", "src/content.js"]);
   assert.equal(manifest.background.service_worker, "src/background.js");
   assert.deepEqual(manifest.permissions, ["storage"]);
 });
@@ -64,7 +64,8 @@ test("alerta explicita as categorias possivelmente infringidas", () => {
   assert.match(content, /document\.addEventListener\("input", captureFileInput, true\)/);
   assert.match(content, /blockEvent\(event\);[\s\S]*attachments\.wait\(ids\)/);
   assert.match(content, /dispatchEvent\(new Event\("change", \{ bubbles: true \}\)\)/);
-  assert.match(content, /mode: \["block", "warn", "log"\]/);
+  assert.match(content, /AISafetyProtectionPolicy\.normalizeMode/);
+  assert.match(content, /AISafetyProtectionPolicy\.actionFor/);
   assert.match(content, /RECORD_DETECTION/);
   assert.match(content, /AI Safety Guard - Aviso/);
 });
@@ -73,11 +74,13 @@ test("popup apresenta regras e modos operacionais", () => {
   const popup = fs.readFileSync(path.join(__dirname, "..", "plugin", "src", "popup.html"), "utf8");
   const popupScript = fs.readFileSync(path.join(__dirname, "..", "plugin", "src", "popup.js"), "utf8");
   assert.match(popup, /<h2>Regras<\/h2>/);
-  assert.match(popup, /<h2>Modo de bloqueio<\/h2>/);
-  for (const mode of ["block", "warn", "log"]) assert.match(popup, new RegExp(`value="${mode}"`));
+  assert.match(popup, /<h2>Modo de proteção<\/h2>/);
+  assert.match(popup, /Avalia validade, contexto e combinação de evidências/);
+  for (const mode of ["heuristic", "warn", "log"]) assert.match(popup, new RegExp(`value="${mode}"`));
   assert.match(popup, /id="audit-status"/);
   assert.match(popup, /id="download-audit"[^>]*>Download log<\/button>/);
   assert.match(popup, /<script src="audit-log\.js"><\/script>/);
+  assert.match(popup, /<script src="protection-policy\.js"><\/script>/);
   assert.match(popupScript, /chrome\.storage\.local\.get\(\{ auditLog: \[\] \}\)/);
   assert.match(popupScript, /AISafetyAuditLog\.download\(auditLog\)/);
   assert.doesNotMatch(popup, /Bloqueio local de dados sensíveis em prompts e anexos PDF\/DOCX\/DOC\./);
@@ -90,7 +93,7 @@ test("identidade pública usa exclusivamente AI Safety Guard v1.2", () => {
   const packageLock = JSON.parse(fs.readFileSync(path.join(root, "package-lock.json"), "utf8"));
   const popup = fs.readFileSync(path.join(root, "plugin", "src", "popup.html"), "utf8");
   const readme = fs.readFileSync(path.join(root, "README.md"), "utf8");
-  assert.equal(manifest.version, "1.2.4");
+  assert.equal(manifest.version, "1.2.5");
   assert.equal(packageManifest.version, manifest.version);
   assert.equal(packageLock.version, manifest.version);
   assert.equal(packageLock.packages[""].version, manifest.version);

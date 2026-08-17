@@ -39,6 +39,7 @@ test("serve interface, health e metadados sem expor token", async () => {
     const meta = await (await fetch(`${baseUrl}/admin/meta`)).json();
     assert.equal(meta.version, "1.2.0");
     assert.equal(meta.types.length, 4);
+    assert.deepEqual(meta.validators.map((item) => item.value), ["", "luhn", "iban", "cpf", "cnpj", "pis"]);
     assert.equal(meta.categories.credentials, "Credenciais");
     assert.equal(JSON.stringify(meta).includes("server-secret"), false);
     assert.equal(calls.at(-1).options.headers.Authorization, "Bearer server-secret");

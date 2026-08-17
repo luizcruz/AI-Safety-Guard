@@ -6,6 +6,8 @@ Extensão Chrome Manifest V3 que analisa localmente mensagens e anexos PDF/DOCX/
 
 O catálogo declarativo embarcado fica em `plugin/src/rules.js`: categorias, expressões regulares, palavras-chave, pontuações, validadores e heurísticas. Expressões são armazenadas como `source` e `flags`, no mesmo formato serializável entregue pela API. `plugin/src/detector.js` compila e executa esse catálogo localmente.
 
+O detector normaliza Unicode, valida checksums e correlaciona padrões, palavras-chave e estrutura documental. Confiança alta bloqueia, confiança média gera um aviso único e evidências abaixo do limiar permanecem silenciosas.
+
 A API em `api/` oferece CRUD autenticado e snapshots versionados. O service worker consulta `/v1/rulesets/latest` ao instalar/iniciar o Chrome, aceita somente versões mais recentes e catálogos válidos, e os distribui aos content scripts via `chrome.storage.local`. Falhas de rede preservam o último catálogo válido ou o conjunto embarcado.
 
 O painel Node.js em `admin-ui/` disponibiliza a administração visual do catálogo em `http://127.0.0.1:3000` quando iniciado pelo Docker Compose. O painel usa a API Python pela rede interna, mantém o Bearer token no servidor e aplica controle de versão otimista nas alterações.
@@ -19,15 +21,15 @@ Configure a URL e o Bearer token no popup da extensão. O token fica apenas no a
 - DOC legado: recuperação defensiva de cadeias textuais embutidas.
 - Limites: 15 MB por arquivo, 2 milhões de caracteres e 20 segundos por operação.
 
-No modo `Bloquear`, o envio permanece bloqueado enquanto a análise estiver pendente ou quando o arquivo não puder ser lido. PDFs digitalizados e documentos compostos apenas por imagens exigem OCR/conversão prévia; o conteúdo dos anexos nunca é enviado à API de regras.
+No modo `Heurística`, o envio permanece bloqueado enquanto a análise estiver pendente ou quando o arquivo não puder ser lido. PDFs digitalizados e documentos compostos apenas por imagens exigem OCR/conversão prévia; o conteúdo dos anexos nunca é enviado à API de regras.
 
-Eventos de seleção, arrastar/soltar e colar arquivos são interrompidos antes de chegarem ao site. Após a análise local, o modo `Bloquear` rejeita anexos suspeitos ou ilegíveis; os modos `Avisar` e `Registrar` liberam o upload conforme configurado.
+Eventos de seleção, arrastar/soltar e colar arquivos são interrompidos antes de chegarem ao site. Após a análise local, o modo `Heurística` bloqueia confiança alta, avisa uma vez em confiança média e rejeita anexos ilegíveis; os modos `Avisar` e `Registrar` liberam o upload conforme configurado.
 
 O nome de todo anexo é comparado localmente com a categoria `Nomes de arquivos sensíveis`, inclusive quando não existe leitor ou a extração falha. O catálogo inicial contém 79 nomes em sete grupos, administráveis pela API através de regras `kind: filename`.
 
 ## Modos de operação
 
-- `Bloquear`: impede o envio até a remoção ou anonimização dos dados.
+- `Heurística`: avalia validade, contexto e combinação de evidências; bloqueia confiança alta (≥80) e avisa em confiança média (50–79).
 - `Avisar`: apresenta uma única advertência por detecção e permite o envio.
 - `Registrar`: permite o envio e persiste silenciosamente no `chrome.storage.local` a data/hora, IA acessada, categorias, regras acionadas e amostras mascaradas. O botão `Download log` exporta manualmente esses registros para `ai-safety-guard.log`.
 

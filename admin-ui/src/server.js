@@ -22,7 +22,10 @@ const RULE_TYPES = Object.freeze([
 const VALIDATORS = Object.freeze([
   { value: "", label: "Nenhum" },
   { value: "luhn", label: "Luhn" },
-  { value: "iban", label: "IBAN" }
+  { value: "iban", label: "IBAN" },
+  { value: "cpf", label: "CPF" },
+  { value: "cnpj", label: "CNPJ" },
+  { value: "pis", label: "PIS/PASEP" }
 ]);
 const HEURISTICS = Object.freeze([
   "officialDocument", "clinicalDocument", "financialStatement", "corporateContract",

@@ -70,3 +70,11 @@ def test_filename_rule_crud_through_api(tmp_path):
     listed = client.get("/v1/rules?kind=filename", headers=AUTH).json()
     assert [item["id"] for item in listed] == [rule["id"]]
     assert client.delete(f"/v1/rules/{rule['id']}", headers=AUTH).status_code == 204
+
+
+def test_checksum_validator_through_api(tmp_path):
+    client = make_client(tmp_path)
+    payload = {"kind": "pattern", "category": "credentials", "label": "CPF", "score": 90, "source": r"\d{11}", "flags": "g", "validator": "cpf"}
+    created = client.post("/v1/rules", headers=AUTH, json=payload)
+    assert created.status_code == 201
+    assert created.json()["validator"] == "cpf"

@@ -2,7 +2,7 @@
   "use strict";
 
   const platform = AISafetyPlatforms.resolve(location.hostname);
-  const DEFAULTS = { enabled: true, enabledCategories: Object.keys(AISafetyGuard.CATEGORIES), mode: "block" };
+  const DEFAULTS = { enabled: true, enabledCategories: Object.keys(AISafetyGuard.CATEGORIES), mode: AISafetyProtectionPolicy.DEFAULT_MODE };
   const SEND_SELECTOR = [...new Set([
     "button[data-testid*='send']",
     "button[type='submit']",
@@ -40,7 +40,7 @@
     const knownCategories = Array.isArray(stored.knownCategories) ? stored.knownCategories : currentCategories.filter((category) => category !== "sensitiveFileNames");
     const addedCategories = currentCategories.filter((category) => !knownCategories.includes(category));
     settings = normalizeSettings({ enabled: stored.enabled, enabledCategories: [...new Set([...(stored.enabledCategories || currentCategories), ...addedCategories])], mode: stored.mode });
-    chrome.storage.sync.set({ enabledCategories: settings.enabledCategories, knownCategories: currentCategories });
+    chrome.storage.sync.set({ enabledCategories: settings.enabledCategories, knownCategories: currentCategories, mode: settings.mode });
   });
   chrome.storage.local.get("rulesCatalog", ({ rulesCatalog }) => {
     if (rulesCatalog) applyRemoteCatalog(rulesCatalog);
@@ -68,7 +68,7 @@
     return {
       enabled: value.enabled !== false,
       enabledCategories: Array.isArray(value.enabledCategories) ? value.enabledCategories : DEFAULTS.enabledCategories,
-      mode: ["block", "warn", "log"].includes(value.mode) ? value.mode : DEFAULTS.mode
+      mode: AISafetyProtectionPolicy.normalizeMode(value.mode)
     };
   }
 
@@ -190,10 +190,10 @@
       if (allowed) for (const record of errors) record.handledMode = settings.mode;
       return allowed;
     }
-    const blocked = records.filter((record) => record.status === "blocked");
-    if (blocked.length) {
-      const allowed = handleDetection(resultFromRecords(blocked), input);
-      if (allowed) for (const record of blocked) record.handledMode = settings.mode;
+    const detected = records.filter((record) => ["blocked", "warning"].includes(record.status));
+    if (detected.length) {
+      const allowed = handleDetection(resultFromRecords(detected), input);
+      if (allowed) for (const record of detected) record.handledMode = settings.mode;
       return allowed;
     }
     return true;
@@ -201,11 +201,13 @@
 
   function resultFromRecords(records) {
     const findings = records.flatMap((record) => record.scan.result.findings.map((finding) => ({ ...finding, source: record.fileName })));
-    return { blocked: true, findings, categories: [...new Set(findings.map((finding) => finding.category))] };
+    const confidence = Math.max(0, ...records.map((record) => Number(record.scan.result.confidence) || 0));
+    const decision = records.some((record) => record.scan.result.decision === "block" || record.scan.result.blocked) ? "block" : "warn";
+    return { decision, confidence, confidenceLevel: decision === "block" ? "high" : "medium", blocked: decision === "block", findings, categories: [...new Set(findings.map((finding) => finding.category))] };
   }
 
   function handleInspectionIssue(records, input, event) {
-    if (settings.mode === "block") {
+    if (settings.mode === "heuristic") {
       if (event) blockEvent(event);
       showInspectionAlert("Anexo não pôde ser analisado", "Por segurança, remova o arquivo ou converta-o para um PDF/DOCX com texto extraível.", records, input);
       return false;
@@ -223,13 +225,14 @@
   }
 
   function handleDetection(result, input, event) {
-    if (settings.mode === "block") {
+    const action = AISafetyProtectionPolicy.actionFor(settings.mode, result.decision);
+    if (action === "block") {
       if (event) blockEvent(event);
       showAlert(result, input);
       return false;
     }
-    if (settings.mode === "warn") showWarningOnce(result, input);
-    else recordAudit(result.findings);
+    if (action === "warn") showWarningOnce(result, input);
+    else recordAudit(result.findings, result);
     return true;
   }
 
@@ -240,7 +243,7 @@
     if (!button) return;
     const context = button.parentElement ? button.parentElement.innerText || button.parentElement.textContent || "" : "";
     const state = attachments.state();
-    for (const record of [...state.pending, ...state.errors, ...state.blocked, ...state.safe]) {
+    for (const record of [...state.pending, ...state.errors, ...state.blocked, ...state.warnings, ...state.safe]) {
       if (context.includes(record.fileName)) attachments.removeByName(record.fileName);
     }
   }
@@ -289,14 +292,14 @@
       if (allowed) for (const record of unhandledErrors) record.handledMode = settings.mode;
       if (!allowed) return true;
     }
-    const unhandledBlocked = attachmentState.blocked.filter((record) => record.handledMode !== settings.mode);
-    if (unhandledBlocked.length) {
-      const allowed = handleDetection(resultFromRecords(unhandledBlocked), input, event);
-      if (allowed) for (const record of unhandledBlocked) record.handledMode = settings.mode;
+    const unhandledDetections = [...attachmentState.blocked, ...attachmentState.warnings].filter((record) => record.handledMode !== settings.mode);
+    if (unhandledDetections.length) {
+      const allowed = handleDetection(resultFromRecords(unhandledDetections), input, event);
+      if (allowed) for (const record of unhandledDetections) record.handledMode = settings.mode;
       if (!allowed) return true;
     }
     const result = AISafetyGuard.analyze(readInput(input), settings);
-    if (!result.blocked) {
+    if (result.decision === "allow") {
       setTimeout(() => attachments.clear(), 2000);
       return false;
     }
@@ -364,7 +367,7 @@
     });
   }
 
-  function recordAudit(findings) {
+  function recordAudit(findings, result = {}) {
     const key = detectionKey(findings);
     const now = Date.now();
     if (now - (recentAuditRecords.get(key) || 0) < 2000) return;
@@ -375,6 +378,8 @@
       entry: {
         timestamp: new Date(now).toISOString(),
         ai: currentAI(),
+        confidence: Number(result.confidence) || Math.max(0, ...findings.map((finding) => Number(finding.score) || 0)),
+        decision: result.decision || "warn",
         findings: findings.map((finding) => ({
           category: AISafetyGuard.CATEGORIES[finding.category] || finding.category,
           label: finding.label,
@@ -414,7 +419,8 @@
     title.textContent = options.title;
     title.style.cssText = "font-size:20px;margin:0 0 10px";
     const description = document.createElement("p");
-    description.textContent = options.description;
+    const confidence = Number.isFinite(result.confidence) ? ` Confiança ${result.confidenceLevel === "high" ? "alta" : "média"}: ${result.confidence}/100.` : "";
+    description.textContent = `${options.description}${confidence}`;
     description.style.cssText = "font-size:14px;line-height:1.5;margin:0 0 16px;color:#475569";
     const categoryWarning = document.createElement("p");
     const categoryNames = result.categories.map((category) => AISafetyGuard.CATEGORIES[category] || category);

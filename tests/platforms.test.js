@@ -31,6 +31,7 @@ test("resolve todos os hosts de chats suportados", () => {
 test("manifest injeta configuração antes do content script em todos os hosts", () => {
   const script = manifest.content_scripts[0];
   assert.equal(script.js[0], "src/platforms.js");
+  assert.equal(script.js[1], "src/protection-policy.js");
   assert.equal(script.js.at(-1), "src/content.js");
   for (const entry of platforms) {
     for (const host of entry.hosts) {

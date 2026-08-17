@@ -6,7 +6,7 @@
   "use strict";
 
   return Object.freeze({
-    version: "1.2.0",
+    version: "1.3.0",
     categories: Object.freeze({
       personal: "Documentos pessoais",
       medical: "Documentos médicos",
@@ -21,18 +21,18 @@
       sensitiveFileNames: "Nomes de arquivos sensíveis"
     }),
     patterns: Object.freeze([
-      p("personal", "CPF", "\\b\\d{3}\\.\\d{3}\\.\\d{3}-\\d{2}\\b", "g", 90),
+      p("personal", "CPF", "\\b\\d{3}\\.\\d{3}\\.\\d{3}-\\d{2}\\b", "g", 90, "cpf"),
       p("personal", "RG", "\\b\\d{2}\\.\\d{3}\\.\\d{3}-[\\dXx]\\b", "g", 85),
       p("personal", "Passaporte", "\\b[A-Z]{2}\\d{6}\\b", "g", 85),
       p("personal", "CNH", "\\b(?:CNH|Carteira Nacional de Habilita(?:ç|c)ão)\\s*[:#-]?\\s*\\d{11}\\b", "gi", 85),
-      p("personal", "PIS/PASEP", "\\b(?:PIS|PASEP)\\s*[:#-]?\\s*\\d{3}[. ]?\\d{5}[. ]?\\d{2}[- ]?\\d\\b", "gi", 85),
+      p("personal", "PIS/PASEP", "\\b(?:PIS|PASEP)\\s*[:#-]?\\s*\\d{3}[. ]?\\d{5}[. ]?\\d{2}[- ]?\\d\\b", "gi", 85, "pis"),
       p("medical", "Registro profissional", "\\b(?:CRM|CRO|COREN)\\s*\\/?\\s*[A-Z]{2}\\s*[-:]?\\s*\\d{3,10}\\b", "gi", 75),
       p("medical", "Código CID", "\\bCID(?:-?10|-?11)?\\s*[:#-]?\\s*[A-Z]\\d{2}(?:\\.\\d{1,2})?\\b", "gi", 75),
       p("medical", "Posologia", "\\b\\d+(?:[.,]\\d+)?\\s*(?:mg|ml|mcg|gotas?)\\b", "gi", 55),
       p("financial", "Linha digitável de boleto", "\\b\\d{5}\\.\\d{5}\\s+\\d{5}\\.\\d{6}\\s+\\d{5}\\.\\d{6}\\s+\\d\\s+\\d{14}\\b", "g", 95),
       p("financial", "Chave PIX UUID", "\\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\\b", "gi", 85),
       p("financial", "Valor monetário", "R\\$\\s?\\d{1,3}(?:\\.\\d{3})*(?:,\\d{2})?|R\\$\\s?\\d+(?:[.,]\\d{2})?", "gi", 25),
-      p("corporate", "CNPJ", "\\b\\d{2}\\.\\d{3}\\.\\d{3}\\/\\d{4}-\\d{2}\\b", "g", 85),
+      p("corporate", "CNPJ", "\\b\\d{2}\\.\\d{3}\\.\\d{3}\\/\\d{4}-\\d{2}\\b", "g", 85, "cnpj"),
       p("corporate", "Inscrição Estadual", "\\b(?:I\\.?E\\.?|Inscri(?:ç|c)ão Estadual)\\s*[:#-]?\\s*[\\d.\\/-]{6,18}\\b", "gi", 70),
       p("corporate", "Número de processo/contrato", "\\b(?:processo|contrato)\\s*(?:n[º°o.]*)?\\s*[:#-]?\\s*[\\d./-]{6,25}\\b", "gi", 55),
       p("credentials", "Chave de acesso AWS", "\\bAKIA[0-9A-Z]{16}\\b", "g", 100),

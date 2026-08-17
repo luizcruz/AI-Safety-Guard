@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AI Safety Guard v1.2",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "description": "Proteção local contra o envio de dados sensíveis para chats de IA.",
   "permissions": ["storage"],
   "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
@@ -28,7 +28,7 @@
         "https://kimi.com/*",
         "https://www.kimi.com/*"
       ],
-      "js": ["src/platforms.js", "src/rules.js", "src/detector.js", "src/attachments.js", "src/content.js"],
+      "js": ["src/platforms.js", "src/protection-policy.js", "src/rules.js", "src/detector.js", "src/attachments.js", "src/content.js"],
       "run_at": "document_start"
     }
   ],

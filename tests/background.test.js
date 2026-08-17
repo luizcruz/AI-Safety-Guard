@@ -47,10 +47,14 @@ test("não substitui catálogo por versão igual ou anterior", async () => {
 });
 
 test("sanitiza registros de auditoria sem conteúdo multilinha", () => {
-  const entry = sanitizeAuditEntry({ timestamp: "inválida", ai: "Gemini\nforjado", findings: [{ category: "Credenciais", label: "JWT\r\nToken", sample: "eyJ***", source: "prompt" }] }, () => new Date("2026-08-16T12:00:00Z"));
+  const entry = sanitizeAuditEntry({ timestamp: "inválida", ai: "Gemini\nforjado", confidence: 87, decision: "block", findings: [{ category: "Credenciais", label: "JWT\r\nToken", sample: "eyJ***", source: "prompt" }] }, () => new Date("2026-08-16T12:00:00Z"));
   assert.equal(entry.timestamp, "2026-08-16T12:00:00.000Z");
   assert.equal(entry.ai, "Gemini forjado");
   assert.equal(entry.findings[0].label, "JWT Token");
+  assert.equal(entry.confidence, 87);
+  assert.equal(entry.decision, "block");
+  assert.equal(sanitizeAuditEntry({ confidence: 999, decision: "invalid" }).confidence, 100);
+  assert.equal(sanitizeAuditEntry({ confidence: 999, decision: "invalid" }).decision, "allow");
 });
 
 test("persiste auditoria silenciosamente no armazenamento local", async () => {
@@ -97,12 +101,12 @@ test("registra eventos do Chrome, descarta cache antigo e persiste catálogo atu
       onMessage: { addListener: (listener) => { listeners.message = listener; } }
     }
   };
-  const catalog = { ...bundled, version: "1.2.1" };
+  const catalog = { ...bundled, version: "1.3.1" };
   const updater = register(chromeApi, async () => ({ ok: true, json: async () => catalog }));
   const result = await updater.refresh();
   assert.equal(result.updated, true);
-  assert.equal(state.rulesVersion, "1.2.1");
-  assert.equal(state.rulesCatalog.version, "1.2.1");
+  assert.equal(state.rulesVersion, "1.3.1");
+  assert.equal(state.rulesCatalog.version, "1.3.1");
   assert.equal(typeof listeners.startup, "function");
   assert.equal(typeof listeners.installed, "function");
   assert.equal(listeners.message({ type: "IGNORED" }, null, () => undefined), false);
