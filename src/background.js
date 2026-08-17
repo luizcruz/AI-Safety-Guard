@@ -8,6 +8,7 @@ if (typeof importScripts === "function" && typeof globalThis.AISafetyGuardRules 
   "use strict";
 
   const DEFAULT_API_URL = "http://127.0.0.1:8000";
+  const MAX_AUDIT_ENTRIES = 500;
 
   function compareVersions(left, right) {
     const a = String(left || "0.0.0").split(".").map(Number);
@@ -58,7 +59,48 @@ if (typeof importScripts === "function" && typeof globalThis.AISafetyGuardRules 
     return { updated: true, catalog };
   }
 
+  function sanitizeAuditEntry(entry, now = () => new Date()) {
+    const parsed = new Date((entry && entry.timestamp) || "");
+    const timestamp = Number.isNaN(parsed.getTime()) ? now().toISOString() : parsed.toISOString();
+    const clean = (value, limit) => String(value || "").replace(/[\r\n]+/g, " ").slice(0, limit);
+    return {
+      timestamp,
+      ai: clean(entry && entry.ai, 80) || "Desconhecida",
+      findings: Array.isArray(entry && entry.findings) ? entry.findings.slice(0, 10).map((finding) => ({
+        category: clean(finding.category, 120),
+        label: clean(finding.label, 180),
+        sample: clean(finding.sample, 300),
+        source: clean(finding.source, 255)
+      })) : []
+    };
+  }
+
+  function formatAuditLog(entries) {
+    return entries.map((entry) => JSON.stringify(entry)).join("\n") + "\n";
+  }
+
+  async function appendAuditLog(chromeApi, entry) {
+    const state = await chromeApi.storage.local.get({ auditLog: [] });
+    const auditLog = [...(Array.isArray(state.auditLog) ? state.auditLog : []), sanitizeAuditEntry(entry)].slice(-MAX_AUDIT_ENTRIES);
+    await chromeApi.storage.local.set({ auditLog, auditLogUpdatedAt: new Date().toISOString() });
+    if (chromeApi.downloads && chromeApi.downloads.download) {
+      try {
+        await chromeApi.downloads.download({
+          url: `data:text/plain;charset=utf-8,${encodeURIComponent(formatAuditLog(auditLog))}`,
+          filename: "AI Safety Guard/ai-safety-guard.log",
+          conflictAction: "overwrite",
+          saveAs: false
+        });
+        await chromeApi.storage.local.set({ auditLogLastError: "" });
+      } catch (error) {
+        await chromeApi.storage.local.set({ auditLogLastError: error.message });
+      }
+    }
+    return auditLog.at(-1);
+  }
+
   function register(chromeApi, fetchImpl = fetch, bundledVersion = "1.2.0") {
+    let auditQueue = Promise.resolve();
     const refresh = async () => {
       const config = await chromeApi.storage.local.get({ apiUrl: DEFAULT_API_URL, apiToken: "", rulesVersion: bundledVersion });
       try {
@@ -87,10 +129,15 @@ if (typeof importScripts === "function" && typeof globalThis.AISafetyGuardRules 
         refresh().then((result) => sendResponse({ ok: true, ...result })).catch((error) => sendResponse({ ok: false, error: error.message }));
         return true;
       }
+      if (message && message.type === "RECORD_DETECTION") {
+        auditQueue = auditQueue.then(() => appendAuditLog(chromeApi, message.entry));
+        auditQueue.then((entry) => sendResponse({ ok: true, entry })).catch((error) => sendResponse({ ok: false, error: error.message }));
+        return true;
+      }
       return false;
     });
     return { refresh };
   }
 
-  return Object.freeze({ compareVersions, validateCatalog, downloadRules, register, DEFAULT_API_URL });
+  return Object.freeze({ compareVersions, validateCatalog, downloadRules, sanitizeAuditEntry, formatAuditLog, appendAuditLog, register, DEFAULT_API_URL });
 });

@@ -1,6 +1,6 @@
-# AI Safety Guard v1.1
+# AI Safety Guard v1.2
 
-Extensão Chrome Manifest V3 que analisa localmente mensagens e anexos PDF/DOCX/DOC destinados ao ChatGPT, Claude, Perplexity e Gemini. Quando encontra evidências de dados sensíveis, infraestrutura, propriedade intelectual, PCI/Banking, RH ou PII em logs, interrompe o evento de envio, informa as categorias possivelmente infringidas e solicita a remoção/anonimização.
+Extensão Chrome Manifest V3 que analisa localmente mensagens e anexos PDF/DOCX/DOC destinados ao ChatGPT, Claude, Perplexity e Gemini. Quando encontra evidências de dados sensíveis, infraestrutura, propriedade intelectual, PCI/Banking, RH ou PII em logs, aplica o modo configurado e informa as categorias possivelmente infringidas.
 
 ## Arquitetura de regras
 
@@ -17,11 +17,17 @@ Configure a URL e o Bearer token no popup da extensão. O token fica apenas no a
 - DOC legado: recuperação defensiva de cadeias textuais embutidas.
 - Limites: 15 MB por arquivo, 2 milhões de caracteres e 20 segundos por operação.
 
-O envio permanece bloqueado enquanto a análise estiver pendente ou quando o arquivo não puder ser lido. PDFs digitalizados e documentos compostos apenas por imagens exigem OCR/conversão prévia; o conteúdo dos anexos nunca é enviado à API de regras.
+No modo `Bloquear`, o envio permanece bloqueado enquanto a análise estiver pendente ou quando o arquivo não puder ser lido. PDFs digitalizados e documentos compostos apenas por imagens exigem OCR/conversão prévia; o conteúdo dos anexos nunca é enviado à API de regras.
 
-Eventos de seleção, arrastar/soltar e colar arquivos são interrompidos antes de chegarem ao site. A extensão somente libera um novo evento de upload após concluir localmente que todos os anexos são seguros; arquivos suspeitos ou ilegíveis nunca são liberados para o fluxo de upload da página.
+Eventos de seleção, arrastar/soltar e colar arquivos são interrompidos antes de chegarem ao site. Após a análise local, o modo `Bloquear` rejeita anexos suspeitos ou ilegíveis; os modos `Avisar` e `Registrar` liberam o upload conforme configurado.
 
 O nome de todo anexo é comparado localmente com a categoria `Nomes de arquivos sensíveis`, inclusive quando não existe leitor ou a extração falha. O catálogo inicial contém 79 nomes em sete grupos, administráveis pela API através de regras `kind: filename`.
+
+## Modos de operação
+
+- `Bloquear`: impede o envio até a remoção ou anonimização dos dados.
+- `Avisar`: apresenta uma única advertência por detecção e permite o envio.
+- `Registrar`: permite o envio e atualiza `Downloads/AI Safety Guard/ai-safety-guard.log` com data/hora, IA acessada, categorias, regras acionadas e amostras mascaradas.
 
 ## Instalação local
 
@@ -46,7 +52,7 @@ pytest api/tests --cov=api/app
 
 ## Privacidade
 
-A análise é determinística e executada integralmente no content script. Nenhuma mensagem, ocorrência ou telemetria é transmitida para servidores externos. As únicas informações persistidas são as preferências de ativação no `chrome.storage.sync`.
+A análise é determinística e executada integralmente no content script. Nenhuma mensagem ou ocorrência é transmitida para a API de regras. Preferências ficam no `chrome.storage.sync`; no modo `Registrar`, ocorrências mascaradas são mantidas no `chrome.storage.local` e no arquivo de auditoria da pasta Downloads.
 
 ## Limitações
 

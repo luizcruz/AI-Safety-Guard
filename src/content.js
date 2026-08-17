@@ -1,7 +1,7 @@
 (function protectAIChat() {
   "use strict";
 
-  const DEFAULTS = { enabled: true, enabledCategories: Object.keys(AISafetyGuard.CATEGORIES) };
+  const DEFAULTS = { enabled: true, enabledCategories: Object.keys(AISafetyGuard.CATEGORIES), mode: "block" };
   const SEND_SELECTOR = [
     "button[data-testid*='send']",
     "button[aria-label*='Send' i]",
@@ -16,15 +16,17 @@
   const fileInputGates = new WeakMap();
   const releasedFileInputEvents = new WeakMap();
   const releasedTransferEvents = new WeakSet();
+  const warnedDetections = new Set();
+  const recentAuditRecords = new Map();
   const attachments = new AISafetyAttachmentScanner.Registry((file) => AISafetyAttachmentScanner.scanFile(
     file, AISafetyGuard.analyze, settings, undefined, undefined, AISafetyGuard.analyzeFileName
   ));
 
-  chrome.storage.sync.get(["enabled", "enabledCategories", "knownCategories"], (stored) => {
+  chrome.storage.sync.get(["enabled", "enabledCategories", "knownCategories", "mode"], (stored) => {
     const currentCategories = Object.keys(AISafetyGuard.CATEGORIES);
     const knownCategories = Array.isArray(stored.knownCategories) ? stored.knownCategories : currentCategories.filter((category) => category !== "sensitiveFileNames");
     const addedCategories = currentCategories.filter((category) => !knownCategories.includes(category));
-    settings = normalizeSettings({ enabled: stored.enabled, enabledCategories: [...new Set([...(stored.enabledCategories || currentCategories), ...addedCategories])] });
+    settings = normalizeSettings({ enabled: stored.enabled, enabledCategories: [...new Set([...(stored.enabledCategories || currentCategories), ...addedCategories])], mode: stored.mode });
     chrome.storage.sync.set({ enabledCategories: settings.enabledCategories, knownCategories: currentCategories });
   });
   chrome.storage.local.get("rulesCatalog", ({ rulesCatalog }) => {
@@ -35,7 +37,8 @@
     if (area === "sync") {
       settings = normalizeSettings({
         enabled: changes.enabled ? changes.enabled.newValue : settings.enabled,
-        enabledCategories: changes.enabledCategories ? changes.enabledCategories.newValue : settings.enabledCategories
+        enabledCategories: changes.enabledCategories ? changes.enabledCategories.newValue : settings.enabledCategories,
+        mode: changes.mode ? changes.mode.newValue : settings.mode
       });
     }
   });
@@ -51,7 +54,8 @@
   function normalizeSettings(value) {
     return {
       enabled: value.enabled !== false,
-      enabledCategories: Array.isArray(value.enabledCategories) ? value.enabledCategories : DEFAULTS.enabledCategories
+      enabledCategories: Array.isArray(value.enabledCategories) ? value.enabledCategories : DEFAULTS.enabledCategories,
+      mode: ["block", "warn", "log"].includes(value.mode) ? value.mode : DEFAULTS.mode
     };
   }
 
@@ -169,15 +173,50 @@
   function approveAttachmentRecords(records, input) {
     const errors = records.filter((record) => record.status === "error");
     if (errors.length) {
-      showInspectionAlert("Anexo não pôde ser analisado", "Por segurança, remova o arquivo ou converta-o para um PDF/DOCX com texto extraível.", errors, input);
-      return false;
+      const allowed = handleInspectionIssue(errors, input);
+      if (allowed) for (const record of errors) record.handledMode = settings.mode;
+      return allowed;
     }
     const blocked = records.filter((record) => record.status === "blocked");
     if (blocked.length) {
-      const findings = blocked.flatMap((record) => record.scan.result.findings.map((finding) => ({ ...finding, source: record.fileName })));
-      showAlert({ blocked: true, findings, categories: [...new Set(findings.map((finding) => finding.category))] }, input);
+      const allowed = handleDetection(resultFromRecords(blocked), input);
+      if (allowed) for (const record of blocked) record.handledMode = settings.mode;
+      return allowed;
+    }
+    return true;
+  }
+
+  function resultFromRecords(records) {
+    const findings = records.flatMap((record) => record.scan.result.findings.map((finding) => ({ ...finding, source: record.fileName })));
+    return { blocked: true, findings, categories: [...new Set(findings.map((finding) => finding.category))] };
+  }
+
+  function handleInspectionIssue(records, input, event) {
+    if (settings.mode === "block") {
+      if (event) blockEvent(event);
+      showInspectionAlert("Anexo não pôde ser analisado", "Por segurança, remova o arquivo ou converta-o para um PDF/DOCX com texto extraível.", records, input);
       return false;
     }
+    const key = `inspection:${records.map((record) => `${record.fileName}:${record.error || "pending"}`).join("|")}`;
+    if (settings.mode === "warn") {
+      if (!warnedDetections.has(key)) {
+        warnedDetections.add(key);
+        showInspectionAlert("AI Safety Guard - Aviso", "O anexo não pôde ser analisado. O envio será permitido conforme o modo selecionado.", records, input);
+      }
+    } else {
+      recordAudit([{ category: "attachmentAnalysis", label: "Falha na análise do anexo", sample: records.map((record) => record.error || "falha desconhecida").join("; "), source: records.map((record) => record.fileName).join(", ") }]);
+    }
+    return true;
+  }
+
+  function handleDetection(result, input, event) {
+    if (settings.mode === "block") {
+      if (event) blockEvent(event);
+      showAlert(result, input);
+      return false;
+    }
+    if (settings.mode === "warn") showWarningOnce(result, input);
+    else recordAudit(result.findings);
     return true;
   }
 
@@ -231,26 +270,26 @@
       showInspectionAlert("Análise de anexos em andamento", "Aguarde a análise local terminar e tente enviar novamente.", attachmentState.pending, input);
       return true;
     }
-    if (attachmentState.errors.length) {
-      blockEvent(event);
-      showInspectionAlert("Anexo não pôde ser analisado", "Por segurança, remova o arquivo ou converta-o para um PDF/DOCX com texto extraível.", attachmentState.errors, input);
-      return true;
+    const unhandledErrors = attachmentState.errors.filter((record) => record.handledMode !== settings.mode);
+    if (unhandledErrors.length) {
+      const allowed = handleInspectionIssue(unhandledErrors, input, event);
+      if (allowed) for (const record of unhandledErrors) record.handledMode = settings.mode;
+      if (!allowed) return true;
     }
-    if (attachmentState.blocked.length) {
-      const findings = attachmentState.blocked.flatMap((record) => record.scan.result.findings.map((finding) => ({ ...finding, source: record.fileName })));
-      const result = { blocked: true, findings, categories: [...new Set(findings.map((finding) => finding.category))] };
-      blockEvent(event);
-      showAlert(result, input);
-      return true;
+    const unhandledBlocked = attachmentState.blocked.filter((record) => record.handledMode !== settings.mode);
+    if (unhandledBlocked.length) {
+      const allowed = handleDetection(resultFromRecords(unhandledBlocked), input, event);
+      if (allowed) for (const record of unhandledBlocked) record.handledMode = settings.mode;
+      if (!allowed) return true;
     }
     const result = AISafetyGuard.analyze(readInput(input), settings);
     if (!result.blocked) {
       setTimeout(() => attachments.clear(), 2000);
       return false;
     }
-    blockEvent(event);
-    showAlert(result, input);
-    return true;
+    const allowed = handleDetection(result, input, event);
+    if (allowed) setTimeout(() => attachments.clear(), 2000);
+    return !allowed;
   }
 
   function blockEvent(event) {
@@ -292,6 +331,69 @@
   }
 
   function showAlert(result, input) {
+    showDetectionDialog(result, input, {
+      title: "AI Safety Guard - Envio bloqueado",
+      description: "Possível dado sensível detectado. Remova ou anonimize os dados abaixo antes de tentar novamente.",
+      button: "Revisar mensagem",
+      color: "#b42318"
+    });
+  }
+
+  function showWarningOnce(result, input) {
+    const key = detectionKey(result.findings);
+    if (warnedDetections.has(key)) return;
+    warnedDetections.add(key);
+    showDetectionDialog(result, input, {
+      title: "AI Safety Guard - Aviso",
+      description: "Possível dado sensível detectado. O envio será permitido conforme o modo selecionado.",
+      button: "Entendi",
+      color: "#b54708"
+    });
+  }
+
+  function recordAudit(findings) {
+    const key = detectionKey(findings);
+    const now = Date.now();
+    if (now - (recentAuditRecords.get(key) || 0) < 2000) return;
+    recentAuditRecords.set(key, now);
+    for (const [storedKey, timestamp] of recentAuditRecords) if (now - timestamp > 10_000) recentAuditRecords.delete(storedKey);
+    const message = {
+      type: "RECORD_DETECTION",
+      entry: {
+        timestamp: new Date(now).toISOString(),
+        ai: currentAI(),
+        findings: findings.map((finding) => ({
+          category: AISafetyGuard.CATEGORIES[finding.category] || finding.category,
+          label: finding.label,
+          sample: finding.sample,
+          source: finding.source || "prompt"
+        }))
+      }
+    };
+    try {
+      const pending = chrome.runtime.sendMessage(message);
+      if (pending && typeof pending.catch === "function") pending.catch(() => undefined);
+    } catch { /* logging must not interrupt the host page */ }
+  }
+
+  function detectionKey(findings) {
+    return findings.map((finding) => [finding.category, finding.label, finding.sample, finding.source || "prompt"].join(":"))
+      .sort().join("|");
+  }
+
+  function currentAI() {
+    const hosts = {
+      "chatgpt.com": "ChatGPT",
+      "chat.openai.com": "ChatGPT",
+      "claude.ai": "Claude",
+      "www.perplexity.ai": "Perplexity",
+      "perplexity.ai": "Perplexity",
+      "gemini.google.com": "Gemini"
+    };
+    return hosts[location.hostname] || location.hostname;
+  }
+
+  function showDetectionDialog(result, input, options) {
     if (overlay) overlay.remove();
     overlay = document.createElement("div");
     overlay.id = "ai-safety-guard-alert";
@@ -304,26 +406,26 @@
 
     const title = document.createElement("h2");
     title.id = "ai-dlp-title";
-    title.textContent = "AI Safety Guard - Envio bloqueado";
+    title.textContent = options.title;
     title.style.cssText = "font-size:20px;margin:0 0 10px";
     const description = document.createElement("p");
-    description.textContent = "Possível dado sensível detectado. Remova ou anonimize os dados abaixo antes de tentar novamente.";
+    description.textContent = options.description;
     description.style.cssText = "font-size:14px;line-height:1.5;margin:0 0 16px;color:#475569";
     const categoryWarning = document.createElement("p");
-    const categoryNames = result.categories.map((category) => AISafetyGuard.CATEGORIES[category]);
+    const categoryNames = result.categories.map((category) => AISafetyGuard.CATEGORIES[category] || category);
     categoryWarning.textContent = `Possível infração nas categorias: ${categoryNames.join(", ")}.`;
     categoryWarning.style.cssText = "font-size:14px;line-height:1.5;margin:0 0 16px;padding:12px;border-radius:9px;background:#fef3f2;color:#912018;font-weight:700";
     const list = document.createElement("ul");
     list.style.cssText = "margin:0 0 20px;padding-left:20px;font-size:14px;line-height:1.7";
     result.findings.forEach((finding) => {
       const item = document.createElement("li");
-      item.textContent = `${AISafetyGuard.CATEGORIES[finding.category]} — ${finding.label} (${finding.sample})${finding.source ? ` — anexo: ${finding.source}` : ""}`;
+      item.textContent = `${AISafetyGuard.CATEGORIES[finding.category] || finding.category} — ${finding.label} (${finding.sample})${finding.source ? ` — anexo: ${finding.source}` : ""}`;
       list.appendChild(item);
     });
     const close = document.createElement("button");
     close.type = "button";
-    close.textContent = "Revisar mensagem";
-    close.style.cssText = "width:100%;border:0;border-radius:9px;padding:11px 16px;background:#b42318;color:#fff;font-weight:700;cursor:pointer";
+    close.textContent = options.button;
+    close.style.cssText = `width:100%;border:0;border-radius:9px;padding:11px 16px;background:${options.color};color:#fff;font-weight:700;cursor:pointer`;
     close.addEventListener("click", () => {
       overlay.remove();
       overlay = null;

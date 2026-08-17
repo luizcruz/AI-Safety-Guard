@@ -2,7 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { compareVersions, validateCatalog, downloadRules, register } = require("../src/background.js");
+const { compareVersions, validateCatalog, downloadRules, sanitizeAuditEntry, formatAuditLog, appendAuditLog, register } = require("../src/background.js");
 const bundled = require("../src/rules.js");
 
 test("compara versões semânticas", () => {
@@ -46,6 +46,45 @@ test("não substitui catálogo por versão igual ou anterior", async () => {
   assert.equal(result.reason, "not-newer");
 });
 
+test("sanitiza e formata registros de auditoria sem conteúdo multilinha", () => {
+  const entry = sanitizeAuditEntry({ timestamp: "inválida", ai: "Gemini\nforjado", findings: [{ category: "Credenciais", label: "JWT\r\nToken", sample: "eyJ***", source: "prompt" }] }, () => new Date("2026-08-16T12:00:00Z"));
+  assert.equal(entry.timestamp, "2026-08-16T12:00:00.000Z");
+  assert.equal(entry.ai, "Gemini forjado");
+  assert.equal(entry.findings[0].label, "JWT Token");
+  assert.equal(formatAuditLog([entry]).split("\n").length, 2);
+});
+
+test("persiste e atualiza arquivo consolidado de auditoria", async () => {
+  const state = {};
+  let download;
+  const chromeApi = {
+    storage: { local: {
+      get: async (defaults) => ({ ...defaults, ...state }),
+      set: async (values) => Object.assign(state, values)
+    } },
+    downloads: { download: async (options) => { download = options; return 1; } }
+  };
+  await appendAuditLog(chromeApi, { timestamp: "2026-08-16T12:00:00Z", ai: "ChatGPT", findings: [{ category: "Documentos pessoais", label: "CPF", sample: "123.***.***-09", source: "prompt" }] });
+  await appendAuditLog(chromeApi, { timestamp: "2026-08-16T12:01:00Z", ai: "Gemini", findings: [{ category: "Credenciais", label: "JWT", sample: "eyJ***", source: "arquivo.pdf" }] });
+  assert.equal(state.auditLog.length, 2);
+  assert.equal(download.filename, "AI Safety Guard/ai-safety-guard.log");
+  assert.equal(download.conflictAction, "overwrite");
+  assert.match(decodeURIComponent(download.url), /ChatGPT/);
+  assert.match(decodeURIComponent(download.url), /Gemini/);
+});
+
+test("limita retenção do arquivo de auditoria", async () => {
+  const state = { auditLog: Array.from({ length: 500 }, (_, index) => ({ timestamp: `old-${index}`, ai: "Teste", findings: [] })) };
+  const chromeApi = { storage: { local: {
+    get: async (defaults) => ({ ...defaults, ...state }),
+    set: async (values) => Object.assign(state, values)
+  } } };
+  await appendAuditLog(chromeApi, { timestamp: "2026-08-16T12:00:00Z", ai: "Claude", findings: [] });
+  assert.equal(state.auditLog.length, 500);
+  assert.equal(state.auditLog.at(-1).ai, "Claude");
+  assert.equal(state.auditLog[0].timestamp, "old-1");
+});
+
 test("registra eventos do Chrome, descarta cache antigo e persiste catálogo atualizado", async () => {
   const state = { apiUrl: "https://rules.example", apiToken: "secret", rulesVersion: "1.1.0" };
   const listeners = {};
@@ -69,4 +108,9 @@ test("registra eventos do Chrome, descarta cache antigo e persiste catálogo atu
   assert.equal(typeof listeners.startup, "function");
   assert.equal(typeof listeners.installed, "function");
   assert.equal(listeners.message({ type: "IGNORED" }, null, () => undefined), false);
+  const auditResponse = await new Promise((resolve) => {
+    assert.equal(listeners.message({ type: "RECORD_DETECTION", entry: { ai: "Gemini", findings: [] } }, null, resolve), true);
+  });
+  assert.equal(auditResponse.ok, true);
+  assert.equal(state.auditLog.length, 1);
 });

@@ -7,6 +7,7 @@
   const apiToken = document.querySelector("#api-token");
   const status = document.querySelector("#rules-status");
   const categoryInputs = new Map();
+  const modeInputs = [...document.querySelectorAll("input[name='protection-mode']")];
 
   initialize().catch((error) => showStatus(error.message, true));
 
@@ -16,13 +17,14 @@
       try { AISafetyGuard.updateCatalog(remote.rulesCatalog); } catch { /* bundled catalog remains active */ }
     }
     renderCategories();
-    const settings = await chrome.storage.sync.get({ enabled: true, enabledCategories: Object.keys(AISafetyGuard.CATEGORIES), knownCategories: [] });
+    const settings = await chrome.storage.sync.get({ enabled: true, enabledCategories: Object.keys(AISafetyGuard.CATEGORIES), knownCategories: [], mode: "block" });
     const currentCategories = Object.keys(AISafetyGuard.CATEGORIES);
     const knownCategories = settings.knownCategories.length ? settings.knownCategories : currentCategories.filter((category) => category !== "sensitiveFileNames");
     const addedCategories = currentCategories.filter((category) => !knownCategories.includes(category));
     settings.enabledCategories = [...new Set([...settings.enabledCategories, ...addedCategories])];
     await chrome.storage.sync.set({ enabledCategories: settings.enabledCategories, knownCategories: currentCategories });
     enabled.checked = settings.enabled !== false;
+    (modeInputs.find((input) => input.value === settings.mode) || modeInputs[0]).checked = true;
     for (const [key, input] of categoryInputs) input.checked = settings.enabledCategories.includes(key);
     apiUrl.value = remote.apiUrl;
     apiToken.value = remote.apiToken;
@@ -47,10 +49,12 @@
   }
 
   enabled.addEventListener("change", saveProtection);
+  for (const input of modeInputs) input.addEventListener("change", saveProtection);
   function saveProtection() {
     chrome.storage.sync.set({
       enabled: enabled.checked,
-      enabledCategories: [...categoryInputs].filter(([, input]) => input.checked).map(([key]) => key)
+      enabledCategories: [...categoryInputs].filter(([, input]) => input.checked).map(([key]) => key),
+      mode: modeInputs.find((input) => input.checked)?.value || "block"
     });
   }
 
