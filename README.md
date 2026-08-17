@@ -37,7 +37,7 @@ O nome de todo anexo é comparado localmente com a categoria `Nomes de arquivos 
 
 ## Desenvolvimento
 
-```powershell
+```bash
 npm test
 npm run check
 npm run build:vendor
@@ -45,9 +45,10 @@ npm run build:vendor
 
 Testes da API:
 
-```powershell
-pip install -r api/requirements-dev.txt
-pytest api/tests --cov=api/app
+```bash
+python3 -m venv api/.venv
+api/.venv/bin/python -m pip install -r api/requirements-dev.txt
+api/.venv/bin/python -m pytest api/tests --cov=api/app
 ```
 
 ## Privacidade

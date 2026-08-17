@@ -2,29 +2,40 @@
 
 API FastAPI para administrar o catálogo do AI Safety Guard. Todos os endpoints de regras exigem `Authorization: Bearer <token>`. Cada `POST`, `PUT` ou `DELETE` incrementa a versão patch e cria um snapshot JSON imutável em `data/rulesets`.
 
-## Execução
+## Execução no WSL
 
-Crie `api/.env` a partir do exemplo e substitua o token:
+No Ubuntu/WSL, instale o Python e o suporte a ambientes virtuais:
 
-```dotenv
-AI_SAFETY_API_TOKEN=gere-um-token-aleatorio-com-pelo-menos-32-caracteres
+```bash
+sudo apt update
+sudo apt install -y python3 python3-venv python3-pip
 ```
 
-Instale as dependências uma vez e execute o launcher a partir de qualquer diretório:
+Entre no repositório pelo filesystem do WSL. Ajuste o caminho se o usuário ou a unidade forem diferentes:
 
-```powershell
-python -m venv api\.venv
-api\.venv\Scripts\python.exe -m pip install -r api\requirements.txt
-api\.venv\Scripts\python.exe api\bin\deploy
+```bash
+cd /mnt/c/Users/luizcruz_lance/Documents/AISafety
 ```
 
-Em Linux/macOS:
+Crie o `.env`, gere um token seguro e mantenha o arquivo fora do Git:
+
+```bash
+cp api/.env.example api/.env
+AI_SAFETY_TOKEN="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+sed -i "s|^AI_SAFETY_API_TOKEN=.*|AI_SAFETY_API_TOKEN=${AI_SAFETY_TOKEN}|" api/.env
+unset AI_SAFETY_TOKEN
+```
+
+Crie o ambiente virtual, instale as dependências e inicie a API:
 
 ```bash
 python3 -m venv api/.venv
+api/.venv/bin/python -m pip install --upgrade pip
 api/.venv/bin/python -m pip install -r api/requirements.txt
 api/.venv/bin/python api/bin/deploy
 ```
+
+A API ficará disponível em `http://127.0.0.1:8000`. Interrompa com `Ctrl+C`.
 
 Em produção, use volume persistente para `/data/rulesets`, HTTPS e apenas um worker por instância, pois o repositório é baseado em arquivos.
 
@@ -41,10 +52,14 @@ Tipos aceitos em `kind`: `pattern`, `keyword`, `heuristic` e `filename`. Regras 
 
 Use `If-Match: "<versão>"` nas mutações para evitar sobrescrita concorrente. A resposta devolve a versão atual em `ETag`.
 
-```powershell
-$headers = @{ Authorization = "Bearer $env:AI_SAFETY_API_TOKEN"; "If-Match" = '"1.1.0"' }
-$body = @{ kind="keyword"; category="credentials"; keyword="client_secret" } | ConvertTo-Json
-Invoke-RestMethod http://127.0.0.1:8000/v1/rules -Method Post -Headers $headers -ContentType application/json -Body $body
+```bash
+AI_SAFETY_TOKEN="$(sed -n 's/^AI_SAFETY_API_TOKEN=//p' api/.env)"
+curl --fail-with-body -X POST http://127.0.0.1:8000/v1/rules \
+  -H "Authorization: Bearer ${AI_SAFETY_TOKEN}" \
+  -H 'If-Match: "1.2.0"' \
+  -H 'Content-Type: application/json' \
+  --data '{"kind":"keyword","category":"credentials","keyword":"client_secret"}'
+unset AI_SAFETY_TOKEN
 ```
 
 Exemplo de regra de nome de arquivo:
