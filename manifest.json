@@ -1,10 +1,9 @@
 {
   "manifest_version": 3,
   "name": "AI Safety Guard v1.2",
-  "version": "1.2.1",
-  "minimum_chrome_version": "116",
+  "version": "1.2.2",
   "description": "Proteção local contra o envio de dados sensíveis para chats de IA.",
-  "permissions": ["storage", "downloads", "offscreen"],
+  "permissions": ["storage"],
   "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
   "optional_host_permissions": ["https://*/*"],
   "background": {

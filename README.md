@@ -27,7 +27,7 @@ O nome de todo anexo é comparado localmente com a categoria `Nomes de arquivos 
 
 - `Bloquear`: impede o envio até a remoção ou anonimização dos dados.
 - `Avisar`: apresenta uma única advertência por detecção e permite o envio.
-- `Registrar`: permite o envio e atualiza `Downloads/AI Safety Guard/ai-safety-guard.log` com data/hora, IA acessada, categorias, regras acionadas e amostras mascaradas. O popup exibe a quantidade persistida, eventuais erros e permite refazer o download manualmente.
+- `Registrar`: permite o envio e persiste silenciosamente no `chrome.storage.local` a data/hora, IA acessada, categorias, regras acionadas e amostras mascaradas, para coleta remota posterior.
 
 ## Instalação local
 
@@ -52,7 +52,7 @@ pytest api/tests --cov=api/app
 
 ## Privacidade
 
-A análise é determinística e executada integralmente no content script. Nenhuma mensagem ou ocorrência é transmitida para a API de regras. Preferências ficam no `chrome.storage.sync`; no modo `Registrar`, ocorrências mascaradas são mantidas no `chrome.storage.local` e no arquivo de auditoria da pasta Downloads.
+A análise é determinística e executada integralmente no content script. Nenhuma mensagem ou ocorrência é transmitida para a API de regras. Preferências ficam no `chrome.storage.sync`; no modo `Registrar`, ocorrências mascaradas são mantidas silenciosamente no `chrome.storage.local` para extração remota posterior.
 
 ## Limitações
 

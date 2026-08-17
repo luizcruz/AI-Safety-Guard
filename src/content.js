@@ -372,9 +372,7 @@
     };
     try {
       const pending = chrome.runtime.sendMessage(message);
-      if (pending && typeof pending.then === "function") pending.then((response) => {
-        if (response && response.ok === false) console.warn("AI Safety Guard não conseguiu registrar a auditoria.", response.error);
-      }).catch(() => undefined);
+      if (pending && typeof pending.catch === "function") pending.catch(() => undefined);
     } catch { /* logging must not interrupt the host page */ }
   }
 
