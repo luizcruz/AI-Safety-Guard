@@ -1,0 +1,14 @@
+{
+  "name": "ai-safety-guard-admin",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Painel administrativo para a API de regras do AI Safety Guard.",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test test/*.test.js",
+    "check": "node --check src/config.js && node --check src/api-client.js && node --check src/server.js && node --check public/app.js"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

@@ -14,5 +14,24 @@ services:
       timeout: 5s
       retries: 3
 
+  rules-admin:
+    build: ./admin-ui
+    env_file:
+      - ./api/.env
+    environment:
+      RULES_API_URL: http://rules-api:8000
+      ADMIN_PORT: 3000
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      rules-api:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
 volumes:
   rules-data:

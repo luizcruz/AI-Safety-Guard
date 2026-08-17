@@ -19,3 +19,10 @@ test("Docker Compose mantém API local, persistência e health check", () => {
   assert.match(compose, /rules-data:\/data\/rulesets/);
   assert.match(compose, /http:\/\/127\.0\.0\.1:8000\/health/);
 });
+
+test("Docker Compose integra painel Node.js sem publicar token no navegador", () => {
+  assert.match(compose, /rules-admin:/);
+  assert.match(compose, /RULES_API_URL: http:\/\/rules-api:8000/);
+  assert.match(compose, /127\.0\.0\.1:3000:3000/);
+  assert.match(compose, /condition: service_healthy/);
+});

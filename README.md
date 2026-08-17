@@ -8,6 +8,8 @@ O catálogo declarativo embarcado fica em `src/rules.js`: categorias, expressõe
 
 A API em `api/` oferece CRUD autenticado e snapshots versionados. O service worker consulta `/v1/rulesets/latest` ao instalar/iniciar o Chrome, aceita somente versões mais recentes e catálogos válidos, e os distribui aos content scripts via `chrome.storage.local`. Falhas de rede preservam o último catálogo válido ou o conjunto embarcado.
 
+O painel Node.js em `admin-ui/` disponibiliza a administração visual do catálogo em `http://127.0.0.1:3000` quando iniciado pelo Docker Compose. O painel usa a API Python pela rede interna, mantém o Bearer token no servidor e aplica controle de versão otimista nas alterações.
+
 Configure a URL e o Bearer token no popup da extensão. O token fica apenas no armazenamento local do perfil do Chrome; nenhuma mensagem de chat é enviada à API.
 
 ## Análise de anexos

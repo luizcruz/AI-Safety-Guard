@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>AI Safety Guard — Regras</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">AI Safety Guard</p>
+        <h1>Administração de regras</h1>
+      </div>
+      <div class="version">Catálogo <strong id="catalog-version">—</strong></div>
+    </header>
+
+    <main>
+      <section class="summary" aria-label="Resumo">
+        <div><span id="rule-count">0</span><small>regras</small></div>
+        <div><span id="category-count">0</span><small>categorias</small></div>
+        <div><span id="type-count">0</span><small>tipos</small></div>
+      </section>
+
+      <section class="panel">
+        <div class="toolbar">
+          <label>Tipo<select id="filter-kind"><option value="">Todos os tipos</option></select></label>
+          <label>Categoria<select id="filter-category"><option value="">Todas as categorias</option></select></label>
+          <button id="refresh" class="secondary" type="button">Atualizar</button>
+          <button id="add-rule" type="button">Adicionar regra</button>
+        </div>
+        <p id="status" class="status" role="status">Carregando regras…</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Tipo</th><th>Categoria</th><th>Regra</th><th>Pontuação</th><th class="actions">Ações</th></tr></thead>
+            <tbody id="rules"></tbody>
+          </table>
+        </div>
+        <p id="empty" class="empty" hidden>Nenhuma regra encontrada para os filtros selecionados.</p>
+      </section>
+    </main>
+
+    <dialog id="rule-dialog">
+      <form id="rule-form">
+        <div class="dialog-head">
+          <div><p class="eyebrow">Catálogo de detecção</p><h2 id="dialog-title">Adicionar regra</h2></div>
+          <button id="close-dialog" class="icon" type="button" aria-label="Fechar">×</button>
+        </div>
+        <input id="rule-id" type="hidden">
+        <div class="form-grid">
+          <label>Tipo<select id="kind" required></select></label>
+          <label>Categoria<select id="category" required></select></label>
+          <label class="kind-field non-keyword">Rótulo<input id="label" maxlength="160"></label>
+          <label class="kind-field non-keyword">Pontuação<input id="score" type="number" min="0" max="100"></label>
+
+          <label class="kind-field kind-pattern wide">Expressão regular<textarea id="source" rows="4" maxlength="5000"></textarea></label>
+          <label class="kind-field kind-pattern">Flags<input id="flags" maxlength="8" value="g" placeholder="gi"></label>
+          <label class="kind-field kind-pattern">Validador<select id="validator"></select></label>
+
+          <label class="kind-field kind-keyword wide">Palavra-chave<input id="keyword" maxlength="300"></label>
+          <label class="kind-field kind-heuristic wide">Identificador da heurística<select id="heuristic-id"></select></label>
+          <label class="kind-field kind-filename wide">Nomes de arquivos <span>(um por linha)</span><textarea id="file-names" rows="7" maxlength="10000"></textarea></label>
+        </div>
+        <p id="form-error" class="error" role="alert" hidden></p>
+        <div class="dialog-actions">
+          <button id="cancel" class="secondary" type="button">Cancelar</button>
+          <button id="save" type="submit">Salvar regra</button>
+        </div>
+      </form>
+    </dialog>
+    <script src="/app.js" defer></script>
+  </body>
+</html>
