@@ -38,6 +38,13 @@ cd api
 
 A API ficará disponível em `http://127.0.0.1:8000`. Interrompa com `Ctrl+C`.
 
+Variáveis já exportadas no shell têm precedência sobre o `.env`. Se o launcher informar que o shell está sobrescrevendo o token, remova a variável antes de iniciar:
+
+```bash
+unset AI_SAFETY_API_TOKEN
+./bin/deploy
+```
+
 Em produção, use volume persistente para `/data/rulesets`, HTTPS e apenas um worker por instância, pois o repositório é baseado em arquivos.
 
 ## Endpoints

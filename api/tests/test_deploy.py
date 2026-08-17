@@ -68,6 +68,15 @@ def test_configuration_error_identifies_non_token_field():
     assert "AI_SAFETY_API_TOKEN deve" not in str(error.value)
 
 
+def test_configuration_error_identifies_shell_override():
+    def invalid_settings():
+        raise DEPLOY["ConfigurationError"](("api_token",), ("AI_SAFETY_API_TOKEN",))
+
+    with pytest.raises(SystemExit, match="unset AI_SAFETY_API_TOKEN") as error:
+        DEPLOY["main"]([], settings_loader=invalid_settings, server_runner=lambda *_args, **_kwargs: pytest.fail("não deve iniciar"))
+    assert "sobrescrevendo o .env" in str(error.value)
+
+
 def test_launcher_reexecutes_with_project_virtualenv(tmp_path):
     python = tmp_path / ".venv" / "bin" / "python"
     python.parent.mkdir(parents=True)
@@ -77,8 +86,7 @@ def test_launcher_reexecutes_with_project_virtualenv(tmp_path):
     result = DEPLOY["ensure_virtualenv"](
         tmp_path,
         ["--port", "9000"],
-        prefix="/usr",
-        base_prefix="/usr",
+        current_executable="/usr/bin/python3",
         execv=lambda executable, arguments: calls.append((executable, arguments)),
     )
 
@@ -88,10 +96,19 @@ def test_launcher_reexecutes_with_project_virtualenv(tmp_path):
     assert calls[0][1][-2:] == ["--port", "9000"]
 
 
-def test_launcher_keeps_active_virtualenv_and_reports_missing_one(tmp_path):
+def test_launcher_replaces_other_virtualenv_but_keeps_project_virtualenv(tmp_path):
+    python = tmp_path / ".venv" / "bin" / "python"
+    python.parent.mkdir(parents=True)
+    python.touch()
+    calls = []
+    assert DEPLOY["ensure_virtualenv"](tmp_path, current_executable="/other/venv/bin/python", execv=lambda *args: calls.append(args)) is True
+    assert len(calls) == 1
+    assert DEPLOY["ensure_virtualenv"](tmp_path, current_executable=str(python), execv=lambda *_args: pytest.fail("não deve executar novamente")) is False
+
+
+def test_launcher_reports_missing_project_virtualenv(tmp_path):
     fail = lambda *_args: pytest.fail("não deve executar outro Python")
-    assert DEPLOY["ensure_virtualenv"](tmp_path, prefix="/venv", base_prefix="/usr", execv=fail) is False
-    assert DEPLOY["ensure_virtualenv"](tmp_path, prefix="/usr", base_prefix="/usr", execv=fail) is False
+    assert DEPLOY["ensure_virtualenv"](tmp_path, current_executable="/usr/bin/python3", execv=fail) is False
 
 
 def test_settings_uses_api_env_file_independent_of_working_directory():
@@ -128,3 +145,11 @@ def test_settings_rejects_invalid_token_and_port(tmp_path, monkeypatch):
     env_file.write_text("AI_SAFETY_API_TOKEN=short\nAI_SAFETY_API_PORT=70000\n", encoding="utf-8")
     with pytest.raises(ValidationError):
         Settings(_env_file=env_file)
+
+
+def test_load_settings_marks_environment_override(monkeypatch):
+    monkeypatch.setenv("AI_SAFETY_API_TOKEN", "short")
+    with pytest.raises(DEPLOY["ConfigurationError"]) as error:
+        DEPLOY["load_settings"]()
+    assert error.value.fields == ("api_token",)
+    assert error.value.environment_overrides == ("AI_SAFETY_API_TOKEN",)
