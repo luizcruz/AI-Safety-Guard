@@ -5,8 +5,8 @@
   "description": "AI Safety Guard v1.2 Chrome extension for preventing sensitive data exposure in AI chats.",
   "scripts": {
     "test": "node --test tests/*.test.js admin-ui/test/*.test.js",
-    "build:vendor": "node scripts/build-vendor.mjs",
-    "check": "node --check src/rules.js && node --check src/detector.js && node --check src/attachments.js && node --check src/content.js && node --check src/background.js && node --check src/audit-log.js && node --check src/popup.js"
+    "build:vendor": "node plugin/scripts/build-vendor.mjs",
+    "check": "node --check plugin/src/rules.js && node --check plugin/src/detector.js && node --check plugin/src/attachments.js && node --check plugin/src/content.js && node --check plugin/src/background.js && node --check plugin/src/audit-log.js && node --check plugin/src/popup.js"
   },
   "dependencies": {
     "mammoth": "1.12.0",

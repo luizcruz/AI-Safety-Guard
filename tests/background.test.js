@@ -2,8 +2,8 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { compareVersions, validateCatalog, downloadRules, sanitizeAuditEntry, appendAuditLog, register } = require("../src/background.js");
-const bundled = require("../src/rules.js");
+const { compareVersions, validateCatalog, downloadRules, sanitizeAuditEntry, appendAuditLog, register } = require("../plugin/src/background.js");
+const bundled = require("../plugin/src/rules.js");
 
 test("compara versões semânticas", () => {
   assert.ok(compareVersions("1.2.0", "1.1.9") > 0);

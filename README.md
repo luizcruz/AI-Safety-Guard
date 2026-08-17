@@ -4,7 +4,7 @@ Extensão Chrome Manifest V3 que analisa localmente mensagens e anexos PDF/DOCX/
 
 ## Arquitetura de regras
 
-O catálogo declarativo embarcado fica em `src/rules.js`: categorias, expressões regulares, palavras-chave, pontuações, validadores e heurísticas. Expressões são armazenadas como `source` e `flags`, no mesmo formato serializável entregue pela API. `src/detector.js` compila e executa esse catálogo localmente.
+O catálogo declarativo embarcado fica em `plugin/src/rules.js`: categorias, expressões regulares, palavras-chave, pontuações, validadores e heurísticas. Expressões são armazenadas como `source` e `flags`, no mesmo formato serializável entregue pela API. `plugin/src/detector.js` compila e executa esse catálogo localmente.
 
 A API em `api/` oferece CRUD autenticado e snapshots versionados. O service worker consulta `/v1/rulesets/latest` ao instalar/iniciar o Chrome, aceita somente versões mais recentes e catálogos válidos, e os distribui aos content scripts via `chrome.storage.local`. Falhas de rede preservam o último catálogo válido ou o conjunto embarcado.
 
@@ -35,7 +35,17 @@ O nome de todo anexo é comparado localmente com a categoria `Nomes de arquivos 
 
 1. Acesse `chrome://extensions`.
 2. Ative **Modo do desenvolvedor**.
-3. Clique em **Carregar sem compactação** e selecione este diretório.
+3. Clique em **Carregar sem compactação** e selecione a pasta `plugin/`.
+
+## Inicialização dos serviços
+
+No WSL, o launcher raiz verifica a branch remota, aplica somente atualizações fast-forward e inicia a API e o painel administrativo pelo Docker Compose:
+
+```bash
+./bin/deploy
+```
+
+Use `./bin/deploy --check-only` para apenas consultar atualizações ou `./bin/deploy --no-update` para iniciar sem acessar o repositório remoto.
 
 ## Desenvolvimento
 

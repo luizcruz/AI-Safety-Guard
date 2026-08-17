@@ -6,8 +6,8 @@ const mammoth = require("mammoth");
 const JSZip = require("jszip");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
-const { extractText, scanFile, fileType, Registry, AttachmentError } = require("../src/attachments.js");
-const { analyze } = require("../src/detector.js");
+const { extractText, scanFile, fileType, Registry, AttachmentError } = require("../plugin/src/attachments.js");
+const { analyze } = require("../plugin/src/detector.js");
 
 function file(name, bytes, type = "") {
   const data = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
@@ -57,7 +57,7 @@ test("extrai texto de PDF real com PDF.js", async () => {
 
 test("bundle do worker PDF inicializa no contexto principal da extensão", async () => {
   delete globalThis.pdfjsWorker;
-  const workerUrl = `${pathToFileURL(path.join(__dirname, "..", "vendor", "pdf.worker.mjs")).href}?test=main-thread-worker`;
+  const workerUrl = `${pathToFileURL(path.join(__dirname, "..", "plugin", "vendor", "pdf.worker.mjs")).href}?test=main-thread-worker`;
   await import(workerUrl);
   assert.equal(typeof globalThis.pdfjsWorker.WorkerMessageHandler, "function");
   delete globalThis.pdfjsWorker;
@@ -74,7 +74,7 @@ test("extrai texto de DOCX real com Mammoth", async () => {
 
 test("bundle Mammoth inicializa como módulo da extensão", async () => {
   delete globalThis.mammoth;
-  const moduleUrl = `${pathToFileURL(path.join(__dirname, "..", "vendor", "mammoth.browser.min.mjs")).href}?test=1`;
+  const moduleUrl = `${pathToFileURL(path.join(__dirname, "..", "plugin", "vendor", "mammoth.browser.min.mjs")).href}?test=1`;
   await import(moduleUrl);
   assert.equal(typeof globalThis.mammoth.extractRawText, "function");
   delete globalThis.mammoth;
@@ -130,16 +130,16 @@ test("registro aguarda falhas de leitura antes de liberar o fluxo", async () => 
 });
 
 test("usa nome do arquivo quando não existe leitor para o formato", async () => {
-  const result = await scanFile(file("credentials.csv", new TextEncoder().encode("ignored")), analyze, {}, undefined, undefined, require("../src/detector.js").analyzeFileName);
+  const result = await scanFile(file("credentials.csv", new TextEncoder().encode("ignored")), analyze, {}, undefined, undefined, require("../plugin/src/detector.js").analyzeFileName);
   assert.equal(result.type, "filename");
   assert.equal(result.result.blocked, true);
-  const benign = await scanFile(file("photo.jpg", new Uint8Array()), analyze, {}, undefined, undefined, require("../src/detector.js").analyzeFileName);
+  const benign = await scanFile(file("photo.jpg", new Uint8Array()), analyze, {}, undefined, undefined, require("../plugin/src/detector.js").analyzeFileName);
   assert.equal(benign.result.blocked, false);
 });
 
 test("aplica regra de nome mesmo quando a extração é bem-sucedida", async () => {
   const attachment = file("cnh.pdf", createPdf("documento sem padrões internos"));
-  const result = await scanFile(attachment, analyze, {}, {}, { pdfLoader: () => import("pdfjs-dist/legacy/build/pdf.mjs") }, require("../src/detector.js").analyzeFileName);
+  const result = await scanFile(attachment, analyze, {}, {}, { pdfLoader: () => import("pdfjs-dist/legacy/build/pdf.mjs") }, require("../plugin/src/detector.js").analyzeFileName);
   assert.equal(result.result.blocked, true);
   assert.ok(result.result.categories.includes("sensitiveFileNames"));
 });

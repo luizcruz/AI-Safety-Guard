@@ -2,7 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { FILE_NAME, MIME_TYPE, serialize, download } = require("../src/audit-log.js");
+const { FILE_NAME, MIME_TYPE, serialize, download } = require("../plugin/src/audit-log.js");
 
 test("serializa a auditoria em JSON Lines", () => {
   const entries = [{ timestamp: "2026-08-16T12:00:00.000Z", ai: "ChatGPT", findings: [] }, { ai: "Gemini", findings: [{ label: "CPF" }] }];

@@ -4,7 +4,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const catalog = require("../src/rules.js");
+const catalog = require("../plugin/src/rules.js");
 
 test("catálogo é serializável e todas as expressões compilam", () => {
   const serialized = JSON.stringify(catalog);
@@ -19,7 +19,7 @@ test("todas as regras apontam para categorias existentes", () => {
 });
 
 test("manifest carrega catálogo antes do detector", () => {
-  const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "manifest.json"), "utf8"));
+  const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "plugin", "manifest.json"), "utf8"));
   assert.deepEqual(manifest.content_scripts[0].js, ["src/rules.js", "src/detector.js", "src/attachments.js", "src/content.js"]);
   assert.equal(manifest.background.service_worker, "src/background.js");
   assert.deepEqual(manifest.permissions, ["storage"]);
@@ -28,13 +28,13 @@ test("manifest carrega catálogo antes do detector", () => {
 test("bibliotecas de documentos são empacotadas localmente", () => {
   const root = path.join(__dirname, "..");
   for (const name of ["pdf.mjs", "pdf.worker.mjs", "mammoth.browser.min.mjs"]) {
-    assert.ok(fs.statSync(path.join(root, "vendor", name)).size > 100_000, name);
+    assert.ok(fs.statSync(path.join(root, "plugin", "vendor", name)).size > 100_000, name);
   }
 });
 
 test("worker PDF é carregado antes da biblioteca para evitar worker blob", () => {
-  const source = fs.readFileSync(path.join(__dirname, "..", "src", "attachments.js"), "utf8");
-  const pdfBundle = fs.readFileSync(path.join(__dirname, "..", "vendor", "pdf.mjs"), "utf8");
+  const source = fs.readFileSync(path.join(__dirname, "..", "plugin", "src", "attachments.js"), "utf8");
+  const pdfBundle = fs.readFileSync(path.join(__dirname, "..", "plugin", "vendor", "pdf.mjs"), "utf8");
   const workerImport = source.indexOf("await import(workerUrl)");
   const pdfImport = source.indexOf('await import(root.chrome.runtime.getURL("vendor/pdf.mjs"))');
   assert.ok(workerImport >= 0 && pdfImport > workerImport);
@@ -54,7 +54,7 @@ test("catálogo contém os nomes de arquivos sensíveis iniciais", () => {
 });
 
 test("alerta explicita as categorias possivelmente infringidas", () => {
-  const content = fs.readFileSync(path.join(__dirname, "..", "src", "content.js"), "utf8");
+  const content = fs.readFileSync(path.join(__dirname, "..", "plugin", "src", "content.js"), "utf8");
   assert.match(content, /AI Safety Guard - Envio bloqueado/);
   assert.match(content, /Possível dado sensível detectado\. Remova ou anonimize os dados abaixo antes de tentar novamente\./);
   assert.match(content, /Possível infração nas categorias/);
@@ -70,8 +70,8 @@ test("alerta explicita as categorias possivelmente infringidas", () => {
 });
 
 test("popup apresenta regras e modos operacionais", () => {
-  const popup = fs.readFileSync(path.join(__dirname, "..", "src", "popup.html"), "utf8");
-  const popupScript = fs.readFileSync(path.join(__dirname, "..", "src", "popup.js"), "utf8");
+  const popup = fs.readFileSync(path.join(__dirname, "..", "plugin", "src", "popup.html"), "utf8");
+  const popupScript = fs.readFileSync(path.join(__dirname, "..", "plugin", "src", "popup.js"), "utf8");
   assert.match(popup, /<h2>Regras<\/h2>/);
   assert.match(popup, /<h2>Modo de bloqueio<\/h2>/);
   for (const mode of ["block", "warn", "log"]) assert.match(popup, new RegExp(`value="${mode}"`));
@@ -85,10 +85,10 @@ test("popup apresenta regras e modos operacionais", () => {
 
 test("identidade pública usa exclusivamente AI Safety Guard v1.2", () => {
   const root = path.join(__dirname, "..");
-  const manifest = JSON.parse(fs.readFileSync(path.join(root, "manifest.json"), "utf8"));
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, "plugin", "manifest.json"), "utf8"));
   const packageManifest = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
   const packageLock = JSON.parse(fs.readFileSync(path.join(root, "package-lock.json"), "utf8"));
-  const popup = fs.readFileSync(path.join(root, "src", "popup.html"), "utf8");
+  const popup = fs.readFileSync(path.join(root, "plugin", "src", "popup.html"), "utf8");
   const readme = fs.readFileSync(path.join(root, "README.md"), "utf8");
   assert.equal(manifest.version, "1.2.3");
   assert.equal(packageManifest.version, manifest.version);

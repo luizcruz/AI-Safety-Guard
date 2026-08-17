@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+readonly REPOSITORY_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
+readonly LOCK_FILE="${REPOSITORY_ROOT}/.git/ai-safety-deploy.lock"
+
+skip_update="${AI_SAFETY_SKIP_UPDATE:-0}"
+check_only=0
+allow_dirty=0
+
+usage() {
+  cat <<'EOF'
+Uso: ./bin/deploy [--no-update] [--check-only] [--allow-dirty]
+
+  --no-update    Não consulta o repositório remoto.
+  --check-only   Verifica atualizações sem alterar arquivos ou iniciar o Docker.
+  --allow-dirty  Permite iniciar com alterações locais quando não há atualização remota.
+EOF
+}
+
+while (($#)); do
+  case "$1" in
+    --no-update) skip_update=1 ;;
+    --check-only) check_only=1 ;;
+    --allow-dirty) allow_dirty=1 ;;
+    -h|--help) usage; exit 0 ;;
+    *) printf 'Argumento desconhecido: %s\n' "$1" >&2; usage >&2; exit 2 ;;
+  esac
+  shift
+done
+
+command -v git >/dev/null 2>&1 || { echo "Git não encontrado." >&2; exit 1; }
+command -v flock >/dev/null 2>&1 || { echo "flock não encontrado (pacote util-linux)." >&2; exit 1; }
+git -C "${REPOSITORY_ROOT}" rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "Diretório não é um repositório Git." >&2; exit 1; }
+
+exec 9>"${LOCK_FILE}"
+flock -n 9 || { echo "Outro deploy já está em execução." >&2; exit 1; }
+cd -- "${REPOSITORY_ROOT}"
+
+is_dirty() {
+  [[ -n "$(git status --porcelain --untracked-files=normal)" ]]
+}
+
+update_repository() {
+  if [[ "${skip_update}" == "1" ]]; then
+    echo "Atualização do repositório ignorada explicitamente."
+    return
+  fi
+
+  local remote="${AI_SAFETY_GIT_REMOTE:-origin}"
+  local branch upstream counts ahead behind
+  if ! git remote get-url "${remote}" >/dev/null 2>&1; then
+    echo "Aviso: remote '${remote}' não configurado; verificação de atualização ignorada." >&2
+    return
+  fi
+
+  branch="$(git branch --show-current)"
+  [[ -n "${branch}" ]] || { echo "HEAD destacado; atualização automática recusada." >&2; exit 1; }
+  echo "Consultando atualizações em ${remote}/${branch}..."
+  git fetch --prune "${remote}"
+
+  upstream="$(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || true)"
+  if [[ -z "${upstream}" ]] && git show-ref --verify --quiet "refs/remotes/${remote}/${branch}"; then
+    upstream="${remote}/${branch}"
+  fi
+  [[ -n "${upstream}" ]] || { echo "Aviso: branch remota correspondente não encontrada; atualização ignorada." >&2; return; }
+
+  counts="$(git rev-list --left-right --count "HEAD...${upstream}")"
+  read -r ahead behind <<<"${counts}"
+  if ((ahead > 0 && behind > 0)); then
+    echo "Branch local divergiu de ${upstream}; resolva manualmente antes do deploy." >&2
+    exit 1
+  fi
+  if ((behind == 0)); then
+    echo "Repositório já está atualizado."
+    return
+  fi
+  if ((check_only == 1)); then
+    echo "Atualização disponível: ${behind} commit(s)."
+    exit 3
+  fi
+  is_dirty && { echo "Há alterações locais; atualização automática recusada." >&2; exit 1; }
+  echo "Aplicando ${behind} atualização(ões) por fast-forward..."
+  git merge --ff-only "${upstream}"
+}
+
+update_repository
+((check_only == 1)) && exit 0
+if ((allow_dirty == 0)) && is_dirty; then
+  echo "Há alterações locais. Faça commit ou use --allow-dirty conscientemente." >&2
+  exit 1
+fi
+
+command -v docker >/dev/null 2>&1 || { echo "Docker não encontrado." >&2; exit 1; }
+docker compose version >/dev/null 2>&1 || { echo "Plugin Docker Compose não encontrado." >&2; exit 1; }
+
+readonly ENV_FILE="${REPOSITORY_ROOT}/api/.env"
+[[ -f "${ENV_FILE}" ]] || { echo "Arquivo api/.env não encontrado. Copie api/.env.example e configure o token." >&2; exit 1; }
+api_token=""
+while IFS= read -r line || [[ -n "${line}" ]]; do
+  line="${line%$'\r'}"
+  [[ "${line}" =~ ^[[:space:]]*# ]] && continue
+  if [[ "${line}" =~ ^[[:space:]]*AI_SAFETY_API_TOKEN[[:space:]]*= ]]; then
+    api_token="${line#*=}"
+    api_token="${api_token#"${api_token%%[![:space:]]*}"}"
+    api_token="${api_token%"${api_token##*[![:space:]]}"}"
+    if [[ "${api_token}" == \"*\" || "${api_token}" == \'*\' ]]; then
+      api_token="${api_token:1:${#api_token}-2}"
+    fi
+  fi
+done < "${ENV_FILE}"
+(( ${#api_token} >= 16 )) || { echo "AI_SAFETY_API_TOKEN em api/.env deve ter pelo menos 16 caracteres." >&2; exit 1; }
+unset api_token line
+
+docker compose config --quiet
+docker compose up --build -d
+docker compose ps
+echo "API:    http://127.0.0.1:8000"
+echo "Painel: http://127.0.0.1:3000"

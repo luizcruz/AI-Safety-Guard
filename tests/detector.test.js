@@ -2,7 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { analyze, analyzeFileName, updateCatalog, _internal } = require("../src/detector.js");
+const { analyze, analyzeFileName, updateCatalog, _internal } = require("../plugin/src/detector.js");
 
 test("detecta documentos pessoais", () => {
   const result = analyze("CPF: 123.456.789-09\nRG: 12.345.678-X\nÓrgão Emissor: SSP");

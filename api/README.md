@@ -26,35 +26,28 @@ sed -i "s|^AI_SAFETY_API_TOKEN=.*|AI_SAFETY_API_TOKEN=${AI_SAFETY_TOKEN}|" api/.
 unset AI_SAFETY_TOKEN
 ```
 
-Crie o ambiente virtual, instale as dependências e inicie a API:
+Para desenvolvimento local sem Docker, crie o ambiente virtual, instale as dependências e inicie a API diretamente:
 
 ```bash
 python3 -m venv api/.venv
 api/.venv/bin/python -m pip install --upgrade pip
 api/.venv/bin/python -m pip install -r api/requirements.txt
 cd api
-./bin/deploy
+.venv/bin/python -m uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8000
 ```
 
 A API ficará disponível em `http://127.0.0.1:8000`. Interrompa com `Ctrl+C`.
 
-Variáveis já exportadas no shell têm precedência sobre o `.env`. Se o launcher informar que o shell está sobrescrevendo o token, remova a variável antes de iniciar:
-
-```bash
-unset AI_SAFETY_API_TOKEN
-./bin/deploy
-```
-
 ## Execução com Docker no WSL
 
-O `docker-compose.yml` carrega `api/.env` diretamente. A partir da raiz do repositório:
+O launcher da raiz consulta atualizações do repositório, aceita somente fast-forward e então inicia a API e o painel. O `docker-compose.yml` carrega `api/.env` diretamente:
 
 ```bash
-docker compose config --quiet
-docker compose up --build -d
-docker compose ps
+./bin/deploy
 curl --fail http://127.0.0.1:8000/health
 ```
+
+Use `./bin/deploy --check-only` para apenas consultar atualizações e `./bin/deploy --no-update` para não acessar o remoto. O launcher recusa atualização quando há alterações locais, branch divergente ou HEAD destacado.
 
 O painel administrativo fica em `http://127.0.0.1:3000`. Ele permite filtrar, adicionar, editar, remover e exportar regras em CSV usando os tipos e categorias do catálogo ativo. A exportação respeita os filtros selecionados. O painel acessa a API pela rede interna do Compose; o Bearer token não é entregue ao navegador.
 
