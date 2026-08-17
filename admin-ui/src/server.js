@@ -5,6 +5,7 @@ const http = require("node:http");
 const path = require("node:path");
 const { loadConfig } = require("./config.js");
 const { RulesApiClient, RulesApiError } = require("./api-client.js");
+const { createRulesCsv } = require("./csv.js");
 
 const PUBLIC_ROOT = path.resolve(__dirname, "..", "public");
 const STATIC_FILES = Object.freeze({
@@ -40,6 +41,13 @@ function setSecurityHeaders(response) {
 function sendJson(response, status, value, headers = {}) {
   response.writeHead(status, { "Content-Type": "application/json; charset=utf-8", ...headers });
   response.end(value === null ? "" : JSON.stringify(value));
+}
+
+function rulesQuery(url) {
+  const query = new URLSearchParams();
+  if (url.searchParams.get("category")) query.set("category", url.searchParams.get("category"));
+  if (url.searchParams.get("kind")) query.set("kind", url.searchParams.get("kind"));
+  return query;
 }
 
 async function readJson(request) {
@@ -99,11 +107,24 @@ function createServer({ config = loadConfig(), fetchImpl = fetch, publicRoot = P
       }
 
       if (request.method === "GET" && url.pathname === "/admin/rules") {
-        const query = new URLSearchParams();
-        if (url.searchParams.get("category")) query.set("category", url.searchParams.get("category"));
-        if (url.searchParams.get("kind")) query.set("kind", url.searchParams.get("kind"));
+        const query = rulesQuery(url);
         const result = await client.request(`/v1/rules${query.size ? `?${query}` : ""}`);
         return sendJson(response, 200, result.data);
+      }
+
+      if (request.method === "GET" && url.pathname === "/admin/rules.csv") {
+        const query = rulesQuery(url);
+        const [catalog, rules] = await Promise.all([
+          client.request("/v1/rulesets/latest"),
+          client.request(`/v1/rules${query.size ? `?${query}` : ""}`)
+        ]);
+        const csv = createRulesCsv(rules.data, { types: RULE_TYPES, categories: catalog.data.categories });
+        const version = String(catalog.data.version).replace(/[^0-9.]/g, "") || "atual";
+        response.writeHead(200, {
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": `attachment; filename="ai-safety-guard-rules-v${version}.csv"`
+        });
+        return response.end(csv);
       }
 
       const match = url.pathname.match(/^\/admin\/rules(?:\/([a-z0-9-]+))?$/i);
@@ -132,4 +153,4 @@ if (require.main === module) {
   createServer({ config }).listen(config.port, "0.0.0.0", () => console.log(`AI Safety Guard Admin ouvindo na porta ${config.port}`));
 }
 
-module.exports = { createServer, readJson, verifyOrigin, RULE_TYPES, VALIDATORS, HEURISTICS };
+module.exports = { createServer, readJson, verifyOrigin, rulesQuery, RULE_TYPES, VALIDATORS, HEURISTICS };

@@ -56,7 +56,7 @@ docker compose ps
 curl --fail http://127.0.0.1:8000/health
 ```
 
-O painel administrativo fica em `http://127.0.0.1:3000`. Ele permite filtrar, adicionar, editar e remover regras usando os tipos e categorias do catálogo ativo. O painel acessa a API pela rede interna do Compose; o Bearer token não é entregue ao navegador.
+O painel administrativo fica em `http://127.0.0.1:3000`. Ele permite filtrar, adicionar, editar, remover e exportar regras em CSV usando os tipos e categorias do catálogo ativo. A exportação respeita os filtros selecionados. O painel acessa a API pela rede interna do Compose; o Bearer token não é entregue ao navegador.
 
 Para acompanhar ou encerrar o serviço:
 

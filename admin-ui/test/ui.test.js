@@ -10,10 +10,11 @@ const html = fs.readFileSync(path.join(publicRoot, "index.html"), "utf8");
 const script = fs.readFileSync(path.join(publicRoot, "app.js"), "utf8");
 
 test("interface contém seletores, formulário e ações CRUD", () => {
-  for (const id of ["filter-kind", "filter-category", "kind", "category", "rule-form", "add-rule", "rules"]) assert.match(html, new RegExp(`id="${id}"`));
+  for (const id of ["filter-kind", "filter-category", "kind", "category", "rule-form", "add-rule", "export-csv", "rules"]) assert.match(html, new RegExp(`id="${id}"`));
   assert.match(script, /method: id \? "PUT" : "POST"/);
   assert.match(script, /method: "DELETE"/);
   assert.match(script, /"If-Match"/);
+  assert.match(script, /\/admin\/rules\.csv/);
   assert.doesNotMatch(`${html}\n${script}`, /AI_SAFETY_API_TOKEN|Bearer /);
 });
 

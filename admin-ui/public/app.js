@@ -172,8 +172,23 @@
 
   function setStatus(message, type = "") { elements.status.textContent = message; elements.status.className = `status ${type}`.trim(); }
 
+  function exportCsv() {
+    const query = new URLSearchParams();
+    if (elements.filterKind.value) query.set("kind", elements.filterKind.value);
+    if (elements.filterCategory.value) query.set("category", elements.filterCategory.value);
+    const link = document.createElement("a");
+    link.href = `/admin/rules.csv${query.size ? `?${query}` : ""}`;
+    link.download = "";
+    link.hidden = true;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setStatus("Exportação CSV iniciada.", "success");
+  }
+
   byId("add-rule").addEventListener("click", () => openDialog());
   byId("refresh").addEventListener("click", () => load());
+  byId("export-csv").addEventListener("click", exportCsv);
   byId("close-dialog").addEventListener("click", () => elements.dialog.close());
   byId("cancel").addEventListener("click", () => elements.dialog.close());
   elements.kind.addEventListener("change", updateFields);

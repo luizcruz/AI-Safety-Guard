@@ -22,7 +22,7 @@ async function withServer(run, upstream = defaultUpstream) {
 
 async function defaultUpstream(url, options) {
   if (url.endsWith("/v1/rulesets/latest")) return Response.json(catalog, { headers: { ETag: '"1.2.0"' } });
-  if (url.endsWith("/v1/rules") && options.method === "GET") return Response.json([{ id: "keyword-1", kind: "keyword", category: "credentials", keyword: "api_key" }]);
+  if (new URL(url).pathname === "/v1/rules" && options.method === "GET") return Response.json([{ id: "keyword-1", kind: "keyword", category: "credentials", keyword: "api_key" }]);
   if (url.endsWith("/v1/rules") && options.method === "POST") return Response.json({ id: "keyword-2", ...JSON.parse(options.body) }, { status: 201, headers: { ETag: '"1.2.1"' } });
   if (url.includes("/v1/rules/") && options.method === "PUT") return Response.json({ id: "keyword-2", ...JSON.parse(options.body) }, { headers: { ETag: '"1.2.1"' } });
   if (url.includes("/v1/rules/") && options.method === "DELETE") return new Response(null, { status: 204, headers: { ETag: '"1.2.1"' } });
@@ -62,6 +62,19 @@ test("lista, cria, edita e remove regras com ETag", async () => {
     assert.equal(updated.status, 200);
     assert.equal((await updated.json()).keyword, "updated_secret");
     assert.equal(await (await fetch(`${baseUrl}/admin/rules/keyword-2`, { method: "DELETE" })).text(), "");
+  });
+});
+
+test("exporta regras filtradas em CSV sem expor credenciais", async () => {
+  await withServer(async ({ baseUrl, calls }) => {
+    const response = await fetch(`${baseUrl}/admin/rules.csv?kind=keyword&category=credentials`);
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get("content-type"), /text\/csv/);
+    assert.equal(response.headers.get("content-disposition"), 'attachment; filename="ai-safety-guard-rules-v1.2.0.csv"');
+    const csv = await response.text();
+    assert.match(csv, /"keyword-1","keyword","Palavra-chave","credentials","Credenciais"/);
+    assert.equal(csv.includes("server-secret"), false);
+    assert.match(calls.at(-1).url, /\/v1\/rules\?category=credentials&kind=keyword$/);
   });
 });
 
