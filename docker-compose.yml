@@ -1,8 +1,8 @@
 services:
   rules-api:
     build: ./api
-    environment:
-      AI_SAFETY_API_TOKEN: ${AI_SAFETY_API_TOKEN:?configure AI_SAFETY_API_TOKEN}
+    env_file:
+      - ./api/.env
     ports:
       - "127.0.0.1:8000:8000"
     volumes:

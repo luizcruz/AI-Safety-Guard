@@ -45,6 +45,26 @@ unset AI_SAFETY_API_TOKEN
 ./bin/deploy
 ```
 
+## Execução com Docker no WSL
+
+O `docker-compose.yml` carrega `api/.env` diretamente. A partir da raiz do repositório:
+
+```bash
+docker compose config --quiet
+docker compose up --build -d
+docker compose ps
+curl --fail http://127.0.0.1:8000/health
+```
+
+Para acompanhar ou encerrar o serviço:
+
+```bash
+docker compose logs -f rules-api
+docker compose down
+```
+
+Não use `docker compose config` sem `--quiet` em ambientes compartilhados, pois a configuração renderizada pode exibir variáveis do container.
+
 Em produção, use volume persistente para `/data/rulesets`, HTTPS e apenas um worker por instância, pois o repositório é baseado em arquivos.
 
 ## Endpoints
