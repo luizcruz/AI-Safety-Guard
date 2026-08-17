@@ -2,7 +2,7 @@
   "use strict";
 
   const platform = AISafetyPlatforms.resolve(location.hostname);
-  const DEFAULTS = { enabled: true, enabledCategories: Object.keys(AISafetyGuard.CATEGORIES), mode: AISafetyProtectionPolicy.DEFAULT_MODE };
+  const DEFAULTS = { enabledCategories: Object.keys(AISafetyGuard.CATEGORIES), mode: AISafetyProtectionPolicy.DEFAULT_MODE };
   const SEND_SELECTOR = [...new Set([
     "button[data-testid*='send']",
     "button[type='submit']",
@@ -35,11 +35,11 @@
     file, AISafetyGuard.analyze, settings, undefined, undefined, AISafetyGuard.analyzeFileName
   ));
 
-  chrome.storage.sync.get(["enabled", "enabledCategories", "knownCategories", "mode"], (stored) => {
+  chrome.storage.sync.get(["enabledCategories", "knownCategories", "mode"], (stored) => {
     const currentCategories = Object.keys(AISafetyGuard.CATEGORIES);
     const knownCategories = Array.isArray(stored.knownCategories) ? stored.knownCategories : currentCategories.filter((category) => category !== "sensitiveFileNames");
     const addedCategories = currentCategories.filter((category) => !knownCategories.includes(category));
-    settings = normalizeSettings({ enabled: stored.enabled, enabledCategories: [...new Set([...(stored.enabledCategories || currentCategories), ...addedCategories])], mode: stored.mode });
+    settings = normalizeSettings({ enabledCategories: [...new Set([...(stored.enabledCategories || currentCategories), ...addedCategories])], mode: stored.mode });
     chrome.storage.sync.set({ enabledCategories: settings.enabledCategories, knownCategories: currentCategories, mode: settings.mode });
   });
   chrome.storage.local.get("rulesCatalog", ({ rulesCatalog }) => {
@@ -49,7 +49,6 @@
     if (area === "local" && changes.rulesCatalog && changes.rulesCatalog.newValue) applyRemoteCatalog(changes.rulesCatalog.newValue);
     if (area === "sync") {
       settings = normalizeSettings({
-        enabled: changes.enabled ? changes.enabled.newValue : settings.enabled,
         enabledCategories: changes.enabledCategories ? changes.enabledCategories.newValue : settings.enabledCategories,
         mode: changes.mode ? changes.mode.newValue : settings.mode
       });
@@ -66,7 +65,6 @@
 
   function normalizeSettings(value) {
     return {
-      enabled: value.enabled !== false,
       enabledCategories: Array.isArray(value.enabledCategories) ? value.enabledCategories : DEFAULTS.enabledCategories,
       mode: AISafetyProtectionPolicy.normalizeMode(value.mode)
     };
@@ -276,10 +274,6 @@
   }
 
   function inspectAndBlock(event, input) {
-    if (!settings.enabled) {
-      setTimeout(() => attachments.clear(), 2000);
-      return false;
-    }
     const attachmentState = attachments.state();
     if (attachmentState.pending.length) {
       blockEvent(event);

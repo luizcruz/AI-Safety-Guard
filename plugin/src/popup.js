@@ -1,6 +1,5 @@
 (function configurePopup() {
   "use strict";
-  const enabled = document.querySelector("#enabled");
   const container = document.querySelector("#categories");
   const apiForm = document.querySelector("#api-settings");
   const apiUrl = document.querySelector("#api-url");
@@ -19,14 +18,13 @@
       try { AISafetyGuard.updateCatalog(remote.rulesCatalog); } catch { /* bundled catalog remains active */ }
     }
     renderCategories();
-    const settings = await chrome.storage.sync.get({ enabled: true, enabledCategories: Object.keys(AISafetyGuard.CATEGORIES), knownCategories: [], mode: AISafetyProtectionPolicy.DEFAULT_MODE });
+    const settings = await chrome.storage.sync.get({ enabledCategories: Object.keys(AISafetyGuard.CATEGORIES), knownCategories: [], mode: AISafetyProtectionPolicy.DEFAULT_MODE });
     settings.mode = AISafetyProtectionPolicy.normalizeMode(settings.mode);
     const currentCategories = Object.keys(AISafetyGuard.CATEGORIES);
     const knownCategories = settings.knownCategories.length ? settings.knownCategories : currentCategories.filter((category) => category !== "sensitiveFileNames");
     const addedCategories = currentCategories.filter((category) => !knownCategories.includes(category));
     settings.enabledCategories = [...new Set([...settings.enabledCategories, ...addedCategories])];
     await chrome.storage.sync.set({ enabledCategories: settings.enabledCategories, knownCategories: currentCategories, mode: settings.mode });
-    enabled.checked = settings.enabled !== false;
     (modeInputs.find((input) => input.value === settings.mode) || modeInputs[0]).checked = true;
     for (const [key, input] of categoryInputs) input.checked = settings.enabledCategories.includes(key);
     apiUrl.value = remote.apiUrl;
@@ -52,7 +50,6 @@
     }
   }
 
-  enabled.addEventListener("change", saveProtection);
   for (const input of modeInputs) input.addEventListener("change", saveProtection);
 
   downloadAudit.addEventListener("click", async () => {
@@ -81,7 +78,6 @@
 
   function saveProtection() {
     chrome.storage.sync.set({
-      enabled: enabled.checked,
       enabledCategories: [...categoryInputs].filter(([, input]) => input.checked).map(([key]) => key),
       mode: AISafetyProtectionPolicy.normalizeMode(modeInputs.find((input) => input.checked)?.value)
     });

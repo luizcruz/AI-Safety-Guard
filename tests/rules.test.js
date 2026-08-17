@@ -74,6 +74,8 @@ test("popup apresenta regras e modos operacionais", () => {
   const popup = fs.readFileSync(path.join(__dirname, "..", "plugin", "src", "popup.html"), "utf8");
   const popupScript = fs.readFileSync(path.join(__dirname, "..", "plugin", "src", "popup.js"), "utf8");
   assert.match(popup, /<h2>Regras<\/h2>/);
+  assert.doesNotMatch(popup, /Proteção ativa|id="enabled"/);
+  assert.doesNotMatch(popupScript, /querySelector\("#enabled"\)|enabled:\s*enabled\.checked/);
   assert.match(popup, /<h2>Modo de proteção<\/h2>/);
   assert.match(popup, /Avalia validade, contexto e combinação de evidências/);
   for (const mode of ["heuristic", "warn", "log"]) assert.match(popup, new RegExp(`value="${mode}"`));
