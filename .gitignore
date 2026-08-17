@@ -3,6 +3,7 @@ coverage/
 dist/
 *.zip
 api/.env
+api/.venv/
 api/data/rulesets/*.json
 !api/data/rulesets/.gitkeep
 __pycache__/

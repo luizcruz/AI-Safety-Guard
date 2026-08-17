@@ -52,11 +52,46 @@ def test_command_line_overrides_configured_defaults():
 
 def test_invalid_or_missing_token_stops_before_server_start():
     def invalid_settings():
-        raise DEPLOY["ConfigurationError"]("token secreto não deve aparecer")
+        raise DEPLOY["ConfigurationError"](("api_token",))
 
     with pytest.raises(SystemExit, match="AI_SAFETY_API_TOKEN") as error:
         DEPLOY["main"]([], settings_loader=invalid_settings, server_runner=lambda *_args, **_kwargs: pytest.fail("não deve iniciar"))
-    assert "token secreto" not in str(error.value)
+    assert "api_token" in str(error.value)
+
+
+def test_configuration_error_identifies_non_token_field():
+    def invalid_settings():
+        raise DEPLOY["ConfigurationError"](("api_port",))
+
+    with pytest.raises(SystemExit, match="api_port") as error:
+        DEPLOY["main"]([], settings_loader=invalid_settings, server_runner=lambda *_args, **_kwargs: pytest.fail("não deve iniciar"))
+    assert "AI_SAFETY_API_TOKEN deve" not in str(error.value)
+
+
+def test_launcher_reexecutes_with_project_virtualenv(tmp_path):
+    python = tmp_path / ".venv" / "bin" / "python"
+    python.parent.mkdir(parents=True)
+    python.touch()
+    calls = []
+
+    result = DEPLOY["ensure_virtualenv"](
+        tmp_path,
+        ["--port", "9000"],
+        prefix="/usr",
+        base_prefix="/usr",
+        execv=lambda executable, arguments: calls.append((executable, arguments)),
+    )
+
+    assert result is True
+    assert calls[0][0] == str(python)
+    assert calls[0][1][0] == str(python)
+    assert calls[0][1][-2:] == ["--port", "9000"]
+
+
+def test_launcher_keeps_active_virtualenv_and_reports_missing_one(tmp_path):
+    fail = lambda *_args: pytest.fail("não deve executar outro Python")
+    assert DEPLOY["ensure_virtualenv"](tmp_path, prefix="/venv", base_prefix="/usr", execv=fail) is False
+    assert DEPLOY["ensure_virtualenv"](tmp_path, prefix="/usr", base_prefix="/usr", execv=fail) is False
 
 
 def test_settings_uses_api_env_file_independent_of_working_directory():

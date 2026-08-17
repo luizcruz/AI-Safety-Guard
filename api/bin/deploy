@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from collections.abc import Callable, Sequence
 from pathlib import Path
@@ -17,6 +18,29 @@ if str(API_ROOT) not in sys.path:
 
 class ConfigurationError(RuntimeError):
     """Raised when runtime settings cannot be loaded."""
+
+    def __init__(self, fields: Sequence[str] = ()) -> None:
+        self.fields = tuple(fields)
+        super().__init__(", ".join(self.fields) or "configuração desconhecida")
+
+
+def ensure_virtualenv(
+    api_root: Path = API_ROOT,
+    argv: Sequence[str] | None = None,
+    *,
+    prefix: str = sys.prefix,
+    base_prefix: str = sys.base_prefix,
+    execv: Callable[[str, list[str]], Any] = os.execv,
+) -> bool:
+    """Re-executes this launcher with the project virtualenv when necessary."""
+    if prefix != base_prefix:
+        return False
+    python = api_root / ".venv" / "bin" / "python"
+    if not python.is_file():
+        return False
+    arguments = [str(python), str(Path(__file__).resolve()), *(argv if argv is not None else sys.argv[1:])]
+    execv(str(python), arguments)
+    return True
 
 
 def build_parser(settings: Any) -> argparse.ArgumentParser:
@@ -37,7 +61,9 @@ def load_settings() -> Any:
     try:
         return Settings()
     except Exception as error:
-        raise ConfigurationError from error
+        details = error.errors(include_input=False) if hasattr(error, "errors") else []
+        fields = sorted({".".join(map(str, item.get("loc", ()))) for item in details})
+        raise ConfigurationError(fields) from error
 
 
 def run_server(*args: Any, **kwargs: Any) -> None:
@@ -55,9 +81,15 @@ def main(
     try:
         settings = settings_loader()
     except ConfigurationError as error:
+        fields = ", ".join(error.fields) or "desconhecida"
+        hint = (
+            "AI_SAFETY_API_TOKEN deve ter pelo menos 16 caracteres."
+            if "api_token" in error.fields
+            else "Corrija os campos informados no arquivo .env."
+        )
         raise SystemExit(
-            f"Configuração inválida. Defina AI_SAFETY_API_TOKEN em {API_ROOT / '.env'} "
-            "com pelo menos 16 caracteres."
+            f"Configuração inválida em {API_ROOT / '.env'} (campos: {fields}). "
+            f"{hint}"
         ) from error
     args = build_parser(settings).parse_args(argv)
 
@@ -73,4 +105,5 @@ def main(
 
 
 if __name__ == "__main__":
+    ensure_virtualenv()
     raise SystemExit(main())

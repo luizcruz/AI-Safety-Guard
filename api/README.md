@@ -32,7 +32,8 @@ Crie o ambiente virtual, instale as dependências e inicie a API:
 python3 -m venv api/.venv
 api/.venv/bin/python -m pip install --upgrade pip
 api/.venv/bin/python -m pip install -r api/requirements.txt
-api/.venv/bin/python api/bin/deploy
+cd api
+./bin/deploy
 ```
 
 A API ficará disponível em `http://127.0.0.1:8000`. Interrompa com `Ctrl+C`.
