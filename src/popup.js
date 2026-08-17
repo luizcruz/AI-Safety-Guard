@@ -6,13 +6,15 @@
   const apiUrl = document.querySelector("#api-url");
   const apiToken = document.querySelector("#api-token");
   const status = document.querySelector("#rules-status");
+  const auditStatus = document.querySelector("#audit-status");
+  const downloadAudit = document.querySelector("#download-audit");
   const categoryInputs = new Map();
   const modeInputs = [...document.querySelectorAll("input[name='protection-mode']")];
 
   initialize().catch((error) => showStatus(error.message, true));
 
   async function initialize() {
-    const remote = await chrome.storage.local.get({ apiUrl: "http://127.0.0.1:8000", apiToken: "", rulesVersion: AISafetyGuard.version, rulesCatalog: null, rulesLastError: "" });
+    const remote = await chrome.storage.local.get({ apiUrl: "http://127.0.0.1:8000", apiToken: "", rulesVersion: AISafetyGuard.version, rulesCatalog: null, rulesLastError: "", auditLog: [] });
     if (remote.rulesCatalog) {
       try { AISafetyGuard.updateCatalog(remote.rulesCatalog); } catch { /* bundled catalog remains active */ }
     }
@@ -29,6 +31,7 @@
     apiUrl.value = remote.apiUrl;
     apiToken.value = remote.apiToken;
     showStatus(remote.rulesLastError ? `Falha: ${remote.rulesLastError}` : `Regras ativas: v${remote.rulesVersion}`, Boolean(remote.rulesLastError));
+    showAuditStatus(remote.auditLog);
   }
 
   function renderCategories() {
@@ -50,6 +53,31 @@
 
   enabled.addEventListener("change", saveProtection);
   for (const input of modeInputs) input.addEventListener("change", saveProtection);
+
+  downloadAudit.addEventListener("click", async () => {
+    try {
+      const { auditLog } = await chrome.storage.local.get({ auditLog: [] });
+      if (!AISafetyAuditLog.download(auditLog)) return showAuditStatus([]);
+      showAuditStatus(auditLog, "Log baixado. ");
+    } catch (error) {
+      auditStatus.textContent = `Falha ao baixar o log: ${error.message}`;
+      auditStatus.style.background = "#fef3f2";
+      auditStatus.style.color = "#912018";
+    }
+  });
+
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName === "local" && changes.auditLog) showAuditStatus(changes.auditLog.newValue);
+  });
+
+  function showAuditStatus(auditLog, prefix = "") {
+    const count = Array.isArray(auditLog) ? auditLog.length : 0;
+    auditStatus.textContent = count ? `${prefix}${count} registro${count === 1 ? "" : "s"} armazenado${count === 1 ? "" : "s"}.` : "Nenhum registro disponível.";
+    auditStatus.style.background = "#f1f5f9";
+    auditStatus.style.color = "#475569";
+    downloadAudit.disabled = count === 0;
+  }
+
   function saveProtection() {
     chrome.storage.sync.set({
       enabled: enabled.checked,

@@ -22,6 +22,8 @@
         <label class="mode"><input type="radio" name="protection-mode" value="warn"><div><strong>Avisar</strong><span>Exibe um único aviso e permite o envio.</span></div></label>
         <label class="mode"><input type="radio" name="protection-mode" value="log"><div><strong>Registrar</strong><span>Permite o envio e grava a auditoria local silenciosamente.</span></div></label>
       </div>
+      <p id="audit-status" class="status">Carregando auditoria…</p>
+      <button id="download-audit" type="button" disabled>Download log</button>
     </section>
     <section>
       <h2>Atualização de regras</h2>
@@ -35,6 +37,7 @@
     <p class="note">Nenhum conteúdo é enviado para servidores externos.</p>
     <script src="rules.js"></script>
     <script src="detector.js"></script>
+    <script src="audit-log.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>
