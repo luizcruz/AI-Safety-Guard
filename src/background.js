@@ -9,6 +9,8 @@ if (typeof importScripts === "function" && typeof globalThis.AISafetyGuardRules 
 
   const DEFAULT_API_URL = "http://127.0.0.1:8000";
   const MAX_AUDIT_ENTRIES = 500;
+  const OFFSCREEN_PATH = "src/offscreen.html";
+  let offscreenCreation = null;
 
   function compareVersions(left, right) {
     const a = String(left || "0.0.0").split(".").map(Number);
@@ -79,22 +81,52 @@ if (typeof importScripts === "function" && typeof globalThis.AISafetyGuardRules 
     return entries.map((entry) => JSON.stringify(entry)).join("\n") + "\n";
   }
 
+  async function ensureOffscreenDocument(chromeApi) {
+    if (!chromeApi.offscreen || !chromeApi.runtime.getContexts) return false;
+    const documentUrl = chromeApi.runtime.getURL(OFFSCREEN_PATH);
+    const contexts = await chromeApi.runtime.getContexts({ contextTypes: ["OFFSCREEN_DOCUMENT"], documentUrls: [documentUrl] });
+    if (contexts.length) return true;
+    if (!offscreenCreation) {
+      offscreenCreation = chromeApi.offscreen.createDocument({
+        url: OFFSCREEN_PATH,
+        reasons: ["BLOBS"],
+        justification: "Criar o arquivo local consolidado de auditoria do AI Safety Guard"
+      }).finally(() => { offscreenCreation = null; });
+    }
+    await offscreenCreation;
+    return true;
+  }
+
+  async function auditDownloadUrl(chromeApi, content) {
+    if (await ensureOffscreenDocument(chromeApi)) {
+      const response = await chromeApi.runtime.sendMessage({ target: "offscreen", type: "CREATE_AUDIT_BLOB", content });
+      if (!response || !response.ok || !response.url) throw new Error(response && response.error ? response.error : "Documento offscreen não criou o arquivo de auditoria");
+      return response.url;
+    }
+    return `data:text/plain;charset=utf-8,${encodeURIComponent(content)}`;
+  }
+
+  async function downloadAuditLog(chromeApi, auditLog) {
+    if (!chromeApi.downloads || !chromeApi.downloads.download) throw new Error("Permissão de downloads indisponível");
+    const url = await auditDownloadUrl(chromeApi, formatAuditLog(auditLog));
+    return chromeApi.downloads.download({
+      url,
+      filename: "AI Safety Guard/ai-safety-guard.log",
+      conflictAction: "overwrite",
+      saveAs: false
+    });
+  }
+
   async function appendAuditLog(chromeApi, entry) {
     const state = await chromeApi.storage.local.get({ auditLog: [] });
     const auditLog = [...(Array.isArray(state.auditLog) ? state.auditLog : []), sanitizeAuditEntry(entry)].slice(-MAX_AUDIT_ENTRIES);
     await chromeApi.storage.local.set({ auditLog, auditLogUpdatedAt: new Date().toISOString() });
-    if (chromeApi.downloads && chromeApi.downloads.download) {
-      try {
-        await chromeApi.downloads.download({
-          url: `data:text/plain;charset=utf-8,${encodeURIComponent(formatAuditLog(auditLog))}`,
-          filename: "AI Safety Guard/ai-safety-guard.log",
-          conflictAction: "overwrite",
-          saveAs: false
-        });
-        await chromeApi.storage.local.set({ auditLogLastError: "" });
-      } catch (error) {
-        await chromeApi.storage.local.set({ auditLogLastError: error.message });
-      }
+    try {
+      await downloadAuditLog(chromeApi, auditLog);
+      await chromeApi.storage.local.set({ auditLogLastError: "" });
+    } catch (error) {
+      await chromeApi.storage.local.set({ auditLogLastError: error.message });
+      throw error;
     }
     return auditLog.at(-1);
   }
@@ -130,8 +162,22 @@ if (typeof importScripts === "function" && typeof globalThis.AISafetyGuardRules 
         return true;
       }
       if (message && message.type === "RECORD_DETECTION") {
-        auditQueue = auditQueue.then(() => appendAuditLog(chromeApi, message.entry));
+        auditQueue = auditQueue.catch(() => undefined).then(() => appendAuditLog(chromeApi, message.entry));
         auditQueue.then((entry) => sendResponse({ ok: true, entry })).catch((error) => sendResponse({ ok: false, error: error.message }));
+        return true;
+      }
+      if (message && message.type === "EXPORT_AUDIT_LOG") {
+        auditQueue = auditQueue.catch(() => undefined).then(async () => {
+          const state = await chromeApi.storage.local.get({ auditLog: [] });
+          if (!state.auditLog.length) throw new Error("Nenhum registro disponível para exportação");
+          await downloadAuditLog(chromeApi, state.auditLog);
+          await chromeApi.storage.local.set({ auditLogLastError: "" });
+          return state.auditLog.length;
+        });
+        auditQueue.then((count) => sendResponse({ ok: true, count })).catch(async (error) => {
+          await chromeApi.storage.local.set({ auditLogLastError: error.message });
+          sendResponse({ ok: false, error: error.message });
+        });
         return true;
       }
       return false;
@@ -139,5 +185,5 @@ if (typeof importScripts === "function" && typeof globalThis.AISafetyGuardRules 
     return { refresh };
   }
 
-  return Object.freeze({ compareVersions, validateCatalog, downloadRules, sanitizeAuditEntry, formatAuditLog, appendAuditLog, register, DEFAULT_API_URL });
+  return Object.freeze({ compareVersions, validateCatalog, downloadRules, sanitizeAuditEntry, formatAuditLog, ensureOffscreenDocument, auditDownloadUrl, downloadAuditLog, appendAuditLog, register, DEFAULT_API_URL });
 });

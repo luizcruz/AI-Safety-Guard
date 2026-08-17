@@ -27,7 +27,7 @@ O nome de todo anexo é comparado localmente com a categoria `Nomes de arquivos 
 
 - `Bloquear`: impede o envio até a remoção ou anonimização dos dados.
 - `Avisar`: apresenta uma única advertência por detecção e permite o envio.
-- `Registrar`: permite o envio e atualiza `Downloads/AI Safety Guard/ai-safety-guard.log` com data/hora, IA acessada, categorias, regras acionadas e amostras mascaradas.
+- `Registrar`: permite o envio e atualiza `Downloads/AI Safety Guard/ai-safety-guard.log` com data/hora, IA acessada, categorias, regras acionadas e amostras mascaradas. O popup exibe a quantidade persistida, eventuais erros e permite refazer o download manualmente.
 
 ## Instalação local
 

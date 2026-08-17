@@ -22,8 +22,12 @@ test("manifest carrega catálogo antes do detector", () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "manifest.json"), "utf8"));
   assert.deepEqual(manifest.content_scripts[0].js, ["src/rules.js", "src/detector.js", "src/attachments.js", "src/content.js"]);
   assert.equal(manifest.background.service_worker, "src/background.js");
+  assert.equal(manifest.minimum_chrome_version, "116");
   assert.ok(manifest.permissions.includes("storage"));
   assert.ok(manifest.permissions.includes("downloads"));
+  assert.ok(manifest.permissions.includes("offscreen"));
+  assert.ok(fs.existsSync(path.join(__dirname, "..", "src", "offscreen.html")));
+  assert.ok(fs.existsSync(path.join(__dirname, "..", "src", "offscreen.js")));
 });
 
 test("bibliotecas de documentos são empacotadas localmente", () => {
@@ -75,6 +79,7 @@ test("popup apresenta regras e modos operacionais", () => {
   assert.match(popup, /<h2>Regras<\/h2>/);
   assert.match(popup, /<h2>Modo de bloqueio<\/h2>/);
   for (const mode of ["block", "warn", "log"]) assert.match(popup, new RegExp(`value="${mode}"`));
+  assert.match(popup, /id="export-audit"/);
   assert.doesNotMatch(popup, /Bloqueio local de dados sensíveis em prompts e anexos PDF\/DOCX\/DOC\./);
 });
 
@@ -85,7 +90,7 @@ test("identidade pública usa exclusivamente AI Safety Guard v1.2", () => {
   const packageLock = JSON.parse(fs.readFileSync(path.join(root, "package-lock.json"), "utf8"));
   const popup = fs.readFileSync(path.join(root, "src", "popup.html"), "utf8");
   const readme = fs.readFileSync(path.join(root, "README.md"), "utf8");
-  assert.equal(manifest.version, "1.2.0");
+  assert.equal(manifest.version, "1.2.1");
   assert.equal(packageManifest.version, manifest.version);
   assert.equal(packageLock.version, manifest.version);
   assert.equal(packageLock.packages[""].version, manifest.version);

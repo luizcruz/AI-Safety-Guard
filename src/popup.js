@@ -6,13 +6,15 @@
   const apiUrl = document.querySelector("#api-url");
   const apiToken = document.querySelector("#api-token");
   const status = document.querySelector("#rules-status");
+  const auditStatus = document.querySelector("#audit-status");
+  const exportAudit = document.querySelector("#export-audit");
   const categoryInputs = new Map();
   const modeInputs = [...document.querySelectorAll("input[name='protection-mode']")];
 
   initialize().catch((error) => showStatus(error.message, true));
 
   async function initialize() {
-    const remote = await chrome.storage.local.get({ apiUrl: "http://127.0.0.1:8000", apiToken: "", rulesVersion: AISafetyGuard.version, rulesCatalog: null, rulesLastError: "" });
+    const remote = await chrome.storage.local.get({ apiUrl: "http://127.0.0.1:8000", apiToken: "", rulesVersion: AISafetyGuard.version, rulesCatalog: null, rulesLastError: "", auditLog: [], auditLogLastError: "" });
     if (remote.rulesCatalog) {
       try { AISafetyGuard.updateCatalog(remote.rulesCatalog); } catch { /* bundled catalog remains active */ }
     }
@@ -29,6 +31,7 @@
     apiUrl.value = remote.apiUrl;
     apiToken.value = remote.apiToken;
     showStatus(remote.rulesLastError ? `Falha: ${remote.rulesLastError}` : `Regras ativas: v${remote.rulesVersion}`, Boolean(remote.rulesLastError));
+    showAuditStatus(remote.auditLog.length, remote.auditLogLastError);
   }
 
   function renderCategories() {
@@ -77,6 +80,25 @@
       showStatus(error.message, true);
     }
   });
+
+  exportAudit.addEventListener("click", async () => {
+    exportAudit.disabled = true;
+    try {
+      const response = await chrome.runtime.sendMessage({ type: "EXPORT_AUDIT_LOG" });
+      if (!response || !response.ok) throw new Error(response && response.error ? response.error : "Falha ao gerar o arquivo");
+      showAuditStatus(response.count, "");
+    } catch (error) {
+      showAuditStatus(0, error.message);
+    } finally {
+      exportAudit.disabled = false;
+    }
+  });
+
+  function showAuditStatus(count, error) {
+    auditStatus.textContent = error ? `Falha no log: ${error}` : `${count} registro(s). Arquivo: Downloads/AI Safety Guard/ai-safety-guard.log`;
+    auditStatus.style.background = error ? "#fef3f2" : "#f1f5f9";
+    auditStatus.style.color = error ? "#912018" : "#475569";
+  }
 
   function showStatus(message, error) {
     status.textContent = message;
