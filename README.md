@@ -1,6 +1,6 @@
 # AI Safety Guard v1.2
 
-Extensão Chrome Manifest V3 que analisa localmente mensagens e anexos PDF/DOCX/DOC destinados ao ChatGPT, Claude, Perplexity e Gemini. Quando encontra evidências de dados sensíveis, infraestrutura, propriedade intelectual, PCI/Banking, RH ou PII em logs, aplica o modo configurado e informa as categorias possivelmente infringidas.
+Extensão Chrome Manifest V3 que analisa localmente mensagens e anexos PDF/DOCX/DOC destinados ao ChatGPT, Claude, Perplexity, Gemini, Copilot, DeepSeek e Kimi. Quando encontra evidências de dados sensíveis, infraestrutura, propriedade intelectual, PCI/Banking, RH ou PII em logs, aplica o modo configurado e informa as categorias possivelmente infringidas.
 
 ## Arquitetura de regras
 

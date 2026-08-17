@@ -20,7 +20,7 @@ test("todas as regras apontam para categorias existentes", () => {
 
 test("manifest carrega catálogo antes do detector", () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "plugin", "manifest.json"), "utf8"));
-  assert.deepEqual(manifest.content_scripts[0].js, ["src/rules.js", "src/detector.js", "src/attachments.js", "src/content.js"]);
+  assert.deepEqual(manifest.content_scripts[0].js, ["src/platforms.js", "src/rules.js", "src/detector.js", "src/attachments.js", "src/content.js"]);
   assert.equal(manifest.background.service_worker, "src/background.js");
   assert.deepEqual(manifest.permissions, ["storage"]);
 });
@@ -90,7 +90,7 @@ test("identidade pública usa exclusivamente AI Safety Guard v1.2", () => {
   const packageLock = JSON.parse(fs.readFileSync(path.join(root, "package-lock.json"), "utf8"));
   const popup = fs.readFileSync(path.join(root, "plugin", "src", "popup.html"), "utf8");
   const readme = fs.readFileSync(path.join(root, "README.md"), "utf8");
-  assert.equal(manifest.version, "1.2.3");
+  assert.equal(manifest.version, "1.2.4");
   assert.equal(packageManifest.version, manifest.version);
   assert.equal(packageLock.version, manifest.version);
   assert.equal(packageLock.packages[""].version, manifest.version);

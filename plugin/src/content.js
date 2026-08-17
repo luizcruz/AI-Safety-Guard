@@ -1,15 +1,28 @@
 (function protectAIChat() {
   "use strict";
 
+  const platform = AISafetyPlatforms.resolve(location.hostname);
   const DEFAULTS = { enabled: true, enabledCategories: Object.keys(AISafetyGuard.CATEGORIES), mode: "block" };
-  const SEND_SELECTOR = [
+  const SEND_SELECTOR = [...new Set([
     "button[data-testid*='send']",
+    "button[type='submit']",
     "button[aria-label*='Send' i]",
     "button[aria-label*='Enviar' i]",
+    "button[aria-label*='发送']",
+    "[role='button'][aria-label*='Send' i]",
+    "[role='button'][aria-label*='Enviar' i]",
+    "[role='button'][aria-label*='发送']",
     "button[title*='Send' i]",
-    "button[title*='Enviar' i]"
-  ].join(",");
-  const INPUT_SELECTOR = "textarea, [contenteditable='true'][role='textbox'], [contenteditable='true']";
+    "button[title*='Enviar' i]",
+    "button[title*='发送']",
+    ...(platform ? platform.sendSelectors : [])
+  ])].join(",");
+  const INPUT_SELECTOR = [...new Set([
+    "textarea",
+    "[contenteditable='true'][role='textbox']",
+    "[contenteditable='true']",
+    ...(platform ? platform.inputSelectors : [])
+  ])].join(",");
   let settings = DEFAULTS;
   let overlay = null;
   const fileInputRecords = new WeakMap();
@@ -382,15 +395,7 @@
   }
 
   function currentAI() {
-    const hosts = {
-      "chatgpt.com": "ChatGPT",
-      "chat.openai.com": "ChatGPT",
-      "claude.ai": "Claude",
-      "www.perplexity.ai": "Perplexity",
-      "perplexity.ai": "Perplexity",
-      "gemini.google.com": "Gemini"
-    };
-    return hosts[location.hostname] || location.hostname;
+    return platform ? platform.name : location.hostname;
   }
 
   function showDetectionDialog(result, input, options) {
