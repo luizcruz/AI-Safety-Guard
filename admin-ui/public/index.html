@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>AI Safety Guard — Regras</title>
     <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="/auth.css">
   </head>
   <body>
     <header class="topbar">
@@ -12,7 +13,10 @@
         <p class="eyebrow">AI Safety Guard</p>
         <h1>Administração de regras</h1>
       </div>
-      <div class="version">Catálogo <strong id="catalog-version">—</strong></div>
+      <div class="topbar-actions">
+        <div class="version">Catálogo <strong id="catalog-version">—</strong></div>
+        <form action="/logout" method="post"><button class="logout" type="submit">Sair</button></form>
+      </div>
     </header>
 
     <main>

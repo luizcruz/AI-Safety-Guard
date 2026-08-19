@@ -11,6 +11,8 @@ const compose = fs.readFileSync(path.join(root, "docker-compose.yml"), "utf8");
 test("Docker Compose carrega o arquivo de ambiente privado da API", () => {
   assert.match(compose, /env_file:\s*\n\s*- \.\/api\/\.env/);
   assert.doesNotMatch(compose, /\$\{AI_SAFETY_API_TOKEN/);
+  const environmentExample = fs.readFileSync(path.join(root, "api", ".env.example"), "utf8");
+  assert.match(environmentExample, /^AI_SAFETY_ADMIN_KEY=$/m);
   assert.match(fs.readFileSync(path.join(root, ".gitignore"), "utf8"), /^api\/\.env$/m);
 });
 

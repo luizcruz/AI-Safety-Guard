@@ -96,8 +96,9 @@ command -v docker >/dev/null 2>&1 || { echo "Docker não encontrado." >&2; exit 
 docker compose version >/dev/null 2>&1 || { echo "Plugin Docker Compose não encontrado." >&2; exit 1; }
 
 readonly ENV_FILE="${REPOSITORY_ROOT}/api/.env"
-[[ -f "${ENV_FILE}" ]] || { echo "Arquivo api/.env não encontrado. Copie api/.env.example e configure o token." >&2; exit 1; }
+[[ -f "${ENV_FILE}" ]] || { echo "Arquivo api/.env não encontrado. Copie api/.env.example e configure as credenciais." >&2; exit 1; }
 api_token=""
+admin_key=""
 while IFS= read -r line || [[ -n "${line}" ]]; do
   line="${line%$'\r'}"
   [[ "${line}" =~ ^[[:space:]]*# ]] && continue
@@ -108,10 +109,19 @@ while IFS= read -r line || [[ -n "${line}" ]]; do
     if [[ "${api_token}" == \"*\" || "${api_token}" == \'*\' ]]; then
       api_token="${api_token:1:${#api_token}-2}"
     fi
+  elif [[ "${line}" =~ ^[[:space:]]*AI_SAFETY_ADMIN_KEY[[:space:]]*= ]]; then
+    admin_key="${line#*=}"
+    admin_key="${admin_key#"${admin_key%%[![:space:]]*}"}"
+    admin_key="${admin_key%"${admin_key##*[![:space:]]}"}"
+    if [[ "${admin_key}" == \"*\" || "${admin_key}" == \'*\' ]]; then
+      admin_key="${admin_key:1:${#admin_key}-2}"
+    fi
   fi
 done < "${ENV_FILE}"
 (( ${#api_token} >= 16 )) || { echo "AI_SAFETY_API_TOKEN em api/.env deve ter pelo menos 16 caracteres." >&2; exit 1; }
-unset api_token line
+(( ${#admin_key} >= 16 )) || { echo "AI_SAFETY_ADMIN_KEY em api/.env deve ter pelo menos 16 caracteres." >&2; exit 1; }
+[[ "${admin_key}" != "${api_token}" ]] || { echo "AI_SAFETY_ADMIN_KEY deve ser diferente de AI_SAFETY_API_TOKEN." >&2; exit 1; }
+unset api_token admin_key line
 
 docker compose config --quiet
 docker compose up --build -d
