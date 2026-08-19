@@ -18,7 +18,7 @@
     const normalized = normalizeMode(mode);
     if (normalized === "log") return "log";
     if (normalized === "warn") return "warn";
-    return decision === "block" ? "block" : "warn";
+    return "block";
   }
 
   return Object.freeze({ DEFAULT_MODE, MODES, normalizeMode, actionFor });

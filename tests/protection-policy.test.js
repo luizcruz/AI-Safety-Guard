@@ -3,6 +3,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { normalizeMode, actionFor } = require("../plugin/src/protection-policy.js");
+const { analyze } = require("../plugin/src/detector.js");
 
 test("migra modo block legado para heuristic", () => {
   assert.equal(normalizeMode("block"), "heuristic");
@@ -11,10 +12,15 @@ test("migra modo block legado para heuristic", () => {
   assert.equal(normalizeMode("log"), "log");
 });
 
-test("modo heurística bloqueia alta e avisa média", () => {
+test("modo heurística bloqueia qualquer score acionável a partir de 50", () => {
   assert.equal(actionFor("heuristic", "block"), "block");
-  assert.equal(actionFor("heuristic", "warn"), "warn");
+  assert.equal(actionFor("heuristic", "warn"), "block");
   assert.equal(actionFor("heuristic", "allow"), "allow");
+
+  const medium = analyze("Servidor interno 192.168.10.20");
+  assert.equal(medium.confidence >= 50, true);
+  assert.equal(medium.decision, "warn");
+  assert.equal(actionFor("heuristic", medium.decision), "block");
 });
 
 test("modos avisar e registrar sempre permitem resultados acionáveis", () => {

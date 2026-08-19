@@ -78,6 +78,7 @@ test("popup apresenta regras e modos operacionais", () => {
   assert.doesNotMatch(popupScript, /querySelector\("#enabled"\)|enabled:\s*enabled\.checked/);
   assert.match(popup, /<h2>Modo de proteção<\/h2>/);
   assert.match(popup, /Avalia validade, contexto e combinação de evidências/);
+  assert.match(popup, /Bloqueia score igual ou superior a 50/);
   for (const mode of ["heuristic", "warn", "log"]) assert.match(popup, new RegExp(`value="${mode}"`));
   assert.match(popup, /id="audit-status"/);
   assert.match(popup, /id="download-audit"[^>]*>Download log<\/button>/);
