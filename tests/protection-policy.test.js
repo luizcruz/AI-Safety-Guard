@@ -21,6 +21,10 @@ test("modo heurística bloqueia qualquer score acionável a partir de 50", () =>
   assert.equal(medium.confidence >= 50, true);
   assert.equal(medium.decision, "warn");
   assert.equal(actionFor("heuristic", medium.decision), "block");
+
+  const invalidCpf = analyze("Este é um teste CPF 111.222.111-12");
+  assert.equal(invalidCpf.decision, "warn");
+  assert.equal(actionFor("heuristic", invalidCpf.decision), "block");
 });
 
 test("modos avisar e registrar sempre permitem resultados acionáveis", () => {
@@ -28,4 +32,8 @@ test("modos avisar e registrar sempre permitem resultados acionáveis", () => {
   assert.equal(actionFor("warn", "warn"), "warn");
   assert.equal(actionFor("log", "block"), "log");
   assert.equal(actionFor("log", "warn"), "log");
+
+  const invalidCpf = analyze("Este é um teste CPF 111.222.111-12");
+  assert.equal(actionFor("warn", invalidCpf.decision), "warn");
+  assert.equal(actionFor("log", invalidCpf.decision), "log");
 });

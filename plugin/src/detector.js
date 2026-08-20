@@ -8,6 +8,7 @@
 
   const HIGH_CONFIDENCE = 80;
   const MEDIUM_CONFIDENCE = 50;
+  const CHECKSUM_IDENTIFIERS = new Set(["cpf", "cnpj", "pis"]);
   const CONTEXT_RADIUS = 160;
   const NEGATIVE_CONTEXT = /\b(?:exemplo|example|mock|teste|test data|placeholder|dummy|fict[ií]cio|sample|regex|express[aã]o regular|documenta[cç][aã]o)\b/i;
   const PLACEHOLDER = /(?:example|dummy|placeholder|changeme|replace[_-]?me|your[_-]?(?:key|token|secret)|x{4,}|\*{4,})/i;
@@ -239,7 +240,21 @@
         const value = match[0];
         if (isMasked(value) || PLACEHOLDER.test(value)) continue;
         const validate = item.validator ? validators[item.validator] : null;
-        if (item.validator && (!validate || !validate(value))) continue;
+        const validatorApproved = !item.validator || (validate && validate(value));
+        if (!validatorApproved) {
+          if (CHECKSUM_IDENTIFIERS.has(item.validator)) {
+            addFinding(findings, {
+              category: item.category,
+              label: item.label,
+              family: "pattern",
+              score: MEDIUM_CONFIDENCE,
+              baseScore: item.score,
+              sample: redact(value),
+              reasons: ["formato de identificador sensível", "checksum inválido"]
+            });
+          }
+          continue;
+        }
         const windowText = contextWindow(input, match.index, value.length);
         const negative = NEGATIVE_CONTEXT.test(windowText);
         const reasons = [];

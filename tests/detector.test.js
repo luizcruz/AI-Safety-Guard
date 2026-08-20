@@ -88,7 +88,18 @@ test("valida CPF, CNPJ e PIS por checksum", () => {
   assert.equal(_internal.isCnpjMatch("12.345.678/0001-90"), false);
   assert.equal(_internal.isPisMatch("120.44565.54-6"), true);
   assert.equal(_internal.isPisMatch("123.45678.90-1"), false);
-  assert.equal(analyze("CPF: 123.456.789-00, CNPJ 12.345.678/0001-90").findings.length, 0);
+  const invalid = analyze("CPF: 123.456.789-00, CNPJ 12.345.678/0001-90");
+  assert.equal(invalid.decision, "warn");
+  assert.deepEqual(new Set(invalid.findings.map((item) => item.label)), new Set(["CPF", "CNPJ"]));
+  assert.ok(invalid.findings.every((item) => item.reasons.includes("checksum inválido")));
+});
+
+test("mantém formato explícito de CPF acionável mesmo em contexto de teste", () => {
+  const result = analyze("Este é um teste CPF 111.222.111-12");
+  assert.equal(result.decision, "warn");
+  assert.equal(result.confidence, 50);
+  assert.equal(result.findings[0].label, "CPF");
+  assert.deepEqual(result.findings[0].reasons, ["formato de identificador sensível", "checksum inválido"]);
 });
 
 test("normaliza Unicode e remove caracteres invisíveis", () => {

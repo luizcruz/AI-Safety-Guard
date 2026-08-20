@@ -25,6 +25,27 @@ test("manifest carrega catálogo antes do detector", () => {
   assert.deepEqual(manifest.permissions, ["storage"]);
 });
 
+test("manifest referencia todos os ícones nos tamanhos corretos", () => {
+  const root = path.join(__dirname, "..");
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, "plugin", "manifest.json"), "utf8"));
+  const expected = {
+    "16": "icons/ai-safety-guard-16.png",
+    "32": "icons/ai-safety-guard-32.png",
+    "48": "icons/ai-safety-guard-48.png",
+    "128": "icons/ai-safety-guard-128.png"
+  };
+
+  assert.deepEqual(manifest.icons, expected);
+  assert.deepEqual(manifest.action.default_icon, expected);
+
+  for (const [size, relativePath] of Object.entries(expected)) {
+    const png = fs.readFileSync(path.join(root, "plugin", relativePath));
+    assert.deepEqual([...png.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10], relativePath);
+    assert.equal(png.readUInt32BE(16), Number(size), `${relativePath} width`);
+    assert.equal(png.readUInt32BE(20), Number(size), `${relativePath} height`);
+  }
+});
+
 test("bibliotecas de documentos são empacotadas localmente", () => {
   const root = path.join(__dirname, "..");
   for (const name of ["pdf.mjs", "pdf.worker.mjs", "mammoth.browser.min.mjs"]) {
