@@ -87,8 +87,10 @@ test("alerta explicita as categorias possivelmente infringidas", () => {
   assert.match(content, /dispatchEvent\(new Event\("change", \{ bubbles: true \}\)\)/);
   assert.match(content, /AISafetyProtectionPolicy\.normalizeMode/);
   assert.match(content, /AISafetyProtectionPolicy\.actionFor/);
+  assert.match(content, /createEmissionGate/);
   assert.match(content, /RECORD_DETECTION/);
   assert.match(content, /AI Safety Guard - Aviso/);
+  assert.doesNotMatch(content, /warnedDetections|recentAuditRecords|handledMode|showWarningOnce/);
 });
 
 test("popup apresenta regras e modos operacionais", () => {
@@ -100,6 +102,8 @@ test("popup apresenta regras e modos operacionais", () => {
   assert.match(popup, /<h2>Modo de proteção<\/h2>/);
   assert.match(popup, /Avalia validade, contexto e combinação de evidências/);
   assert.match(popup, /Bloqueia score igual ou superior a 50/);
+  assert.match(popup, /Exibe um aviso em cada tentativa/);
+  assert.match(popup, /grava cada detecção na auditoria local/);
   for (const mode of ["heuristic", "warn", "log"]) assert.match(popup, new RegExp(`value="${mode}"`));
   assert.match(popup, /id="audit-status"/);
   assert.match(popup, /id="download-audit"[^>]*>Download log<\/button>/);

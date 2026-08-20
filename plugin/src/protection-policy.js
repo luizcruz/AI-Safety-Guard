@@ -21,5 +21,18 @@
     return "block";
   }
 
-  return Object.freeze({ DEFAULT_MODE, MODES, normalizeMode, actionFor });
+  function createEmissionGate({ windowMs = 250, now = Date.now } = {}) {
+    const recent = new Map();
+    return function shouldEmit(channel, key) {
+      const timestamp = now();
+      const id = `${channel}:${key}`;
+      const previous = recent.get(id);
+      if (previous !== undefined && timestamp - previous < windowMs) return false;
+      recent.set(id, timestamp);
+      for (const [storedId, storedAt] of recent) if (timestamp - storedAt >= windowMs) recent.delete(storedId);
+      return true;
+    };
+  }
+
+  return Object.freeze({ DEFAULT_MODE, MODES, normalizeMode, actionFor, createEmissionGate });
 });

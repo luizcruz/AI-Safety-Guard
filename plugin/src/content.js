@@ -29,8 +29,7 @@
   const fileInputGates = new WeakMap();
   const releasedFileInputEvents = new WeakMap();
   const releasedTransferEvents = new WeakSet();
-  const warnedDetections = new Set();
-  const recentAuditRecords = new Map();
+  const shouldEmit = AISafetyProtectionPolicy.createEmissionGate();
   const attachments = new AISafetyAttachmentScanner.Registry((file) => AISafetyAttachmentScanner.scanFile(
     file, AISafetyGuard.analyze, settings, undefined, undefined, AISafetyGuard.analyzeFileName
   ));
@@ -184,15 +183,11 @@
   function approveAttachmentRecords(records, input) {
     const errors = records.filter((record) => record.status === "error");
     if (errors.length) {
-      const allowed = handleInspectionIssue(errors, input);
-      if (allowed) for (const record of errors) record.handledMode = settings.mode;
-      return allowed;
+      return handleInspectionIssue(errors, input);
     }
     const detected = records.filter((record) => ["blocked", "warning"].includes(record.status));
     if (detected.length) {
-      const allowed = handleDetection(resultFromRecords(detected), input);
-      if (allowed) for (const record of detected) record.handledMode = settings.mode;
-      return allowed;
+      return handleDetection(resultFromRecords(detected), input);
     }
     return true;
   }
@@ -212,8 +207,7 @@
     }
     const key = `inspection:${records.map((record) => `${record.fileName}:${record.error || "pending"}`).join("|")}`;
     if (settings.mode === "warn") {
-      if (!warnedDetections.has(key)) {
-        warnedDetections.add(key);
+      if (shouldEmit("warn", key)) {
         showInspectionAlert("AI Safety Guard - Aviso", "O anexo não pôde ser analisado. O envio será permitido conforme o modo selecionado.", records, input);
       }
     } else {
@@ -229,7 +223,7 @@
       showAlert(result, input);
       return false;
     }
-    if (action === "warn") showWarningOnce(result, input);
+    if (action === "warn") showWarning(result, input);
     else recordAudit(result.findings, result);
     return true;
   }
@@ -280,16 +274,13 @@
       showInspectionAlert("Análise de anexos em andamento", "Aguarde a análise local terminar e tente enviar novamente.", attachmentState.pending, input);
       return true;
     }
-    const unhandledErrors = attachmentState.errors.filter((record) => record.handledMode !== settings.mode);
-    if (unhandledErrors.length) {
-      const allowed = handleInspectionIssue(unhandledErrors, input, event);
-      if (allowed) for (const record of unhandledErrors) record.handledMode = settings.mode;
+    if (attachmentState.errors.length) {
+      const allowed = handleInspectionIssue(attachmentState.errors, input, event);
       if (!allowed) return true;
     }
-    const unhandledDetections = [...attachmentState.blocked, ...attachmentState.warnings].filter((record) => record.handledMode !== settings.mode);
-    if (unhandledDetections.length) {
-      const allowed = handleDetection(resultFromRecords(unhandledDetections), input, event);
-      if (allowed) for (const record of unhandledDetections) record.handledMode = settings.mode;
+    const attachmentDetections = [...attachmentState.blocked, ...attachmentState.warnings];
+    if (attachmentDetections.length) {
+      const allowed = handleDetection(resultFromRecords(attachmentDetections), input, event);
       if (!allowed) return true;
     }
     const result = AISafetyGuard.analyze(readInput(input), settings);
@@ -349,10 +340,9 @@
     });
   }
 
-  function showWarningOnce(result, input) {
+  function showWarning(result, input) {
     const key = detectionKey(result.findings);
-    if (warnedDetections.has(key)) return;
-    warnedDetections.add(key);
+    if (!shouldEmit("warn", key)) return;
     showDetectionDialog(result, input, {
       title: "AI Safety Guard - Aviso",
       description: "Possível dado sensível detectado. O envio será permitido conforme o modo selecionado.",
@@ -363,10 +353,8 @@
 
   function recordAudit(findings, result = {}) {
     const key = detectionKey(findings);
+    if (!shouldEmit("log", key)) return;
     const now = Date.now();
-    if (now - (recentAuditRecords.get(key) || 0) < 2000) return;
-    recentAuditRecords.set(key, now);
-    for (const [storedKey, timestamp] of recentAuditRecords) if (now - timestamp > 10_000) recentAuditRecords.delete(storedKey);
     const message = {
       type: "RECORD_DETECTION",
       entry: {

@@ -2,7 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { normalizeMode, actionFor } = require("../plugin/src/protection-policy.js");
+const { normalizeMode, actionFor, createEmissionGate } = require("../plugin/src/protection-policy.js");
 const { analyze } = require("../plugin/src/detector.js");
 
 test("migra modo block legado para heuristic", () => {
@@ -36,4 +36,16 @@ test("modos avisar e registrar sempre permitem resultados acionáveis", () => {
   const invalidCpf = analyze("Este é um teste CPF 111.222.111-12");
   assert.equal(actionFor("warn", invalidCpf.decision), "warn");
   assert.equal(actionFor("log", invalidCpf.decision), "log");
+});
+
+test("avisos e logs repetidos são emitidos novamente em cada tentativa", () => {
+  let timestamp = 1_000;
+  const shouldEmit = createEmissionGate({ windowMs: 250, now: () => timestamp });
+  assert.equal(shouldEmit("warn", "cpf"), true);
+  assert.equal(shouldEmit("warn", "cpf"), false, "suprime somente eventos duplicados do mesmo clique");
+  timestamp += 250;
+  assert.equal(shouldEmit("warn", "cpf"), true);
+  assert.equal(shouldEmit("log", "cpf"), true, "aviso e auditoria são canais independentes");
+  timestamp += 250;
+  assert.equal(shouldEmit("log", "cpf"), true);
 });
