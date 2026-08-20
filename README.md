@@ -1,22 +1,11 @@
 # AI Safety Guard
 
-<<<<<<< HEAD
-Extensão Chrome Manifest V3 que analisa localmente mensagens e anexos PDF/DOCX/DOC destinados ao ChatGPT, Claude, Perplexity, Gemini, Copilot, DeepSeek e Kimi. Quando encontra evidências de dados sensíveis, infraestrutura, propriedade intelectual, PCI/Banking, RH ou PII em logs, aplica o modo configurado e informa as categorias possivelmente infringidas.
-=======
 **Local-first AI security and (kind off) DLP for ChatGPT, Claude, Gemini, Perplexity, DeepSeek and Kimi.**
->>>>>>> origin/main
 
 AI Safety Guard is a Chrome Manifest V3 extension that detects sensitive data before it is submitted to web-based AI tools.
 
 It analyzes prompts and PDF/DOCX/DOC attachments locally using configurable heuristic rules, then **blocks, warns, or logs** potential policy violations. 
 
-<<<<<<< HEAD
-O detector normaliza Unicode, valida checksums e correlaciona padrões, palavras-chave e estrutura documental. No modo `Heurística`, confiança média ou alta bloqueia e evidências abaixo do limiar permanecem silenciosas.
-
-A API em `api/` oferece CRUD autenticado e snapshots versionados. O service worker consulta `/v1/rulesets/latest` ao instalar/iniciar o Chrome, aceita somente versões mais recentes e catálogos válidos, e os distribui aos content scripts via `chrome.storage.local`. Falhas de rede preservam o último catálogo válido ou o conjunto embarcado.
-
-O painel Node.js em `admin-ui/` disponibiliza a administração visual do catálogo em `http://127.0.0.1:3000` quando iniciado pelo Docker Compose. O acesso exige a chave `AI_SAFETY_ADMIN_KEY` configurada em `api/.env`. O painel usa a API Python pela rede interna, mantém o Bearer token no servidor e aplica controle de versão otimista nas alterações.
-=======
 ## Features
 
 * Local-first sensitive data detection
@@ -37,7 +26,6 @@ O painel Node.js em `admin-ui/` disponibiliza a administração visual do catál
 * Offline fallback to the last valid ruleset
 * Masked security logs
 * No prompt content sent to the rules API
->>>>>>> origin/main
 
 ## How it works
 
@@ -47,11 +35,6 @@ Rules are defined in:
 plugin/src/rules.js
 ```
 
-<<<<<<< HEAD
-No modo `Heurística`, o envio permanece bloqueado enquanto a análise estiver pendente ou quando o arquivo não puder ser lido. PDFs digitalizados e documentos compostos apenas por imagens exigem OCR/conversão prévia; o conteúdo dos anexos nunca é enviado à API de regras.
-
-Eventos de seleção, arrastar/soltar e colar arquivos são interrompidos antes de chegarem ao site. Após a análise local, o modo `Heurística` bloqueia scores iguais ou superiores a 50 e rejeita anexos ilegíveis; os modos `Avisar` e `Registrar` liberam o upload conforme configurado.
-=======
 The ruleset contains:
 
 * categories
@@ -61,19 +44,12 @@ The ruleset contains:
 * validators
 * heuristics
 * filename rules
->>>>>>> origin/main
 
 `plugin/src/detector.js` compiles and runs these rules directly in the browser.
 
 Detection is deterministic and does not require an LLM or external inference service.
 
-<<<<<<< HEAD
-- `Heurística`: avalia validade, contexto e combinação de evidências; bloqueia confiança média ou alta (score ≥50).
-- `Avisar`: apresenta uma única advertência por detecção e permite o envio.
-- `Registrar`: permite o envio e persiste silenciosamente no `chrome.storage.local` a data/hora, IA acessada, categorias, regras acionadas e amostras mascaradas. O botão `Download log` exporta manualmente esses registros para `ai-safety-guard.log`.
-=======
 ## Rule Management
->>>>>>> origin/main
 
 The Python API under `api/` provides:
 
