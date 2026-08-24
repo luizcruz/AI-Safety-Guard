@@ -24,6 +24,7 @@ test("launcher valida Compose e oferece controles operacionais", () => {
   assert.match(source, /docker compose version/);
   assert.match(source, /api\/\.env/);
   assert.match(source, /AI_SAFETY_API_TOKEN/);
+  assert.match(source, /AI_SAFETY_ADMIN_KEY/);
   assert.match(source, /\$'\\r'/);
   assert.match(source, /--check-only/);
   assert.match(source, /--no-update/);

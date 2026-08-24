@@ -64,6 +64,12 @@ def test_supports_filename_rules(repository):
     assert updated["score"] == 95
 
 
+@pytest.mark.parametrize("validator", ["cpf", "cnpj", "pis", "luhn", "iban"])
+def test_supports_checksum_validators(repository, validator):
+    created = repository.create(RuleInput(kind="pattern", category="credentials", label=validator.upper(), score=90, source=f"{validator}_[0-9]+", validator=validator))
+    assert created["validator"] == validator
+
+
 def test_rejects_unknown_category_missing_fields_and_duplicates(repository):
     with pytest.raises(RuleValidationError, match="Categoria inexistente"):
         repository.create(RuleInput(kind="keyword", category="unknown", keyword="x"))
@@ -105,3 +111,29 @@ def test_migrates_old_catalog_to_filename_schema(tmp_path):
     assert migrated.version == "1.2.0"
     assert migrated.latest()["fileNameRules"][0]["names"] == [".env"]
     assert (data_dir / "ruleset-v1.2.0.json").exists()
+
+
+def test_migrates_builtin_validators_without_removing_custom_rules(tmp_path):
+    source = r"\b\d{3}\.\d{3}\.\d{3}-\d{2}\b"
+    old = {
+        "version": "1.2.9", "categories": {"personal": "Pessoal", "custom": "Custom", "sensitiveFileNames": "Nomes"},
+        "patterns": [
+            {"category": "personal", "label": "CPF", "source": source, "flags": "g", "score": 90, "validator": None},
+            {"category": "custom", "label": "Custom", "source": "CUSTOM", "flags": "g", "score": 80, "validator": None},
+        ],
+        "keywords": {"personal": [], "custom": [], "sensitiveFileNames": []}, "heuristics": [], "fileNameRules": [],
+    }
+    seed = {
+        "version": "1.3.0", "categories": old["categories"],
+        "patterns": [{"category": "personal", "label": "CPF", "source": source, "flags": "g", "score": 90, "validator": "cpf"}],
+        "keywords": old["keywords"], "heuristics": [], "fileNameRules": [],
+    }
+    seed_file = tmp_path / "seed.json"
+    seed_file.write_text(json.dumps(seed), encoding="utf-8")
+    data_dir = tmp_path / "snapshots"
+    data_dir.mkdir()
+    (data_dir / "latest.json").write_text(json.dumps(old), encoding="utf-8")
+    migrated = RuleRepository(data_dir, seed_file)
+    assert migrated.version == "1.3.0"
+    assert migrated.latest()["patterns"][0]["validator"] == "cpf"
+    assert any(item["label"] == "Custom" for item in migrated.latest()["patterns"])

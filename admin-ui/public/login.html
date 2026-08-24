@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>AI Safety Guard — Acesso administrativo</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="/auth.css">
+  </head>
+  <body class="login-page">
+    <main class="login-card">
+      <p class="eyebrow">AI Safety Guard</p>
+      <h1>Acesso administrativo</h1>
+      <p>Informe a chave configurada em <code>AI_SAFETY_ADMIN_KEY</code>.</p>
+      <form action="/login" method="post">
+        <label>Chave de acesso<input name="access_key" type="password" minlength="16" required autofocus autocomplete="current-password"></label>
+        <button type="submit">Entrar</button>
+      </form>
+      {{ERROR}}
+    </main>
+  </body>
+</html>

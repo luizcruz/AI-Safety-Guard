@@ -6,7 +6,12 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function createDetector(catalog) {
   "use strict";
 
-  if (!catalog || !catalog.categories || !catalog.patterns) throw new Error("Catálogo de regras DLP indisponível");
+  const HIGH_CONFIDENCE = 80;
+  const MEDIUM_CONFIDENCE = 50;
+  const CHECKSUM_IDENTIFIERS = new Set(["cpf", "cnpj", "pis"]);
+  const CONTEXT_RADIUS = 160;
+  const NEGATIVE_CONTEXT = /\b(?:exemplo|example|mock|teste|test data|placeholder|dummy|fict[ií]cio|sample|regex|express[aã]o regular|documenta[cç][aã]o)\b/i;
+  const PLACEHOLDER = /(?:example|dummy|placeholder|changeme|replace[_-]?me|your[_-]?(?:key|token|secret)|x{4,}|\*{4,})/i;
   const CATEGORIES = {};
   let compiledPatterns = [];
   let compiledFileNameRules = [];
@@ -19,11 +24,10 @@
   }
 
   function compileCatalog(nextCatalog) {
-    if (!nextCatalog || typeof nextCatalog.version !== "string" || !nextCatalog.categories || !Array.isArray(nextCatalog.patterns) || !nextCatalog.keywords || !Array.isArray(nextCatalog.heuristics)) {
-      throw new Error("Catálogo de regras DLP inválido");
-    }
+    if (!nextCatalog || typeof nextCatalog.version !== "string" || !nextCatalog.categories || !Array.isArray(nextCatalog.patterns) || !nextCatalog.keywords || !Array.isArray(nextCatalog.heuristics)) throw new Error("Catálogo de regras DLP inválido");
+    const supportedValidators = [null, undefined, "luhn", "iban", "cpf", "cnpj", "pis"];
     const patterns = nextCatalog.patterns.map((item) => {
-      if (!nextCatalog.categories[item.category] || typeof item.source !== "string" || item.source.length > 5000 || typeof item.score !== "number" || ![null, undefined, "luhn", "iban"].includes(item.validator)) throw new Error("Regra de padrão inválida");
+      if (!nextCatalog.categories[item.category] || typeof item.source !== "string" || item.source.length > 5000 || typeof item.score !== "number" || !supportedValidators.includes(item.validator)) throw new Error("Regra de padrão inválida");
       return { ...item, regex: new RegExp(item.source, item.flags) };
     });
     const fileNameRules = (nextCatalog.fileNameRules || []).map((item) => {
@@ -43,57 +47,106 @@
     catalog = nextCatalog;
   }
 
-  compileCatalog(catalog);
+  const digits = (value) => String(value || "").replace(/\D/g, "");
+  const hasRepeatedDigits = (value) => /^(\d)\1+$/.test(value);
 
   function isLuhnMatch(value) {
-    const digits = value.replace(/\D/g, "");
+    const number = digits(value);
     let sum = 0;
     let doubleDigit = false;
-    for (let i = digits.length - 1; i >= 0; i -= 1) {
-      let digit = Number(digits[i]);
-      if (doubleDigit) {
-        digit *= 2;
-        if (digit > 9) digit -= 9;
-      }
+    for (let index = number.length - 1; index >= 0; index -= 1) {
+      let digit = Number(number[index]);
+      if (doubleDigit) { digit *= 2; if (digit > 9) digit -= 9; }
       sum += digit;
       doubleDigit = !doubleDigit;
     }
-    return sum % 10 === 0;
+    return number.length >= 13 && number.length <= 19 && !hasRepeatedDigits(number) && sum % 10 === 0;
   }
 
   function isIbanMatch(value) {
-    const iban = value.replace(/\s/g, "").toUpperCase();
+    const iban = String(value || "").replace(/\s/g, "").toUpperCase();
     const rearranged = iban.slice(4) + iban.slice(0, 4);
     let remainder = 0;
     for (const character of rearranged) {
       const numeric = /[A-Z]/.test(character) ? String(character.charCodeAt(0) - 55) : character;
       for (const digit of numeric) remainder = (remainder * 10 + Number(digit)) % 97;
     }
-    return remainder === 1;
+    return iban.length >= 15 && iban.length <= 34 && remainder === 1;
   }
 
-  const validators = Object.freeze({ luhn: isLuhnMatch, iban: isIbanMatch });
+  function isCpfMatch(value) {
+    const number = digits(value);
+    if (number.length !== 11 || hasRepeatedDigits(number)) return false;
+    const check = (length) => {
+      let sum = 0;
+      for (let index = 0; index < length; index += 1) sum += Number(number[index]) * (length + 1 - index);
+      const remainder = (sum * 10) % 11;
+      return remainder === 10 ? 0 : remainder;
+    };
+    return check(9) === Number(number[9]) && check(10) === Number(number[10]);
+  }
+
+  function isCnpjMatch(value) {
+    const number = digits(value);
+    if (number.length !== 14 || hasRepeatedDigits(number)) return false;
+    const calculate = (length) => {
+      const weights = length === 12 ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2] : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+      const sum = weights.reduce((total, weight, index) => total + Number(number[index]) * weight, 0);
+      const remainder = sum % 11;
+      return remainder < 2 ? 0 : 11 - remainder;
+    };
+    return calculate(12) === Number(number[12]) && calculate(13) === Number(number[13]);
+  }
+
+  function isPisMatch(value) {
+    const number = digits(value);
+    if (number.length !== 11 || hasRepeatedDigits(number)) return false;
+    const weights = [3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+    const sum = weights.reduce((total, weight, index) => total + Number(number[index]) * weight, 0);
+    const remainder = 11 - (sum % 11);
+    return (remainder === 10 || remainder === 11 ? 0 : remainder) === Number(number[10]);
+  }
+
+  const validators = Object.freeze({ luhn: isLuhnMatch, iban: isIbanMatch, cpf: isCpfMatch, cnpj: isCnpjMatch, pis: isPisMatch });
+
+  function normalizeText(value) {
+    return String(value || "").normalize("NFKC").replace(/[\u200B-\u200D\u2060\uFEFF]/g, "").replace(/\u00A0/g, " ").replace(/[\t\f\v ]+/g, " ").replace(/ *\r?\n */g, "\n");
+  }
 
   function redact(value) {
-    const normalized = value.replace(/\s+/g, " ").trim();
+    const normalized = normalizeText(value).replace(/\s+/g, " ").trim();
     if (normalized.length <= 8) return "••••";
     return `${normalized.slice(0, 3)}••••${normalized.slice(-3)}`;
   }
 
+  const clampScore = (value) => Math.max(0, Math.min(100, Math.round(value)));
+  const contextWindow = (text, index, length) => text.slice(Math.max(0, index - CONTEXT_RADIUS), Math.min(text.length, index + length + CONTEXT_RADIUS));
+
+  function hasLabelContext(text, index) {
+    const lineStart = text.lastIndexOf("\n", index - 1) + 1;
+    return /[\p{L}][\p{L}\d _./()-]{1,45}\s*[:=#-]\s*$/u.test(text.slice(lineStart, index));
+  }
+
+  function hasKeywordContext(category, windowText) {
+    const lower = windowText.toLocaleLowerCase("pt-BR");
+    return (catalog.keywords[category] || []).some((word) => lower.includes(normalizeText(word).toLocaleLowerCase("pt-BR")));
+  }
+
+  const isMasked = (value) => /(?:\*{3,}|•{3,}|x{4,})/i.test(value);
+
   function addFinding(findings, finding) {
-    if (!findings.some((item) => item.category === finding.category && item.label === finding.label && item.sample === finding.sample)) findings.push(finding);
+    const duplicate = findings.some((item) => item.category === finding.category && item.label === finding.label && item.sample === finding.sample);
+    if (!duplicate && finding.score > 0) findings.push({ ...finding, score: clampScore(finding.score) });
   }
 
   function detectPixContext(text, findings) {
     const pixWindow = /(?:chave\s+pix|pix(?:\s+chave)?)\s*[:=-]?\s*([^\s,;]+)/gi;
-    const candidates = {
-      "Chave PIX e-mail": /^[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}$/,
-      "Chave PIX telefone": /^\+?55?\d{10,11}$/,
-      "Chave PIX CPF": /^\d{3}\.?\d{3}\.?\d{3}-?\d{2}$/
-    };
+    const candidates = { "Chave PIX e-mail": /^[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}$/, "Chave PIX telefone": /^\+?55?\d{10,11}$/, "Chave PIX CPF": /^\d{3}\.?\d{3}\.?\d{3}-?\d{2}$/ };
     for (const match of text.matchAll(pixWindow)) {
       for (const [label, regex] of Object.entries(candidates)) {
-        if (regex.test(match[1])) addFinding(findings, { category: "financial", label, score: 85, sample: redact(match[1]) });
+        if (!regex.test(match[1]) || (label === "Chave PIX CPF" && !isCpfMatch(match[1]))) continue;
+        const negative = NEGATIVE_CONTEXT.test(contextWindow(text, match.index, match[0].length));
+        addFinding(findings, { category: "financial", label, family: "pattern", score: 85 - (negative ? 25 : 0), sample: redact(match[1]), reasons: negative ? ["contexto negativo"] : ["contexto PIX"] });
       }
     }
   }
@@ -154,16 +207,64 @@
     }
   });
 
+  function aggregateCategoryScores(findings) {
+    const grouped = {};
+    for (const finding of findings) {
+      const category = grouped[finding.category] || (grouped[finding.category] = new Map());
+      const key = `${finding.family}:${finding.label}`;
+      category.set(key, Math.max(category.get(key) || 0, finding.score));
+    }
+    const scores = {};
+    for (const [category, evidence] of Object.entries(grouped)) {
+      const values = [...evidence.values()].sort((left, right) => right - left);
+      scores[category] = clampScore((values[0] || 0) + (values[1] || 0) * 0.35 + (values[2] || 0) * 0.15);
+    }
+    return scores;
+  }
+
+  function resultFromFindings(findings, rulesVersion = catalog.version) {
+    const categoryScores = aggregateCategoryScores(findings);
+    const confidence = Math.max(0, ...Object.values(categoryScores));
+    const decision = confidence >= HIGH_CONFIDENCE ? "block" : confidence >= MEDIUM_CONFIDENCE ? "warn" : "allow";
+    return { decision, confidence, confidenceLevel: decision === "block" ? "high" : decision === "warn" ? "medium" : "low", blocked: decision === "block", findings, categories: [...new Set(findings.map((finding) => finding.category))], categoryScores, rulesVersion };
+  }
+
   function analyze(text, options) {
-    const input = String(text || "");
+    const input = normalizeText(text);
     const enabledCategories = new Set((options && options.enabledCategories) || Object.keys(CATEGORIES));
     const findings = [];
     for (const item of compiledPatterns) {
       if (!enabledCategories.has(item.category)) continue;
       item.regex.lastIndex = 0;
       for (const match of input.matchAll(item.regex)) {
+        const value = match[0];
+        if (isMasked(value) || PLACEHOLDER.test(value)) continue;
         const validate = item.validator ? validators[item.validator] : null;
-        if (!item.validator || (validate && validate(match[0]))) addFinding(findings, { category: item.category, label: item.label, score: item.score, sample: redact(match[0]) });
+        const validatorApproved = !item.validator || (validate && validate(value));
+        if (!validatorApproved) {
+          if (CHECKSUM_IDENTIFIERS.has(item.validator)) {
+            addFinding(findings, {
+              category: item.category,
+              label: item.label,
+              family: "pattern",
+              score: MEDIUM_CONFIDENCE,
+              baseScore: item.score,
+              sample: redact(value),
+              reasons: ["formato de identificador sensível", "checksum inválido"]
+            });
+          }
+          continue;
+        }
+        const windowText = contextWindow(input, match.index, value.length);
+        const negative = NEGATIVE_CONTEXT.test(windowText);
+        const reasons = [];
+        let score = item.score;
+        if (item.validator) { score += 10; reasons.push("validador aprovado"); }
+        if (!negative && hasLabelContext(input, match.index)) { score += 10; reasons.push("rótulo próximo"); }
+        if (!negative && hasKeywordContext(item.category, windowText)) { score += 10; reasons.push("contexto da categoria"); }
+        if (negative) { score -= 25; reasons.push("contexto negativo"); }
+        if (item.score >= 100) score = Math.max(score, HIGH_CONFIDENCE);
+        addFinding(findings, { category: item.category, label: item.label, family: "pattern", score, baseScore: item.score, sample: redact(value), reasons });
       }
     }
     if (enabledCategories.has("financial")) detectPixContext(input, findings);
@@ -172,47 +273,46 @@
     for (const heuristic of catalog.heuristics) {
       if (!enabledCategories.has(heuristic.category)) continue;
       const handler = heuristicHandlers[heuristic.id];
-      if (!handler) continue;
-      const sample = handler(documentFacts);
-      if (sample) addFinding(findings, { category: heuristic.category, label: heuristic.label, score: heuristic.score, sample });
-    }
-    for (const [category, words] of Object.entries(catalog.keywords)) {
-      if (!enabledCategories.has(category)) continue;
-      const matched = words.filter((word) => documentFacts.lower.includes(word));
-      if (matched.length) addFinding(findings, { category, label: "Termos sensíveis", score: Math.min(40 + matched.length * 10, 70), sample: matched.slice(0, 3).join(", ") });
+      const sample = handler ? handler(documentFacts) : null;
+      if (!sample) continue;
+      const negative = NEGATIVE_CONTEXT.test(input);
+      addFinding(findings, { category: heuristic.category, label: heuristic.label, family: "structure", score: heuristic.score - (negative ? 25 : 0), baseScore: heuristic.score, sample, reasons: negative ? ["contexto negativo"] : ["estrutura documental"] });
     }
 
-    const categoryScores = {};
-    for (const finding of findings) categoryScores[finding.category] = (categoryScores[finding.category] || 0) + finding.score;
-    return {
-      blocked: findings.some((finding) => finding.score >= 70) || Object.values(categoryScores).some((score) => score >= 50),
-      findings,
-      categories: [...new Set(findings.map((finding) => finding.category))],
-      categoryScores,
-      rulesVersion: catalog.version
-    };
+    const structuredCategories = new Set(findings.filter((finding) => finding.family === "structure").map((finding) => finding.category));
+    for (const finding of findings) {
+      if (finding.family !== "structure" && structuredCategories.has(finding.category)) {
+        finding.score = clampScore(finding.score + 15);
+        finding.reasons.push("estrutura correlacionada");
+      }
+    }
+
+    for (const [category, words] of Object.entries(catalog.keywords)) {
+      if (!enabledCategories.has(category)) continue;
+      const matched = words.filter((word) => documentFacts.lower.includes(normalizeText(word).toLocaleLowerCase("pt-BR")));
+      if (!matched.length) continue;
+      const negative = NEGATIVE_CONTEXT.test(input);
+      const baseScore = Math.min(25 + (matched.length - 1) * 15, 55);
+      const score = baseScore - (negative ? 25 : 0) + (structuredCategories.has(category) ? 15 : 0);
+      addFinding(findings, { category, label: "Termos sensíveis", family: "keyword", score, baseScore, sample: matched.slice(0, 3).join(", "), reasons: [structuredCategories.has(category) ? "estrutura correlacionada" : "palavra-chave", ...(negative ? ["contexto negativo"] : [])] });
+    }
+    return resultFromFindings(findings);
   }
 
   function normalizeFileName(value) {
-    const basename = String(value || "").replace(/\\/g, "/").split("/").pop().trim().toLocaleLowerCase("pt-BR");
+    const basename = normalizeText(value).replace(/\\/g, "/").split("/").pop().trim().toLocaleLowerCase("pt-BR");
     return basename.replace(/\s*\(\d+\)(?=\.[^.]+$)/, "");
   }
 
   function analyzeFileName(fileName, options) {
     const enabledCategories = new Set((options && options.enabledCategories) || Object.keys(CATEGORIES));
-    if (!enabledCategories.has("sensitiveFileNames")) return { blocked: false, findings: [], categories: [], categoryScores: {}, rulesVersion: catalog.version };
+    if (!enabledCategories.has("sensitiveFileNames")) return resultFromFindings([]);
     const normalized = normalizeFileName(fileName);
     const findings = [];
     for (const rule of compiledFileNameRules) {
-      if (rule.normalizedNames.has(normalized)) findings.push({ category: rule.category, label: rule.label, score: rule.score, sample: normalized, source: fileName });
+      if (rule.normalizedNames.has(normalized)) addFinding(findings, { category: rule.category, label: rule.label, family: "filename", score: Math.min(rule.score, 60), baseScore: rule.score, sample: normalized, source: fileName, reasons: ["nome de arquivo sensível"] });
     }
-    return {
-      blocked: findings.some((finding) => finding.score >= 70),
-      findings,
-      categories: findings.length ? ["sensitiveFileNames"] : [],
-      categoryScores: findings.length ? { sensitiveFileNames: findings.reduce((sum, finding) => sum + finding.score, 0) } : {},
-      rulesVersion: catalog.version
-    };
+    return resultFromFindings(findings);
   }
 
   function updateCatalog(nextCatalog) {
@@ -221,5 +321,6 @@
     return catalog.version;
   }
 
-  return Object.freeze({ analyze, analyzeFileName, updateCatalog, CATEGORIES, get version() { return catalog.version; }, _internal: Object.freeze({ isLuhnMatch, isIbanMatch, redact, normalizeFileName }) });
+  compileCatalog(catalog);
+  return Object.freeze({ analyze, analyzeFileName, updateCatalog, CATEGORIES, get version() { return catalog.version; }, _internal: Object.freeze({ isLuhnMatch, isIbanMatch, isCpfMatch, isCnpjMatch, isPisMatch, normalizeText, redact, normalizeFileName, aggregateCategoryScores, resultFromFindings }) });
 });

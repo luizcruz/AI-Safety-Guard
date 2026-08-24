@@ -169,7 +169,7 @@
     } catch (error) {
       if (analyzeFileName) {
         const result = analyzeFileName(file.name, settings);
-        if (result.blocked || (error instanceof AttachmentError && error.code === "unsupported")) {
+        if (result.decision !== "allow" || result.blocked || (error instanceof AttachmentError && error.code === "unsupported")) {
           return { fileName: file.name || "documento", type: "filename", textLength: 0, result, extractionError: error.message };
         }
       }
@@ -181,8 +181,17 @@
     const findings = [...first.findings, ...second.findings];
     const categoryScores = { ...first.categoryScores };
     for (const [category, score] of Object.entries(second.categoryScores || {})) categoryScores[category] = (categoryScores[category] || 0) + score;
+    const contentConfidence = Number(first.confidence) || 0;
+    const fileConfidence = Number(second.confidence) || 0;
+    const corroborated = contentConfidence >= 50 && fileConfidence >= 50;
+    const confidence = Math.min(100, Math.max(contentConfidence, fileConfidence, corroborated ? fileConfidence + 30 : 0));
+    const decision = confidence >= 80 ? "block" : confidence >= 50 ? "warn" : "allow";
+    if (corroborated) categoryScores.sensitiveFileNames = Math.max(categoryScores.sensitiveFileNames || 0, confidence);
     return {
-      blocked: first.blocked || second.blocked,
+      decision,
+      confidence,
+      confidenceLevel: decision === "block" ? "high" : decision === "warn" ? "medium" : "low",
+      blocked: decision === "block",
       findings,
       categories: [...new Set([...first.categories, ...second.categories])],
       categoryScores,
@@ -207,7 +216,12 @@
         this._records.set(id, record);
         record.completion = Promise.resolve().then(() => this._scan(file)).then((scan) => {
           record.scan = scan;
-          record.status = scan.result.blocked ? "blocked" : "safe";
+          if (scan.extractionError) {
+            record.error = scan.extractionError;
+            record.status = "error";
+          } else {
+            record.status = scan.result.decision === "warn" ? "warning" : scan.result.blocked ? "blocked" : "safe";
+          }
         }).catch((error) => {
           record.error = error instanceof Error ? error.message : String(error);
           record.status = "error";
@@ -242,6 +256,7 @@
         pending: records.filter((record) => record.status === "pending"),
         errors: records.filter((record) => record.status === "error"),
         blocked: records.filter((record) => record.status === "blocked"),
+        warnings: records.filter((record) => record.status === "warning"),
         safe: records.filter((record) => record.status === "safe")
       };
     }

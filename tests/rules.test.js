@@ -20,9 +20,30 @@ test("todas as regras apontam para categorias existentes", () => {
 
 test("manifest carrega catálogo antes do detector", () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "plugin", "manifest.json"), "utf8"));
-  assert.deepEqual(manifest.content_scripts[0].js, ["src/rules.js", "src/detector.js", "src/attachments.js", "src/content.js"]);
+  assert.deepEqual(manifest.content_scripts[0].js, ["src/platforms.js", "src/protection-policy.js", "src/rules.js", "src/detector.js", "src/attachments.js", "src/content.js"]);
   assert.equal(manifest.background.service_worker, "src/background.js");
   assert.deepEqual(manifest.permissions, ["storage"]);
+});
+
+test("manifest referencia todos os ícones nos tamanhos corretos", () => {
+  const root = path.join(__dirname, "..");
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, "plugin", "manifest.json"), "utf8"));
+  const expected = {
+    "16": "icons/ai-safety-guard-16.png",
+    "32": "icons/ai-safety-guard-32.png",
+    "48": "icons/ai-safety-guard-48.png",
+    "128": "icons/ai-safety-guard-128.png"
+  };
+
+  assert.deepEqual(manifest.icons, expected);
+  assert.deepEqual(manifest.action.default_icon, expected);
+
+  for (const [size, relativePath] of Object.entries(expected)) {
+    const png = fs.readFileSync(path.join(root, "plugin", relativePath));
+    assert.deepEqual([...png.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10], relativePath);
+    assert.equal(png.readUInt32BE(16), Number(size), `${relativePath} width`);
+    assert.equal(png.readUInt32BE(20), Number(size), `${relativePath} height`);
+  }
 });
 
 test("bibliotecas de documentos são empacotadas localmente", () => {
@@ -64,20 +85,30 @@ test("alerta explicita as categorias possivelmente infringidas", () => {
   assert.match(content, /document\.addEventListener\("input", captureFileInput, true\)/);
   assert.match(content, /blockEvent\(event\);[\s\S]*attachments\.wait\(ids\)/);
   assert.match(content, /dispatchEvent\(new Event\("change", \{ bubbles: true \}\)\)/);
-  assert.match(content, /mode: \["block", "warn", "log"\]/);
+  assert.match(content, /AISafetyProtectionPolicy\.normalizeMode/);
+  assert.match(content, /AISafetyProtectionPolicy\.actionFor/);
+  assert.match(content, /createEmissionGate/);
   assert.match(content, /RECORD_DETECTION/);
   assert.match(content, /AI Safety Guard - Aviso/);
+  assert.doesNotMatch(content, /warnedDetections|recentAuditRecords|handledMode|showWarningOnce/);
 });
 
 test("popup apresenta regras e modos operacionais", () => {
   const popup = fs.readFileSync(path.join(__dirname, "..", "plugin", "src", "popup.html"), "utf8");
   const popupScript = fs.readFileSync(path.join(__dirname, "..", "plugin", "src", "popup.js"), "utf8");
   assert.match(popup, /<h2>Regras<\/h2>/);
-  assert.match(popup, /<h2>Modo de bloqueio<\/h2>/);
-  for (const mode of ["block", "warn", "log"]) assert.match(popup, new RegExp(`value="${mode}"`));
+  assert.doesNotMatch(popup, /Proteção ativa|id="enabled"/);
+  assert.doesNotMatch(popupScript, /querySelector\("#enabled"\)|enabled:\s*enabled\.checked/);
+  assert.match(popup, /<h2>Modo de proteção<\/h2>/);
+  assert.match(popup, /Avalia validade, contexto e combinação de evidências/);
+  assert.match(popup, /Bloqueia score igual ou superior a 50/);
+  assert.match(popup, /Exibe um aviso em cada tentativa/);
+  assert.match(popup, /grava cada detecção na auditoria local/);
+  for (const mode of ["heuristic", "warn", "log"]) assert.match(popup, new RegExp(`value="${mode}"`));
   assert.match(popup, /id="audit-status"/);
   assert.match(popup, /id="download-audit"[^>]*>Download log<\/button>/);
   assert.match(popup, /<script src="audit-log\.js"><\/script>/);
+  assert.match(popup, /<script src="protection-policy\.js"><\/script>/);
   assert.match(popupScript, /chrome\.storage\.local\.get\(\{ auditLog: \[\] \}\)/);
   assert.match(popupScript, /AISafetyAuditLog\.download\(auditLog\)/);
   assert.doesNotMatch(popup, /Bloqueio local de dados sensíveis em prompts e anexos PDF\/DOCX\/DOC\./);
@@ -90,7 +121,7 @@ test("identidade pública usa exclusivamente AI Safety Guard v1.2", () => {
   const packageLock = JSON.parse(fs.readFileSync(path.join(root, "package-lock.json"), "utf8"));
   const popup = fs.readFileSync(path.join(root, "plugin", "src", "popup.html"), "utf8");
   const readme = fs.readFileSync(path.join(root, "README.md"), "utf8");
-  assert.equal(manifest.version, "1.2.3");
+  assert.equal(manifest.version, "1.2.5");
   assert.equal(packageManifest.version, manifest.version);
   assert.equal(packageLock.version, manifest.version);
   assert.equal(packageLock.packages[""].version, manifest.version);

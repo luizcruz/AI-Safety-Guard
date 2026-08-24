@@ -1,33 +1,45 @@
 (function protectAIChat() {
   "use strict";
 
-  const DEFAULTS = { enabled: true, enabledCategories: Object.keys(AISafetyGuard.CATEGORIES), mode: "block" };
-  const SEND_SELECTOR = [
+  const platform = AISafetyPlatforms.resolve(location.hostname);
+  const DEFAULTS = { enabledCategories: Object.keys(AISafetyGuard.CATEGORIES), mode: AISafetyProtectionPolicy.DEFAULT_MODE };
+  const SEND_SELECTOR = [...new Set([
     "button[data-testid*='send']",
+    "button[type='submit']",
     "button[aria-label*='Send' i]",
     "button[aria-label*='Enviar' i]",
+    "button[aria-label*='发送']",
+    "[role='button'][aria-label*='Send' i]",
+    "[role='button'][aria-label*='Enviar' i]",
+    "[role='button'][aria-label*='发送']",
     "button[title*='Send' i]",
-    "button[title*='Enviar' i]"
-  ].join(",");
-  const INPUT_SELECTOR = "textarea, [contenteditable='true'][role='textbox'], [contenteditable='true']";
+    "button[title*='Enviar' i]",
+    "button[title*='发送']",
+    ...(platform ? platform.sendSelectors : [])
+  ])].join(",");
+  const INPUT_SELECTOR = [...new Set([
+    "textarea",
+    "[contenteditable='true'][role='textbox']",
+    "[contenteditable='true']",
+    ...(platform ? platform.inputSelectors : [])
+  ])].join(",");
   let settings = DEFAULTS;
   let overlay = null;
   const fileInputRecords = new WeakMap();
   const fileInputGates = new WeakMap();
   const releasedFileInputEvents = new WeakMap();
   const releasedTransferEvents = new WeakSet();
-  const warnedDetections = new Set();
-  const recentAuditRecords = new Map();
+  const shouldEmit = AISafetyProtectionPolicy.createEmissionGate();
   const attachments = new AISafetyAttachmentScanner.Registry((file) => AISafetyAttachmentScanner.scanFile(
     file, AISafetyGuard.analyze, settings, undefined, undefined, AISafetyGuard.analyzeFileName
   ));
 
-  chrome.storage.sync.get(["enabled", "enabledCategories", "knownCategories", "mode"], (stored) => {
+  chrome.storage.sync.get(["enabledCategories", "knownCategories", "mode"], (stored) => {
     const currentCategories = Object.keys(AISafetyGuard.CATEGORIES);
     const knownCategories = Array.isArray(stored.knownCategories) ? stored.knownCategories : currentCategories.filter((category) => category !== "sensitiveFileNames");
     const addedCategories = currentCategories.filter((category) => !knownCategories.includes(category));
-    settings = normalizeSettings({ enabled: stored.enabled, enabledCategories: [...new Set([...(stored.enabledCategories || currentCategories), ...addedCategories])], mode: stored.mode });
-    chrome.storage.sync.set({ enabledCategories: settings.enabledCategories, knownCategories: currentCategories });
+    settings = normalizeSettings({ enabledCategories: [...new Set([...(stored.enabledCategories || currentCategories), ...addedCategories])], mode: stored.mode });
+    chrome.storage.sync.set({ enabledCategories: settings.enabledCategories, knownCategories: currentCategories, mode: settings.mode });
   });
   chrome.storage.local.get("rulesCatalog", ({ rulesCatalog }) => {
     if (rulesCatalog) applyRemoteCatalog(rulesCatalog);
@@ -36,7 +48,6 @@
     if (area === "local" && changes.rulesCatalog && changes.rulesCatalog.newValue) applyRemoteCatalog(changes.rulesCatalog.newValue);
     if (area === "sync") {
       settings = normalizeSettings({
-        enabled: changes.enabled ? changes.enabled.newValue : settings.enabled,
         enabledCategories: changes.enabledCategories ? changes.enabledCategories.newValue : settings.enabledCategories,
         mode: changes.mode ? changes.mode.newValue : settings.mode
       });
@@ -53,9 +64,8 @@
 
   function normalizeSettings(value) {
     return {
-      enabled: value.enabled !== false,
       enabledCategories: Array.isArray(value.enabledCategories) ? value.enabledCategories : DEFAULTS.enabledCategories,
-      mode: ["block", "warn", "log"].includes(value.mode) ? value.mode : DEFAULTS.mode
+      mode: AISafetyProtectionPolicy.normalizeMode(value.mode)
     };
   }
 
@@ -173,34 +183,31 @@
   function approveAttachmentRecords(records, input) {
     const errors = records.filter((record) => record.status === "error");
     if (errors.length) {
-      const allowed = handleInspectionIssue(errors, input);
-      if (allowed) for (const record of errors) record.handledMode = settings.mode;
-      return allowed;
+      return handleInspectionIssue(errors, input);
     }
-    const blocked = records.filter((record) => record.status === "blocked");
-    if (blocked.length) {
-      const allowed = handleDetection(resultFromRecords(blocked), input);
-      if (allowed) for (const record of blocked) record.handledMode = settings.mode;
-      return allowed;
+    const detected = records.filter((record) => ["blocked", "warning"].includes(record.status));
+    if (detected.length) {
+      return handleDetection(resultFromRecords(detected), input);
     }
     return true;
   }
 
   function resultFromRecords(records) {
     const findings = records.flatMap((record) => record.scan.result.findings.map((finding) => ({ ...finding, source: record.fileName })));
-    return { blocked: true, findings, categories: [...new Set(findings.map((finding) => finding.category))] };
+    const confidence = Math.max(0, ...records.map((record) => Number(record.scan.result.confidence) || 0));
+    const decision = records.some((record) => record.scan.result.decision === "block" || record.scan.result.blocked) ? "block" : "warn";
+    return { decision, confidence, confidenceLevel: decision === "block" ? "high" : "medium", blocked: decision === "block", findings, categories: [...new Set(findings.map((finding) => finding.category))] };
   }
 
   function handleInspectionIssue(records, input, event) {
-    if (settings.mode === "block") {
+    if (settings.mode === "heuristic") {
       if (event) blockEvent(event);
       showInspectionAlert("Anexo não pôde ser analisado", "Por segurança, remova o arquivo ou converta-o para um PDF/DOCX com texto extraível.", records, input);
       return false;
     }
     const key = `inspection:${records.map((record) => `${record.fileName}:${record.error || "pending"}`).join("|")}`;
     if (settings.mode === "warn") {
-      if (!warnedDetections.has(key)) {
-        warnedDetections.add(key);
+      if (shouldEmit("warn", key)) {
         showInspectionAlert("AI Safety Guard - Aviso", "O anexo não pôde ser analisado. O envio será permitido conforme o modo selecionado.", records, input);
       }
     } else {
@@ -210,13 +217,14 @@
   }
 
   function handleDetection(result, input, event) {
-    if (settings.mode === "block") {
+    const action = AISafetyProtectionPolicy.actionFor(settings.mode, result.decision);
+    if (action === "block") {
       if (event) blockEvent(event);
       showAlert(result, input);
       return false;
     }
-    if (settings.mode === "warn") showWarningOnce(result, input);
-    else recordAudit(result.findings);
+    if (action === "warn") showWarning(result, input);
+    else recordAudit(result.findings, result);
     return true;
   }
 
@@ -227,7 +235,7 @@
     if (!button) return;
     const context = button.parentElement ? button.parentElement.innerText || button.parentElement.textContent || "" : "";
     const state = attachments.state();
-    for (const record of [...state.pending, ...state.errors, ...state.blocked, ...state.safe]) {
+    for (const record of [...state.pending, ...state.errors, ...state.blocked, ...state.warnings, ...state.safe]) {
       if (context.includes(record.fileName)) attachments.removeByName(record.fileName);
     }
   }
@@ -260,30 +268,23 @@
   }
 
   function inspectAndBlock(event, input) {
-    if (!settings.enabled) {
-      setTimeout(() => attachments.clear(), 2000);
-      return false;
-    }
     const attachmentState = attachments.state();
     if (attachmentState.pending.length) {
       blockEvent(event);
       showInspectionAlert("Análise de anexos em andamento", "Aguarde a análise local terminar e tente enviar novamente.", attachmentState.pending, input);
       return true;
     }
-    const unhandledErrors = attachmentState.errors.filter((record) => record.handledMode !== settings.mode);
-    if (unhandledErrors.length) {
-      const allowed = handleInspectionIssue(unhandledErrors, input, event);
-      if (allowed) for (const record of unhandledErrors) record.handledMode = settings.mode;
+    if (attachmentState.errors.length) {
+      const allowed = handleInspectionIssue(attachmentState.errors, input, event);
       if (!allowed) return true;
     }
-    const unhandledBlocked = attachmentState.blocked.filter((record) => record.handledMode !== settings.mode);
-    if (unhandledBlocked.length) {
-      const allowed = handleDetection(resultFromRecords(unhandledBlocked), input, event);
-      if (allowed) for (const record of unhandledBlocked) record.handledMode = settings.mode;
+    const attachmentDetections = [...attachmentState.blocked, ...attachmentState.warnings];
+    if (attachmentDetections.length) {
+      const allowed = handleDetection(resultFromRecords(attachmentDetections), input, event);
       if (!allowed) return true;
     }
     const result = AISafetyGuard.analyze(readInput(input), settings);
-    if (!result.blocked) {
+    if (result.decision === "allow") {
       setTimeout(() => attachments.clear(), 2000);
       return false;
     }
@@ -339,10 +340,9 @@
     });
   }
 
-  function showWarningOnce(result, input) {
+  function showWarning(result, input) {
     const key = detectionKey(result.findings);
-    if (warnedDetections.has(key)) return;
-    warnedDetections.add(key);
+    if (!shouldEmit("warn", key)) return;
     showDetectionDialog(result, input, {
       title: "AI Safety Guard - Aviso",
       description: "Possível dado sensível detectado. O envio será permitido conforme o modo selecionado.",
@@ -351,17 +351,17 @@
     });
   }
 
-  function recordAudit(findings) {
+  function recordAudit(findings, result = {}) {
     const key = detectionKey(findings);
+    if (!shouldEmit("log", key)) return;
     const now = Date.now();
-    if (now - (recentAuditRecords.get(key) || 0) < 2000) return;
-    recentAuditRecords.set(key, now);
-    for (const [storedKey, timestamp] of recentAuditRecords) if (now - timestamp > 10_000) recentAuditRecords.delete(storedKey);
     const message = {
       type: "RECORD_DETECTION",
       entry: {
         timestamp: new Date(now).toISOString(),
         ai: currentAI(),
+        confidence: Number(result.confidence) || Math.max(0, ...findings.map((finding) => Number(finding.score) || 0)),
+        decision: result.decision || "warn",
         findings: findings.map((finding) => ({
           category: AISafetyGuard.CATEGORIES[finding.category] || finding.category,
           label: finding.label,
@@ -382,15 +382,7 @@
   }
 
   function currentAI() {
-    const hosts = {
-      "chatgpt.com": "ChatGPT",
-      "chat.openai.com": "ChatGPT",
-      "claude.ai": "Claude",
-      "www.perplexity.ai": "Perplexity",
-      "perplexity.ai": "Perplexity",
-      "gemini.google.com": "Gemini"
-    };
-    return hosts[location.hostname] || location.hostname;
+    return platform ? platform.name : location.hostname;
   }
 
   function showDetectionDialog(result, input, options) {
@@ -409,7 +401,8 @@
     title.textContent = options.title;
     title.style.cssText = "font-size:20px;margin:0 0 10px";
     const description = document.createElement("p");
-    description.textContent = options.description;
+    const confidence = Number.isFinite(result.confidence) ? ` Confiança ${result.confidenceLevel === "high" ? "alta" : "média"}: ${result.confidence}/100.` : "";
+    description.textContent = `${options.description}${confidence}`;
     description.style.cssText = "font-size:14px;line-height:1.5;margin:0 0 16px;color:#475569";
     const categoryWarning = document.createElement("p");
     const categoryNames = result.categories.map((category) => AISafetyGuard.CATEGORIES[category] || category);

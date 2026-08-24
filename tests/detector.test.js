@@ -11,7 +11,7 @@ test("detecta documentos pessoais", () => {
 });
 
 test("detecta CNH, PIS e passaporte", () => {
-  const result = analyze("CNH: 12345678901\nPIS: 123.45678.90-1\nPassaporte AB123456");
+  const result = analyze("CNH: 12345678901\nPIS: 120.44565.54-6\nPassaporte AB123456");
   assert.equal(result.blocked, true);
   assert.ok(result.findings.some((item) => item.label === "CNH"));
   assert.ok(result.findings.some((item) => item.label === "PIS/PASEP"));
@@ -33,24 +33,24 @@ test("detecta dados financeiros e valida cartão por Luhn", () => {
 });
 
 test("detecta chaves PIX somente com contexto", () => {
-  assert.equal(analyze("Minha chave PIX: pessoa@example.com").blocked, true);
+  assert.equal(analyze("Minha chave PIX: pessoa@empresa.com").blocked, true);
   assert.equal(analyze("Contato: pessoa@example.com").blocked, false);
 });
 
 test("detecta documento corporativo", () => {
-  const result = analyze("Razão Social: ACME LTDA, CNPJ 12.345.678/0001-90. Contrato nº 12345/2026.");
+  const result = analyze("Razão Social: ACME LTDA, CNPJ 04.252.011/0001-10. Contrato nº 12345/2026.");
   assert.equal(result.blocked, true);
   assert.ok(result.categories.includes("corporate"));
 });
 
 test("detecta credenciais críticas", () => {
-  const result = analyze('AWS_KEY=AKIAIOSFODNN7EXAMPLE\n"password": "segredo-forte"');
+  const result = analyze('AWS_KEY=AKIA1234567890ABCDEF\n"password": "segredo-forte"');
   assert.equal(result.blocked, true);
   assert.equal(result.findings.filter((item) => item.category === "credentials").length, 2);
 });
 
 test("detecta estrutura de extrato financeiro", () => {
-  const result = analyze("Banco Exemplo\nData | Histórico | Débito | Crédito | Saldo\n01/01 compra 10,00 90,00");
+  const result = analyze("Banco Alfa\nExtrato bancário\nData | Histórico | Débito | Crédito | Saldo\n01/01 compra 10,00 90,00");
   assert.equal(result.blocked, true);
   assert.ok(result.findings.some((item) => item.label === "Estrutura de extrato financeiro"));
 });
@@ -70,6 +70,50 @@ test("não bloqueia conversa comum", () => {
 test("redação não expõe o valor completo", () => {
   assert.equal(_internal.redact("123.456.789-09"), "123••••-09");
   assert.equal(_internal.isLuhnMatch("4111 1111 1111 1111"), true);
+});
+
+test("retorna decisão e confiança determinísticas", () => {
+  const high = analyze("CPF: 529.982.247-25");
+  const medium = analyze("Servidor interno 192.168.10.20");
+  const low = analyze("holerite");
+  assert.deepEqual([high.decision, high.confidenceLevel, high.blocked], ["block", "high", true]);
+  assert.deepEqual([medium.decision, medium.confidenceLevel, medium.blocked], ["warn", "medium", false]);
+  assert.deepEqual([low.decision, low.confidenceLevel, low.blocked], ["allow", "low", false]);
+});
+
+test("valida CPF, CNPJ e PIS por checksum", () => {
+  assert.equal(_internal.isCpfMatch("529.982.247-25"), true);
+  assert.equal(_internal.isCpfMatch("123.456.789-00"), false);
+  assert.equal(_internal.isCnpjMatch("04.252.011/0001-10"), true);
+  assert.equal(_internal.isCnpjMatch("12.345.678/0001-90"), false);
+  assert.equal(_internal.isPisMatch("120.44565.54-6"), true);
+  assert.equal(_internal.isPisMatch("123.45678.90-1"), false);
+  const invalid = analyze("CPF: 123.456.789-00, CNPJ 12.345.678/0001-90");
+  assert.equal(invalid.decision, "warn");
+  assert.deepEqual(new Set(invalid.findings.map((item) => item.label)), new Set(["CPF", "CNPJ"]));
+  assert.ok(invalid.findings.every((item) => item.reasons.includes("checksum inválido")));
+});
+
+test("mantém formato explícito de CPF acionável mesmo em contexto de teste", () => {
+  const result = analyze("Este é um teste CPF 111.222.111-12");
+  assert.equal(result.decision, "warn");
+  assert.equal(result.confidence, 50);
+  assert.equal(result.findings[0].label, "CPF");
+  assert.deepEqual(result.findings[0].reasons, ["formato de identificador sensível", "checksum inválido"]);
+});
+
+test("normaliza Unicode e remove caracteres invisíveis", () => {
+  const result = analyze("CPF:\u200B 529.982.247-25");
+  assert.equal(result.decision, "block");
+  assert.equal(_internal.normalizeText("ＡＰＩ\u200B KEY"), "API KEY");
+});
+
+test("reduz confiança de exemplos, placeholders e dados isolados", () => {
+  assert.notEqual(analyze("Exemplo de CPF: 529.982.247-25").decision, "block");
+  assert.equal(analyze("AWS AKIAIOSFODNN7EXAMPLE").decision, "allow");
+  assert.equal(analyze("Configure 192.168.0.1 para fins de teste.").decision, "allow");
+  assert.equal(analyze("holerite").decision, "allow");
+  assert.equal(analyze('Exemplo real capturado em log: "password": "segredo-forte"').decision, "block");
 });
 
 test("detecta infraestrutura e bancos de dados", () => {
@@ -148,8 +192,9 @@ test("valida checksum IBAN", () => {
 test("detecta nomes de arquivos sensíveis com normalização segura", () => {
   const config = analyzeFileName("C:\\temp\\CONFIG.JSON");
   const copy = analyzeFileName("cpf (1).pdf");
-  assert.equal(config.blocked, true);
-  assert.equal(copy.blocked, true);
+  assert.equal(config.decision, "warn");
+  assert.equal(copy.decision, "warn");
+  assert.equal(config.blocked, false);
   assert.equal(config.categories[0], "sensitiveFileNames");
   assert.equal(analyzeFileName("relatorio_publico.pdf").blocked, false);
   assert.equal(analyzeFileName(".env", { enabledCategories: ["personal"] }).blocked, false);

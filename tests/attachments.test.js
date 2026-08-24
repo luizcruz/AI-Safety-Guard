@@ -121,6 +121,17 @@ test("registro acompanha análises pendentes, bloqueadas e removidas", async () 
   assert.equal(registry.state().blocked.length, 0);
 });
 
+test("registro distingue confiança média e falha de extração", async () => {
+  const warningRegistry = new Registry(async () => ({ result: { decision: "warn", blocked: false, findings: [], categories: [] } }));
+  const warningIds = warningRegistry.add([file("cnh.pdf", createPdf("x"))]);
+  await warningRegistry.wait(warningIds);
+  assert.equal(warningRegistry.state().warnings.length, 1);
+  const errorRegistry = new Registry(async () => ({ extractionError: "sem texto", result: { decision: "warn", blocked: false, findings: [], categories: [] } }));
+  const errorIds = errorRegistry.add([file("cnh.pdf", createPdf("x"))]);
+  await errorRegistry.wait(errorIds);
+  assert.equal(errorRegistry.state().errors.length, 1);
+});
+
 test("registro aguarda falhas de leitura antes de liberar o fluxo", async () => {
   const registry = new Registry(async () => { throw new Error("falha local"); });
   const ids = registry.add([file("dados.pdf", createPdf("x"))]);
@@ -132,7 +143,8 @@ test("registro aguarda falhas de leitura antes de liberar o fluxo", async () => 
 test("usa nome do arquivo quando não existe leitor para o formato", async () => {
   const result = await scanFile(file("credentials.csv", new TextEncoder().encode("ignored")), analyze, {}, undefined, undefined, require("../plugin/src/detector.js").analyzeFileName);
   assert.equal(result.type, "filename");
-  assert.equal(result.result.blocked, true);
+  assert.equal(result.result.decision, "warn");
+  assert.ok(result.extractionError);
   const benign = await scanFile(file("photo.jpg", new Uint8Array()), analyze, {}, undefined, undefined, require("../plugin/src/detector.js").analyzeFileName);
   assert.equal(benign.result.blocked, false);
 });
@@ -140,6 +152,14 @@ test("usa nome do arquivo quando não existe leitor para o formato", async () =>
 test("aplica regra de nome mesmo quando a extração é bem-sucedida", async () => {
   const attachment = file("cnh.pdf", createPdf("documento sem padrões internos"));
   const result = await scanFile(attachment, analyze, {}, {}, { pdfLoader: () => import("pdfjs-dist/legacy/build/pdf.mjs") }, require("../plugin/src/detector.js").analyzeFileName);
-  assert.equal(result.result.blocked, true);
+  assert.equal(result.result.decision, "warn");
   assert.ok(result.result.categories.includes("sensitiveFileNames"));
+});
+
+test("eleva nome sensível quando o conteúdo também é suspeito", async () => {
+  const attachment = file("cnh.pdf", createPdf("Servidor interno 192.168.10.20"));
+  const result = await scanFile(attachment, analyze, {}, {}, { pdfLoader: () => import("pdfjs-dist/legacy/build/pdf.mjs") }, require("../plugin/src/detector.js").analyzeFileName);
+  assert.equal(result.result.decision, "block");
+  assert.equal(result.result.confidence, 90);
+  assert.equal(result.result.categoryScores.sensitiveFileNames, 90);
 });

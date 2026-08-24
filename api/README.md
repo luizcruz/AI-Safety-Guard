@@ -22,8 +22,10 @@ Crie o `.env`, gere um token seguro e mantenha o arquivo fora do Git:
 ```bash
 cp api/.env.example api/.env
 AI_SAFETY_TOKEN="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+AI_SAFETY_ADMIN_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
 sed -i "s|^AI_SAFETY_API_TOKEN=.*|AI_SAFETY_API_TOKEN=${AI_SAFETY_TOKEN}|" api/.env
-unset AI_SAFETY_TOKEN
+sed -i "s|^AI_SAFETY_ADMIN_KEY=.*|AI_SAFETY_ADMIN_KEY=${AI_SAFETY_ADMIN_KEY}|" api/.env
+unset AI_SAFETY_TOKEN AI_SAFETY_ADMIN_KEY
 ```
 
 Para desenvolvimento local sem Docker, crie o ambiente virtual, instale as dependências e inicie a API diretamente:
@@ -49,7 +51,7 @@ curl --fail http://127.0.0.1:8000/health
 
 Use `./bin/deploy --check-only` para apenas consultar atualizações e `./bin/deploy --no-update` para não acessar o remoto. O launcher recusa atualização quando há alterações locais, branch divergente ou HEAD destacado.
 
-O painel administrativo fica em `http://127.0.0.1:3000`. Ele permite filtrar, adicionar, editar, remover e exportar regras em CSV usando os tipos e categorias do catálogo ativo. A exportação respeita os filtros selecionados. O painel acessa a API pela rede interna do Compose; o Bearer token não é entregue ao navegador.
+O painel administrativo fica em `http://127.0.0.1:3000`. Entre com o valor de `AI_SAFETY_ADMIN_KEY` definido em `api/.env`; a sessão autenticada expira após oito horas. Ele permite filtrar, adicionar, editar, remover e exportar regras em CSV usando os tipos e categorias do catálogo ativo. A exportação respeita os filtros selecionados. O painel acessa a API pela rede interna do Compose; o Bearer token não é entregue ao navegador.
 
 Para acompanhar ou encerrar o serviço:
 
@@ -71,7 +73,7 @@ Em produção, use volume persistente para `/data/rulesets`, HTTPS e apenas um w
 - `PUT /v1/rules/{id}` — edição completa.
 - `DELETE /v1/rules/{id}` — remoção.
 
-Tipos aceitos em `kind`: `pattern`, `keyword`, `heuristic` e `filename`. Regras `filename` usam `label`, `score` e `file_names`, e são distribuídas à extensão dentro de `fileNameRules`.
+Tipos aceitos em `kind`: `pattern`, `keyword`, `heuristic` e `filename`. Regras `filename` usam `label`, `score` e `file_names`, e são distribuídas à extensão dentro de `fileNameRules`. Regras `pattern` aceitam os validadores `luhn`, `iban`, `cpf`, `cnpj` e `pis`.
 
 Use `If-Match: "<versão>"` nas mutações para evitar sobrescrita concorrente. A resposta devolve a versão atual em `ETag`.
 
@@ -79,7 +81,7 @@ Use `If-Match: "<versão>"` nas mutações para evitar sobrescrita concorrente. 
 AI_SAFETY_TOKEN="$(sed -n 's/^AI_SAFETY_API_TOKEN=//p' api/.env)"
 curl --fail-with-body -X POST http://127.0.0.1:8000/v1/rules \
   -H "Authorization: Bearer ${AI_SAFETY_TOKEN}" \
-  -H 'If-Match: "1.2.0"' \
+  -H 'If-Match: "1.3.0"' \
   -H 'Content-Type: application/json' \
   --data '{"kind":"keyword","category":"credentials","keyword":"client_secret"}'
 unset AI_SAFETY_TOKEN

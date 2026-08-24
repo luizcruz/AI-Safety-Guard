@@ -1,8 +1,14 @@
 {
   "manifest_version": 3,
   "name": "AI Safety Guard v1.2",
-  "version": "1.2.3",
+  "version": "1.2.5",
   "description": "Proteção local contra o envio de dados sensíveis para chats de IA.",
+  "icons": {
+    "16": "icons/ai-safety-guard-16.png",
+    "32": "icons/ai-safety-guard-32.png",
+    "48": "icons/ai-safety-guard-48.png",
+    "128": "icons/ai-safety-guard-128.png"
+  },
   "permissions": ["storage"],
   "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
   "optional_host_permissions": ["https://*/*"],
@@ -11,7 +17,13 @@
   },
   "action": {
     "default_title": "AI Safety Guard v1.2",
-    "default_popup": "src/popup.html"
+    "default_popup": "src/popup.html",
+    "default_icon": {
+      "16": "icons/ai-safety-guard-16.png",
+      "32": "icons/ai-safety-guard-32.png",
+      "48": "icons/ai-safety-guard-48.png",
+      "128": "icons/ai-safety-guard-128.png"
+    }
   },
   "content_scripts": [
     {
@@ -21,9 +33,14 @@
         "https://claude.ai/*",
         "https://www.perplexity.ai/*",
         "https://perplexity.ai/*",
-        "https://gemini.google.com/*"
+        "https://gemini.google.com/*",
+        "https://copilot.microsoft.com/*",
+        "https://www.copilot.microsoft.com/*",
+        "https://chat.deepseek.com/*",
+        "https://kimi.com/*",
+        "https://www.kimi.com/*"
       ],
-      "js": ["src/rules.js", "src/detector.js", "src/attachments.js", "src/content.js"],
+      "js": ["src/platforms.js", "src/protection-policy.js", "src/rules.js", "src/detector.js", "src/attachments.js", "src/content.js"],
       "run_at": "document_start"
     }
   ],
@@ -32,7 +49,9 @@
       "resources": ["vendor/pdf.mjs", "vendor/pdf.worker.mjs", "vendor/mammoth.browser.min.mjs"],
       "matches": [
         "https://chatgpt.com/*", "https://chat.openai.com/*", "https://claude.ai/*",
-        "https://www.perplexity.ai/*", "https://perplexity.ai/*", "https://gemini.google.com/*"
+        "https://www.perplexity.ai/*", "https://perplexity.ai/*", "https://gemini.google.com/*",
+        "https://copilot.microsoft.com/*", "https://www.copilot.microsoft.com/*",
+        "https://chat.deepseek.com/*", "https://kimi.com/*", "https://www.kimi.com/*"
       ]
     }
   ]

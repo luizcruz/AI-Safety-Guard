@@ -7,6 +7,7 @@ const path = require("node:path");
 
 const publicRoot = path.join(__dirname, "..", "public");
 const html = fs.readFileSync(path.join(publicRoot, "index.html"), "utf8");
+const login = fs.readFileSync(path.join(publicRoot, "login.html"), "utf8");
 const script = fs.readFileSync(path.join(publicRoot, "app.js"), "utf8");
 
 test("interface contém seletores, formulário e ações CRUD", () => {
@@ -16,6 +17,9 @@ test("interface contém seletores, formulário e ações CRUD", () => {
   assert.match(script, /"If-Match"/);
   assert.match(script, /\/admin\/rules\.csv/);
   assert.doesNotMatch(`${html}\n${script}`, /AI_SAFETY_API_TOKEN|Bearer /);
+  assert.match(html, /action="\/logout"/);
+  assert.match(login, /action="\/login"/);
+  assert.match(login, /name="access_key"[^>]*type="password"/);
 });
 
 test("interface usa APIs seguras de texto para dados do catálogo", () => {
