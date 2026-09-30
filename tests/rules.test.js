@@ -119,17 +119,30 @@ test("página de opções apresenta os quatro níveis e instalação do Gemini N
   assert.equal(manifest.options_ui.open_in_tab, true);
   assert.equal(manifest.action.default_popup, undefined);
   assert.ok(manifest.web_accessible_resources[0].resources.includes("icons/ai-safety-guard-32.png"));
+  for (const tab of ["protection", "local-ai", "rules", "audit", "server"]) {
+    assert.match(options, new RegExp(`data-tab="${tab}"`));
+    assert.match(options, new RegExp(`data-panel="${tab}"`));
+  }
   for (const mode of ["log", "warn", "detect", "heuristic"]) assert.match(options, new RegExp(`value="${mode}"`));
   assert.match(options, /id="install-nano"/);
+  assert.match(options, /id="nano-test-form"/);
+  assert.match(options, /id="nano-test-input"/);
+  assert.match(options, /id="nano-test-result"/);
   assert.match(options, /id="categories"/);
   assert.match(options, /id="obfuscate-sensitive-data"/);
   assert.match(options, /id="audit-status"/);
+  assert.match(options, /id="audit-log-preview"[^>]*readonly/);
   assert.match(options, /id="download-audit"[^>]*>Baixar log<\/button>/);
+  assert.match(options, /id="api-settings"/);
   assert.match(options, /<script src="nano\.js"><\/script>/);
   assert.match(optionsScript, /AISafetyNano\.install/);
+  assert.match(optionsScript, /AISafetyNano\.classify\(message\)/);
   assert.match(optionsScript, /enforceNanoAvailability/);
   assert.match(optionsScript, /obfuscateSensitiveData/);
+  assert.match(optionsScript, /AISafetyAuditLog\.serialize\(entries\)/);
   assert.match(optionsScript, /AISafetyAuditLog\.download\(auditLog\)/);
+  assert.match(optionsScript, /REFRESH_RULES/);
+  assert.match(optionsScript, /ArrowRight/);
 });
 
 test("identidade pública usa exclusivamente AI Safety Guard v1.2", () => {

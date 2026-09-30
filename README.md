@@ -42,10 +42,10 @@ Click the extension icon to open its options. You can:
 
 - select the protection level;
 - enable prompt obfuscation for Detection and Heuristic modes;
+- install or validate Gemini Nano and run a local risk test;
 - enable categories;
-- install or check Gemini Nano;
-- configure the rules API;
-- download `ai-safety-guard.log`.
+- inspect and download the local audit log;
+- configure and refresh the rules API.
 
 ## Attachments
 
