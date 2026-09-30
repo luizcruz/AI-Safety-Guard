@@ -1,196 +1,80 @@
 # AI Safety Guard
 
-**Local-first AI security and (kind off) DLP for ChatGPT, Claude, Gemini, Perplexity, DeepSeek and Kimi.**
+Extensão Chrome Manifest V3 que detecta dados sensíveis antes do envio para ChatGPT, Claude, Gemini, Perplexity, Copilot, DeepSeek e Kimi.
 
-AI Safety Guard is a Chrome Manifest V3 extension that detects sensitive data before it is submitted to web-based AI tools.
+Prompts, anexos e eventos de auditoria são processados localmente. A API de regras nunca recebe o conteúdo analisado.
 
-It analyzes prompts and PDF/DOCX/DOC attachments locally using configurable heuristic rules, then **blocks, warns, or logs** potential policy violations. 
+## Recursos
 
-## Features
+- Detecção de dados pessoais, médicos, financeiros, corporativos, credenciais, infraestrutura, código e RH.
+- Análise local de prompts e anexos PDF, DOCX e DOC.
+- Regras versionadas com funcionamento offline.
+- Indicador de risco junto ao campo do prompt.
+- Auditoria local com amostras mascaradas.
+- Análise semântica opcional com Gemini Nano.
 
-* Local-first sensitive data detection
-* Chrome Manifest V3
-* ChatGPT, Claude, Gemini, Perplexity, DeepSeek and Kimi support
-* Prompt and attachment scanning
-* PDF, DOCX, and legacy DOC analysis
-* PII detection
-* PCI and banking data detection
-* Infrastructure and credential patterns
-* Intellectual property detection
-* HR and confidential data rules
-* Sensitive filename detection
-* Block, Warn, or Log modes
-* Configurable heuristic rule engine
-* Versioned remote rulesets
-* Web-based rule management
-* Offline fallback to the last valid ruleset
-* Masked security logs
-* No prompt content sent to the rules API
+## Níveis de proteção
 
-## How it works
+| Nível | Comportamento |
+| --- | --- |
+| **Registrar** | Permite o envio e grava a ocorrência localmente. |
+| **Avisar** | Exibe um alerta e permite o envio. |
+| **Detecção** | Bloqueia riscos encontrados pelas regras determinísticas. |
+| **Heurística** | Adiciona análise semântica local com Gemini Nano e bloqueia riscos. |
 
-Rules are defined in:
+Se o Gemini Nano não estiver disponível, **Heurística** é desativada e **Detecção** assume automaticamente.
 
-```text
-plugin/src/rules.js
-```
+## Instalação local
 
-The ruleset contains:
+1. Abra `chrome://extensions`.
+2. Ative **Modo do desenvolvedor**.
+3. Selecione **Carregar sem compactação**.
+4. Escolha a pasta `plugin/`.
+5. Na página aberta, conclua a instalação do Gemini Nano.
 
-* categories
-* regular expressions
-* keywords
-* scores
-* validators
-* heuristics
-* filename rules
+O Chrome pode exigir um clique para iniciar o download. Consulte os [requisitos da IA integrada](https://developer.chrome.com/docs/ai/get-started).
 
-`plugin/src/detector.js` compiles and runs these rules directly in the browser.
+## Configuração
 
-Detection is deterministic and does not require an LLM or external inference service.
+Clique no ícone da extensão para abrir as opções. Nessa página é possível:
 
-## Rule Management
+- selecionar o nível de proteção;
+- habilitar categorias;
+- instalar ou verificar o Gemini Nano;
+- configurar a API de regras;
+- baixar `ai-safety-guard.log`.
 
-The Python API under `api/` provides:
+## Anexos
 
-* authenticated (simple) CRUD
-* versioned rulesets
-* ruleset validation
-* `/v1/rulesets/latest`
+| Formato | Processamento local |
+| --- | --- |
+| PDF | PDF.js |
+| DOCX | Mammoth.js |
+| DOC | Extração defensiva de texto |
 
-The Chrome service worker checks for newer rulesets when the extension starts.
+Limites: 15 MB, 200 páginas, 2 milhões de caracteres e 20 segundos por análise. PDFs somente com imagem exigem OCR prévio.
 
-Valid rules are stored in `chrome.storage.local` and distributed to the content scripts.
+## Serviços locais
 
-If the API is unavailable, AI Safety Guard keeps using the last valid ruleset or the built-in default rules.
-
-## Admin UI
-
-`admin-ui/` provides a Node.js web interface for managing rules.
-
-When started with Docker Compose:
-
-```text
-http://127.0.0.1:3000
-```
-
-The UI communicates with the Python API internally and keeps the Bearer token server-side.
-
-Rule updates use optimistic version control to prevent accidental overwrites.
-
-## Attachment Scanning
-
-Supported formats:
-
-| Format | Detection                          |
-| ------ | ---------------------------------- |
-| PDF    | PDF.js local text extraction       |
-| DOCX   | Mammoth.js local extraction        |
-| DOC    | Defensive embedded text extraction |
-
-Limits:
-
-* 15 MB per file
-* 200 PDF pages
-* 2 million characters
-* 20 seconds per analysis
-
-Scanned PDFs and image-only documents require OCR before they can be inspected. Local network rules should apply. And sometimes file load streams are not correctly captured. 
-
-Attachment contents are never sent to the rules API.
-
-### Upload protection
-
-File selection, drag-and-drop, and paste events can be intercepted before the file reaches the AI website.
-
-In **Block** mode, suspicious or unreadable attachments are rejected.
-
-In **Warn** and **Log** modes, uploads continue according to the configured policy.
-
-Filename detection always runs, even when document extraction is unavailable.
-
-## Modes
-
-### Heuristic
-
-Stops submission when sensitive content is detected, if scores are higher than 50. 
-
-The user must remove or anonymize the detected information before continuing.
-
-### Warn
-
-Displays one warning for each detection event and allows the user to continue.
-
-### Log
-
-Allows the submission and stores a local security event containing:
-
-* timestamp
-* AI service
-* detected categories
-* triggered rules
-* masked samples
-
-Logs are stored in `chrome.storage.local`. Chrome extension could not write files. 
-
-Use **Download log** from the extension popup to export:
-
-```text
-ai-safety-guard.log
-```
-
-## Privacy
-
-AI Safety Guard is designed around **local processing**.
-
-Prompt and document analysis happens inside the browser.
-
-The rules API receives **no chat messages, prompts, documents, or detected content**.
-
-Extension preferences use:
-
-```text
-chrome.storage.sync
-```
-
-Security events generated by Log mode use:
-
-```text
-chrome.storage.local
-```
-
-Only masked samples are stored.
-
-## Local Installation
-
-1. Open `chrome://extensions`.
-2. Enable **Developer mode**.
-3. Click **Load unpacked**.
-4. Select the `plugin/` directory.
-
-## Run the Services
-
-From WSL:
+Crie `api/.env` a partir de `api/.env.example` e execute no WSL:
 
 ```bash
 ./bin/deploy
 ```
 
-The launcher checks the remote branch, applies fast-forward updates, and starts the API and admin interface with Docker Compose.
+- API: `http://127.0.0.1:8000`
+- Painel administrativo: `http://127.0.0.1:3000`
 
-Check for updates only:
+Opções do launcher:
 
 ```bash
 ./bin/deploy --check-only
-```
-
-Start without checking the remote repository:
-
-```bash
 ./bin/deploy --no-update
 ```
 
-## Development
+Detalhes da API: [api/README.md](api/README.md).
+
+## Desenvolvimento
 
 ```bash
 npm test
@@ -198,23 +82,27 @@ npm run check
 npm run build:vendor
 ```
 
-API tests:
+Testes da API:
 
 ```bash
 python3 -m venv api/.venv
 api/.venv/bin/python -m pip install -r api/requirements-dev.txt
-api/.venv/bin/python -m pytest api/tests --cov=api/app
+api/.venv/bin/python -m pytest api/tests
 ```
 
+## Estrutura
 
-## Limitations
+- `plugin/src/rules.js`: catálogo embarcado.
+- `plugin/src/detector.js`: detecção determinística.
+- `plugin/src/nano.js`: integração com Gemini Nano.
+- `plugin/src/content.js`: interceptação e indicador de risco.
+- `plugin/src/options.html`: configurações da extensão.
+- `api/`: API FastAPI de regras.
+- `admin-ui/`: painel administrativo.
 
-Heuristic and pattern-based detection can produce false positives and false negatives. It´s simple yet efficient way to do it. 
+## Limitações
 
-AI Safety Guard complements existing enterprise security and  (kind off) Data Loss Prevention (DLP) controls; it is not a replacement for them.
-
-Changes to the DOM of supported AI websites may require selector updates.
-
-## Keywords
-
-`ai-security` · `llm-security` · `ai-governance` · `data-loss-prevention` · `chrome-extension`
+- Detecções podem produzir falsos positivos ou negativos.
+- Alterações nas páginas das IAs podem exigir novos seletores.
+- Gemini Nano depende do navegador, sistema, hardware e armazenamento disponíveis.
+- A extensão complementa controles DLP; não os substitui.

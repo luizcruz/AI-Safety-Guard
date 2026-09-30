@@ -17,13 +17,16 @@
   },
   "action": {
     "default_title": "AI Safety Guard v1.2",
-    "default_popup": "src/popup.html",
     "default_icon": {
       "16": "icons/ai-safety-guard-16.png",
       "32": "icons/ai-safety-guard-32.png",
       "48": "icons/ai-safety-guard-48.png",
       "128": "icons/ai-safety-guard-128.png"
     }
+  },
+  "options_ui": {
+    "page": "src/options.html",
+    "open_in_tab": true
   },
   "content_scripts": [
     {
@@ -40,13 +43,13 @@
         "https://kimi.com/*",
         "https://www.kimi.com/*"
       ],
-      "js": ["src/platforms.js", "src/protection-policy.js", "src/rules.js", "src/detector.js", "src/attachments.js", "src/content.js"],
+      "js": ["src/platforms.js", "src/protection-policy.js", "src/rules.js", "src/detector.js", "src/attachments.js", "src/nano.js", "src/content.js"],
       "run_at": "document_start"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["vendor/pdf.mjs", "vendor/pdf.worker.mjs", "vendor/mammoth.browser.min.mjs"],
+      "resources": ["vendor/pdf.mjs", "vendor/pdf.worker.mjs", "vendor/mammoth.browser.min.mjs", "icons/ai-safety-guard-32.png"],
       "matches": [
         "https://chatgpt.com/*", "https://chat.openai.com/*", "https://claude.ai/*",
         "https://www.perplexity.ai/*", "https://perplexity.ai/*", "https://gemini.google.com/*",

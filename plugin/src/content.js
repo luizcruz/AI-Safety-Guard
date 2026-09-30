@@ -25,11 +25,16 @@
   ])].join(",");
   let settings = DEFAULTS;
   let overlay = null;
+  let internalSend = false;
+  let heuristicBusy = false;
+  let typingTimer = null;
+  let unsupportedNoticeShown = false;
   const fileInputRecords = new WeakMap();
   const fileInputGates = new WeakMap();
   const releasedFileInputEvents = new WeakMap();
   const releasedTransferEvents = new WeakSet();
   const shouldEmit = AISafetyProtectionPolicy.createEmissionGate();
+  const riskIndicator = createRiskIndicator();
   const attachments = new AISafetyAttachmentScanner.Registry((file) => AISafetyAttachmentScanner.scanFile(
     file, AISafetyGuard.analyze, settings, undefined, undefined, AISafetyGuard.analyzeFileName
   ));
@@ -41,8 +46,9 @@
     settings = normalizeSettings({ enabledCategories: [...new Set([...(stored.enabledCategories || currentCategories), ...addedCategories])], mode: stored.mode });
     chrome.storage.sync.set({ enabledCategories: settings.enabledCategories, knownCategories: currentCategories, mode: settings.mode });
   });
-  chrome.storage.local.get("rulesCatalog", ({ rulesCatalog }) => {
+  chrome.storage.local.get(["rulesCatalog", "nanoStatus"], ({ rulesCatalog, nanoStatus }) => {
     if (rulesCatalog) applyRemoteCatalog(rulesCatalog);
+    if (nanoStatus && nanoStatus.state === "unavailable") riskIndicator.set("unsupported", AISafetyNano.UNSUPPORTED_MESSAGE);
   });
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === "local" && changes.rulesCatalog && changes.rulesCatalog.newValue) applyRemoteCatalog(changes.rulesCatalog.newValue);
@@ -51,6 +57,7 @@
         enabledCategories: changes.enabledCategories ? changes.enabledCategories.newValue : settings.enabledCategories,
         mode: changes.mode ? changes.mode.newValue : settings.mode
       });
+      if (settings.mode === "heuristic") ensureNanoAvailable();
     }
   });
 
@@ -58,6 +65,7 @@
   document.addEventListener("click", interceptClick, true);
   document.addEventListener("keydown", interceptEnter, true);
   document.addEventListener("input", captureFileInput, true);
+  document.addEventListener("input", scanPromptInput, true);
   document.addEventListener("change", captureFileInput, true);
   document.addEventListener("drop", captureDroppedFiles, true);
   document.addEventListener("paste", capturePastedFiles, true);
@@ -85,16 +93,18 @@
   }
 
   function interceptSubmit(event) {
+    if (internalSend) return;
     const input = findInput(event.target);
-    if (input) inspectAndBlock(event, input);
+    if (input) inspectAndBlock(event, input, { kind: "submit", target: event.target });
   }
 
   function interceptClick(event) {
+    if (internalSend) return;
     reconcileRemovedAttachment(event);
     const button = event.target instanceof Element ? event.target.closest(SEND_SELECTOR) : null;
     if (!button) return;
     const input = findInput(button.closest("form") || button.parentElement || document);
-    if (input) inspectAndBlock(event, input);
+    if (input) inspectAndBlock(event, input, { kind: "click", target: button });
   }
 
   function captureFileInput(event) {
@@ -200,7 +210,9 @@
   }
 
   function handleInspectionIssue(records, input, event) {
-    if (settings.mode === "heuristic") {
+    riskIndicator.position(input);
+    riskIndicator.set("risk", "Anexo não pôde ser analisado");
+    if (["detect", "heuristic"].includes(settings.mode)) {
       if (event) blockEvent(event);
       showInspectionAlert("Anexo não pôde ser analisado", "Por segurança, remova o arquivo ou converta-o para um PDF/DOCX com texto extraível.", records, input);
       return false;
@@ -217,6 +229,8 @@
   }
 
   function handleDetection(result, input, event) {
+    riskIndicator.position(input);
+    riskIndicator.set("risk", `${result.findings.length} risco${result.findings.length === 1 ? "" : "s"} identificado${result.findings.length === 1 ? "" : "s"}`);
     const action = AISafetyProtectionPolicy.actionFor(settings.mode, result.decision);
     if (action === "block") {
       if (event) blockEvent(event);
@@ -241,9 +255,10 @@
   }
 
   function interceptEnter(event) {
+    if (internalSend) return;
     if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
     const input = event.target instanceof Element ? event.target.closest(INPUT_SELECTOR) : null;
-    if (input) inspectAndBlock(event, input);
+    if (input) inspectAndBlock(event, input, { kind: "enter", target: input });
   }
 
   function findInput(scope) {
@@ -267,7 +282,12 @@
       : input.innerText || input.textContent || "";
   }
 
-  function inspectAndBlock(event, input) {
+  function inspectAndBlock(event, input, replay) {
+    if (settings.mode === "heuristic") {
+      blockEvent(event);
+      inspectWithNano(input, replay);
+      return true;
+    }
     const attachmentState = attachments.state();
     if (attachmentState.pending.length) {
       blockEvent(event);
@@ -291,6 +311,188 @@
     const allowed = handleDetection(result, input, event);
     if (allowed) setTimeout(() => attachments.clear(), 2000);
     return !allowed;
+  }
+
+  async function inspectWithNano(input, replay) {
+    if (heuristicBusy) return;
+    heuristicBusy = true;
+    const originalText = readInput(input);
+    try {
+      const attachmentState = attachments.state();
+      if (attachmentState.pending.length) {
+        showInspectionAlert("Análise de anexos em andamento", "Aguarde a análise local terminar e tente enviar novamente.", attachmentState.pending, input);
+        return;
+      }
+      if (attachmentState.errors.length && !handleInspectionIssue(attachmentState.errors, input)) return;
+      const attachmentDetections = [...attachmentState.blocked, ...attachmentState.warnings];
+      if (attachmentDetections.length && !handleDetection(resultFromRecords(attachmentDetections), input)) return;
+      const deterministic = AISafetyGuard.analyze(originalText, settings);
+      if (deterministic.decision !== "allow") {
+        handleDetection(deterministic, input);
+        return;
+      }
+      riskIndicator.set("analyzing", "Gemini Nano analisando…");
+      const classification = await withTimeout(AISafetyNano.classify(originalText), 30_000);
+      if (readInput(input) !== originalText) {
+        riskIndicator.set("safe", "Prompt alterado — analise novamente");
+        return;
+      }
+      const result = AISafetyNano.toDetection(classification);
+      if (result.decision !== "allow") {
+        riskIndicator.set("risk", `${result.findings.length} risco semântico`);
+        handleDetection(result, input);
+        return;
+      }
+      riskIndicator.set("safe", "Nenhum risco identificado");
+      replaySubmission(replay, input);
+    } catch (error) {
+      await disableHeuristic(error);
+      if (readInput(input) === originalText) replaySubmission(replay, input);
+    } finally {
+      heuristicBusy = false;
+    }
+  }
+
+  function withTimeout(promise, timeoutMs) {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Tempo limite do modelo local excedido")), timeoutMs))
+    ]);
+  }
+
+  async function ensureNanoAvailable() {
+    if (await AISafetyNano.availability() === "available") return true;
+    await disableHeuristic(new Error(AISafetyNano.UNSUPPORTED_MESSAGE));
+    return false;
+  }
+
+  async function disableHeuristic(error) {
+    AISafetyNano.resetSession();
+    settings.mode = AISafetyProtectionPolicy.DEFAULT_MODE;
+    await Promise.all([
+      chrome.storage.sync.set({ mode: settings.mode }),
+      chrome.storage.local.set({ nanoStatus: { state: "unavailable", message: (error && error.message) || AISafetyNano.UNSUPPORTED_MESSAGE } })
+    ]);
+    riskIndicator.set("unsupported", AISafetyNano.UNSUPPORTED_MESSAGE);
+    showUnsupportedNotice();
+  }
+
+  function replaySubmission(replay, input) {
+    internalSend = true;
+    try {
+      if (replay && replay.kind === "click" && replay.target && replay.target.isConnected) replay.target.click();
+      else if (replay && replay.kind === "submit" && replay.target && typeof replay.target.requestSubmit === "function") replay.target.requestSubmit();
+      else {
+        const scope = input.closest && input.closest("form");
+        const button = (scope || document).querySelector(SEND_SELECTOR);
+        if (button && !button.disabled) button.click();
+        else if (scope && typeof scope.requestSubmit === "function") scope.requestSubmit();
+      }
+      setTimeout(() => attachments.clear(), 2000);
+    } finally {
+      setTimeout(() => { internalSend = false; }, 100);
+    }
+  }
+
+  function scanPromptInput(event) {
+    const input = event.target instanceof Element ? event.target.closest(INPUT_SELECTOR) : null;
+    if (!input || (input instanceof HTMLInputElement && input.type === "file")) return;
+    riskIndicator.position(input);
+    clearTimeout(typingTimer);
+    typingTimer = setTimeout(() => {
+      if (!input.isConnected) return;
+      const result = AISafetyGuard.analyze(readInput(input), settings);
+      if (result.decision === "allow") riskIndicator.set("safe", "Nenhum risco identificado");
+      else riskIndicator.set("risk", `${result.findings.length} risco${result.findings.length === 1 ? "" : "s"} identificado${result.findings.length === 1 ? "" : "s"}`);
+    }, 350);
+  }
+
+  function createRiskIndicator() {
+    const host = document.createElement("div");
+    host.id = "ai-safety-guard-indicator";
+    host.style.cssText = "position:fixed;z-index:2147483646;display:none;pointer-events:auto";
+    const shadow = host.attachShadow({ mode: "closed" });
+    const style = document.createElement("style");
+    style.textContent = ":host{all:initial}button{display:flex;align-items:center;gap:7px;max-width:240px;border:1px solid rgba(255,255,255,.6);border-radius:999px;padding:6px 10px 6px 7px;background:#15803d;color:#fff;box-shadow:0 5px 18px rgba(15,23,42,.28);font:700 11px/1.2 system-ui,sans-serif;cursor:pointer;transition:background .18s,transform .18s}button:hover{transform:translateY(-1px)}button[data-state='risk'],button[data-state='unsupported']{background:#b91c1c}button[data-state='analyzing']{background:#6d28d9}img{width:20px;height:20px;flex:none}span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}";
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.state = "safe";
+    button.title = "Abrir configurações do AI Safety Guard";
+    const icon = document.createElement("img");
+    icon.src = chrome.runtime.getURL("icons/ai-safety-guard-32.png");
+    icon.alt = "";
+    const label = document.createElement("span");
+    label.textContent = "AI Safety ativo";
+    button.append(icon, label);
+    button.addEventListener("click", requestOptionsPage);
+    shadow.append(style, button);
+
+    const mount = () => {
+      if (!host.isConnected && document.documentElement) document.documentElement.appendChild(host);
+      const input = findInput(document);
+      if (input) position(input);
+    };
+    let positionFrame = 0;
+    const schedulePosition = () => {
+      if (positionFrame) return;
+      positionFrame = requestAnimationFrame(() => {
+        positionFrame = 0;
+        const input = findInput(document);
+        if (input) position(input);
+      });
+    };
+    if (document.documentElement) mount();
+    else document.addEventListener("DOMContentLoaded", mount, { once: true });
+    const observer = new MutationObserver(() => {
+      if (!host.isConnected) mount();
+      schedulePosition();
+    });
+    if (document.documentElement) observer.observe(document.documentElement, { childList: true, subtree: true });
+    addEventListener("resize", schedulePosition, { passive: true });
+    addEventListener("scroll", schedulePosition, { passive: true, capture: true });
+
+    function position(input) {
+      const rect = input.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      host.style.display = "block";
+      host.style.left = `${Math.max(8, rect.left + 8)}px`;
+      host.style.top = `${Math.max(8, rect.bottom - 38)}px`;
+    }
+
+    return Object.freeze({
+      position,
+      set(state, text) {
+        button.dataset.state = state;
+        label.textContent = text;
+        button.setAttribute("aria-label", `AI Safety Guard: ${text}`);
+      }
+    });
+  }
+
+  function showUnsupportedNotice() {
+    if (unsupportedNoticeShown) return;
+    unsupportedNoticeShown = true;
+    const notice = document.createElement("aside");
+    notice.id = "ai-safety-guard-browser-notice";
+    notice.setAttribute("role", "alert");
+    notice.style.cssText = "position:fixed;left:18px;bottom:18px;z-index:2147483647;max-width:390px;padding:14px 16px;border-radius:12px;background:#7f1d1d;color:#fff;box-shadow:0 12px 32px rgba(0,0,0,.3);font:600 13px/1.45 system-ui,sans-serif";
+    const text = document.createElement("span");
+    text.textContent = `${AISafetyNano.UNSUPPORTED_MESSAGE}. O modo Detecção foi ativado.`;
+    const open = document.createElement("button");
+    open.type = "button";
+    open.textContent = "Abrir opções";
+    open.style.cssText = "display:block;margin-top:10px;border:1px solid #fecaca;border-radius:8px;padding:7px 10px;background:#fff;color:#7f1d1d;font-weight:800;cursor:pointer";
+    open.addEventListener("click", requestOptionsPage);
+    notice.append(text, open);
+    document.documentElement.appendChild(notice);
+    setTimeout(() => notice.remove(), 12_000);
+  }
+
+  function requestOptionsPage() {
+    try {
+      const pending = chrome.runtime.sendMessage({ type: "OPEN_OPTIONS" });
+      if (pending && typeof pending.catch === "function") pending.catch(() => undefined);
+    } catch { /* options are also available from the toolbar icon */ }
   }
 
   function blockEvent(event) {
@@ -332,6 +534,8 @@
   }
 
   function showAlert(result, input) {
+    riskIndicator.position(input);
+    riskIndicator.set("risk", `${result.findings.length} risco${result.findings.length === 1 ? "" : "s"} — envio bloqueado`);
     showDetectionDialog(result, input, {
       title: "AI Safety Guard - Envio bloqueado",
       description: "Possível dado sensível detectado. Remova ou anonimize os dados abaixo antes de tentar novamente.",
@@ -343,6 +547,8 @@
   function showWarning(result, input) {
     const key = detectionKey(result.findings);
     if (!shouldEmit("warn", key)) return;
+    riskIndicator.position(input);
+    riskIndicator.set("risk", `${result.findings.length} risco${result.findings.length === 1 ? "" : "s"} identificado${result.findings.length === 1 ? "" : "s"}`);
     showDetectionDialog(result, input, {
       title: "AI Safety Guard - Aviso",
       description: "Possível dado sensível detectado. O envio será permitido conforme o modo selecionado.",

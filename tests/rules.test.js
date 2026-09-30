@@ -20,7 +20,7 @@ test("todas as regras apontam para categorias existentes", () => {
 
 test("manifest carrega catálogo antes do detector", () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "plugin", "manifest.json"), "utf8"));
-  assert.deepEqual(manifest.content_scripts[0].js, ["src/platforms.js", "src/protection-policy.js", "src/rules.js", "src/detector.js", "src/attachments.js", "src/content.js"]);
+  assert.deepEqual(manifest.content_scripts[0].js, ["src/platforms.js", "src/protection-policy.js", "src/rules.js", "src/detector.js", "src/attachments.js", "src/nano.js", "src/content.js"]);
   assert.equal(manifest.background.service_worker, "src/background.js");
   assert.deepEqual(manifest.permissions, ["storage"]);
 });
@@ -93,25 +93,37 @@ test("alerta explicita as categorias possivelmente infringidas", () => {
   assert.doesNotMatch(content, /warnedDetections|recentAuditRecords|handledMode|showWarningOnce/);
 });
 
-test("popup apresenta regras e modos operacionais", () => {
-  const popup = fs.readFileSync(path.join(__dirname, "..", "plugin", "src", "popup.html"), "utf8");
-  const popupScript = fs.readFileSync(path.join(__dirname, "..", "plugin", "src", "popup.js"), "utf8");
-  assert.match(popup, /<h2>Regras<\/h2>/);
-  assert.doesNotMatch(popup, /Proteção ativa|id="enabled"/);
-  assert.doesNotMatch(popupScript, /querySelector\("#enabled"\)|enabled:\s*enabled\.checked/);
-  assert.match(popup, /<h2>Modo de proteção<\/h2>/);
-  assert.match(popup, /Avalia validade, contexto e combinação de evidências/);
-  assert.match(popup, /Bloqueia score igual ou superior a 50/);
-  assert.match(popup, /Exibe um aviso em cada tentativa/);
-  assert.match(popup, /grava cada detecção na auditoria local/);
-  for (const mode of ["heuristic", "warn", "log"]) assert.match(popup, new RegExp(`value="${mode}"`));
-  assert.match(popup, /id="audit-status"/);
-  assert.match(popup, /id="download-audit"[^>]*>Download log<\/button>/);
-  assert.match(popup, /<script src="audit-log\.js"><\/script>/);
-  assert.match(popup, /<script src="protection-policy\.js"><\/script>/);
-  assert.match(popupScript, /chrome\.storage\.local\.get\(\{ auditLog: \[\] \}\)/);
-  assert.match(popupScript, /AISafetyAuditLog\.download\(auditLog\)/);
-  assert.doesNotMatch(popup, /Bloqueio local de dados sensíveis em prompts e anexos PDF\/DOCX\/DOC\./);
+test("conteúdo integra indicador flutuante, Gemini Nano e fallback seguro", () => {
+  const content = fs.readFileSync(path.join(__dirname, "..", "plugin", "src", "content.js"), "utf8");
+  assert.match(content, /createRiskIndicator\(\)/);
+  assert.match(content, /ai-safety-guard-indicator/);
+  assert.match(content, /rect\.left \+ 8/);
+  assert.match(content, /button\[data-state='risk'\]/);
+  assert.match(content, /AISafetyNano\.classify\(originalText\)/);
+  assert.match(content, /blockEvent\(event\);\s*inspectWithNano/);
+  assert.match(content, /replaySubmission\(replay, input\)/);
+  assert.match(content, /AISafetyProtectionPolicy\.DEFAULT_MODE/);
+  assert.match(content, /Seu Browser não suporta modelo de IA do Chrome local|AISafetyNano\.UNSUPPORTED_MESSAGE/);
+});
+
+test("página de opções apresenta os quatro níveis e instalação do Gemini Nano", () => {
+  const root = path.join(__dirname, "..");
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, "plugin", "manifest.json"), "utf8"));
+  const options = fs.readFileSync(path.join(root, "plugin", "src", "options.html"), "utf8");
+  const optionsScript = fs.readFileSync(path.join(root, "plugin", "src", "options.js"), "utf8");
+  assert.equal(manifest.options_ui.page, "src/options.html");
+  assert.equal(manifest.options_ui.open_in_tab, true);
+  assert.equal(manifest.action.default_popup, undefined);
+  assert.ok(manifest.web_accessible_resources[0].resources.includes("icons/ai-safety-guard-32.png"));
+  for (const mode of ["log", "warn", "detect", "heuristic"]) assert.match(options, new RegExp(`value="${mode}"`));
+  assert.match(options, /id="install-nano"/);
+  assert.match(options, /id="categories"/);
+  assert.match(options, /id="audit-status"/);
+  assert.match(options, /id="download-audit"[^>]*>Baixar log<\/button>/);
+  assert.match(options, /<script src="nano\.js"><\/script>/);
+  assert.match(optionsScript, /AISafetyNano\.install/);
+  assert.match(optionsScript, /enforceNanoAvailability/);
+  assert.match(optionsScript, /AISafetyAuditLog\.download\(auditLog\)/);
 });
 
 test("identidade pública usa exclusivamente AI Safety Guard v1.2", () => {
@@ -119,7 +131,7 @@ test("identidade pública usa exclusivamente AI Safety Guard v1.2", () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(root, "plugin", "manifest.json"), "utf8"));
   const packageManifest = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
   const packageLock = JSON.parse(fs.readFileSync(path.join(root, "package-lock.json"), "utf8"));
-  const popup = fs.readFileSync(path.join(root, "plugin", "src", "popup.html"), "utf8");
+  const options = fs.readFileSync(path.join(root, "plugin", "src", "options.html"), "utf8");
   const readme = fs.readFileSync(path.join(root, "README.md"), "utf8");
   assert.equal(manifest.version, "1.2.5");
   assert.equal(packageManifest.version, manifest.version);
@@ -127,5 +139,5 @@ test("identidade pública usa exclusivamente AI Safety Guard v1.2", () => {
   assert.equal(packageLock.packages[""].version, manifest.version);
   assert.equal(manifest.name, "AI Safety Guard v1.2");
   assert.equal(manifest.action.default_title, "AI Safety Guard v1.2");
-  assert.doesNotMatch(`${popup}\n${readme}`, /AI Chat DLP Guard/i);
+  assert.doesNotMatch(`${options}\n${readme}`, /AI Chat DLP Guard/i);
 });

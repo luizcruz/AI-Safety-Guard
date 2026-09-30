@@ -2,7 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { compareVersions, validateCatalog, downloadRules, sanitizeAuditEntry, appendAuditLog, register } = require("../plugin/src/background.js");
+const { compareVersions, validateCatalog, downloadRules, sanitizeAuditEntry, appendAuditLog, prepareNano, register } = require("../plugin/src/background.js");
 const bundled = require("../plugin/src/rules.js");
 
 test("compara versões semânticas", () => {
@@ -87,9 +87,21 @@ test("limita retenção da auditoria local", async () => {
   assert.equal(state.auditLog[0].timestamp, "old-1");
 });
 
+test("prepara Gemini Nano automaticamente ou exige conclusão assistida", async () => {
+  const state = {};
+  const chromeApi = { storage: { local: { set: async (values) => Object.assign(state, values) } } };
+  const ready = { availability: async () => "available", install: async () => undefined, UNSUPPORTED_MESSAGE: "sem suporte" };
+  assert.equal((await prepareNano(chromeApi, ready)).state, "available");
+  const activationRequired = { availability: async () => "downloadable", install: async () => { throw new Error("user activation required"); }, UNSUPPORTED_MESSAGE: "sem suporte" };
+  assert.equal((await prepareNano(chromeApi, activationRequired)).state, "setup-required");
+  const unavailable = { availability: async () => "unavailable", install: async () => assert.fail("não deve instalar"), UNSUPPORTED_MESSAGE: "sem suporte" };
+  assert.deepEqual(await prepareNano(chromeApi, unavailable), { state: "unavailable", message: "sem suporte" });
+});
+
 test("registra eventos do Chrome, descarta cache antigo e persiste catálogo atualizado", async () => {
   const state = { apiUrl: "https://rules.example", apiToken: "secret", rulesVersion: "1.1.0" };
   const listeners = {};
+  let optionsOpened = 0;
   const chromeApi = {
     storage: { local: {
       get: async (defaults) => ({ ...defaults, ...state }),
@@ -98,8 +110,10 @@ test("registra eventos do Chrome, descarta cache antigo e persiste catálogo atu
     runtime: {
       onStartup: { addListener: (listener) => { listeners.startup = listener; } },
       onInstalled: { addListener: (listener) => { listeners.installed = listener; } },
-      onMessage: { addListener: (listener) => { listeners.message = listener; } }
-    }
+      onMessage: { addListener: (listener) => { listeners.message = listener; } },
+      openOptionsPage: async () => { optionsOpened += 1; }
+    },
+    action: { onClicked: { addListener: (listener) => { listeners.action = listener; } } }
   };
   const catalog = { ...bundled, version: "1.3.1" };
   const updater = register(chromeApi, async () => ({ ok: true, json: async () => catalog }));
@@ -109,7 +123,20 @@ test("registra eventos do Chrome, descarta cache antigo e persiste catálogo atu
   assert.equal(state.rulesCatalog.version, "1.3.1");
   assert.equal(typeof listeners.startup, "function");
   assert.equal(typeof listeners.installed, "function");
+  assert.equal(typeof listeners.action, "function");
+  listeners.installed({ reason: "install" });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(state.nanoStatus.state, "setup-required");
+  assert.equal(optionsOpened, 1);
+  listeners.action();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(optionsOpened, 2);
   assert.equal(listeners.message({ type: "IGNORED" }, null, () => undefined), false);
+  const optionsResponse = await new Promise((resolve) => {
+    assert.equal(listeners.message({ type: "OPEN_OPTIONS" }, null, resolve), true);
+  });
+  assert.equal(optionsResponse.ok, true);
+  assert.equal(optionsOpened, 3);
   const auditResponse = await new Promise((resolve) => {
     assert.equal(listeners.message({ type: "RECORD_DETECTION", entry: { ai: "Gemini", findings: [] } }, null, resolve), true);
   });

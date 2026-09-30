@@ -1,9 +1,10 @@
 if (typeof importScripts === "function" && typeof globalThis.AISafetyGuardRules === "undefined") importScripts("rules.js");
+if (typeof importScripts === "function" && typeof globalThis.AISafetyNano === "undefined") importScripts("nano.js");
 
 (function rulesUpdater(root, factory) {
   const api = factory();
   if (typeof module === "object" && module.exports) module.exports = api;
-  if (typeof chrome !== "undefined" && chrome.runtime && chrome.storage) api.register(chrome, fetch, root.AISafetyGuardRules ? root.AISafetyGuardRules.version : "0.0.0");
+  if (typeof chrome !== "undefined" && chrome.runtime && chrome.storage) api.register(chrome, fetch, root.AISafetyGuardRules ? root.AISafetyGuardRules.version : "0.0.0", root.AISafetyNano);
 })(typeof globalThis !== "undefined" ? globalThis : this, function createRulesUpdater() {
   "use strict";
 
@@ -84,7 +85,23 @@ if (typeof importScripts === "function" && typeof globalThis.AISafetyGuardRules 
     return auditLog.at(-1);
   }
 
-  function register(chromeApi, fetchImpl = fetch, bundledVersion = "1.3.0") {
+  async function prepareNano(chromeApi, nanoApi) {
+    let nanoStatus;
+    try {
+      if (!nanoApi || await nanoApi.availability() === "unavailable") throw new Error(nanoApi ? nanoApi.UNSUPPORTED_MESSAGE : "Seu Browser não suporta modelo de IA do Chrome local");
+      await nanoApi.install();
+      nanoStatus = { state: "available", message: "Gemini Nano instalado e pronto para análise semântica local." };
+    } catch (error) {
+      const unsupported = nanoApi && error.message === nanoApi.UNSUPPORTED_MESSAGE;
+      nanoStatus = unsupported
+        ? { state: "unavailable", message: nanoApi.UNSUPPORTED_MESSAGE }
+        : { state: "setup-required", message: "Clique em Instalar Gemini Nano para concluir o download exigido pelo Chrome." };
+    }
+    await chromeApi.storage.local.set({ nanoStatus });
+    return nanoStatus;
+  }
+
+  function register(chromeApi, fetchImpl = fetch, bundledVersion = "1.3.0", nanoApi) {
     let auditQueue = Promise.resolve();
     const refresh = async () => {
       const config = await chromeApi.storage.local.get({ apiUrl: DEFAULT_API_URL, apiToken: "", rulesVersion: bundledVersion });
@@ -108,8 +125,22 @@ if (typeof importScripts === "function" && typeof globalThis.AISafetyGuardRules 
       }
     };
     chromeApi.runtime.onStartup.addListener(() => { refresh().catch(() => undefined); });
-    chromeApi.runtime.onInstalled.addListener(() => { refresh().catch(() => undefined); });
+    chromeApi.runtime.onInstalled.addListener((details) => {
+      refresh().catch(() => undefined);
+      if (details && details.reason === "install" && chromeApi.runtime.openOptionsPage) {
+        prepareNano(chromeApi, nanoApi)
+          .then(() => chromeApi.runtime.openOptionsPage())
+          .catch(() => undefined);
+      }
+    });
+    if (chromeApi.action && chromeApi.action.onClicked && chromeApi.runtime.openOptionsPage) {
+      chromeApi.action.onClicked.addListener(() => { chromeApi.runtime.openOptionsPage().catch(() => undefined); });
+    }
     chromeApi.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+      if (message && message.type === "OPEN_OPTIONS" && chromeApi.runtime.openOptionsPage) {
+        chromeApi.runtime.openOptionsPage().then(() => sendResponse({ ok: true })).catch((error) => sendResponse({ ok: false, error: error.message }));
+        return true;
+      }
       if (message && message.type === "REFRESH_RULES") {
         refresh().then((result) => sendResponse({ ok: true, ...result })).catch((error) => sendResponse({ ok: false, error: error.message }));
         return true;
@@ -124,5 +155,5 @@ if (typeof importScripts === "function" && typeof globalThis.AISafetyGuardRules 
     return { refresh };
   }
 
-  return Object.freeze({ compareVersions, validateCatalog, downloadRules, sanitizeAuditEntry, appendAuditLog, register, DEFAULT_API_URL });
+  return Object.freeze({ compareVersions, validateCatalog, downloadRules, sanitizeAuditEntry, appendAuditLog, prepareNano, register, DEFAULT_API_URL });
 });
