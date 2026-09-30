@@ -2,7 +2,7 @@
   "use strict";
 
   const platform = AISafetyPlatforms.resolve(location.hostname);
-  const DEFAULTS = { enabledCategories: Object.keys(AISafetyGuard.CATEGORIES), mode: AISafetyProtectionPolicy.DEFAULT_MODE };
+  const DEFAULTS = { enabledCategories: Object.keys(AISafetyGuard.CATEGORIES), mode: AISafetyProtectionPolicy.DEFAULT_MODE, obfuscateSensitiveData: false };
   const SEND_SELECTOR = [...new Set([
     "button[data-testid*='send']",
     "button[type='submit']",
@@ -39,12 +39,12 @@
     file, AISafetyGuard.analyze, settings, undefined, undefined, AISafetyGuard.analyzeFileName
   ));
 
-  chrome.storage.sync.get(["enabledCategories", "knownCategories", "mode"], (stored) => {
+  chrome.storage.sync.get(["enabledCategories", "knownCategories", "mode", "obfuscateSensitiveData"], (stored) => {
     const currentCategories = Object.keys(AISafetyGuard.CATEGORIES);
     const knownCategories = Array.isArray(stored.knownCategories) ? stored.knownCategories : currentCategories.filter((category) => category !== "sensitiveFileNames");
     const addedCategories = currentCategories.filter((category) => !knownCategories.includes(category));
-    settings = normalizeSettings({ enabledCategories: [...new Set([...(stored.enabledCategories || currentCategories), ...addedCategories])], mode: stored.mode });
-    chrome.storage.sync.set({ enabledCategories: settings.enabledCategories, knownCategories: currentCategories, mode: settings.mode });
+    settings = normalizeSettings({ enabledCategories: [...new Set([...(stored.enabledCategories || currentCategories), ...addedCategories])], mode: stored.mode, obfuscateSensitiveData: stored.obfuscateSensitiveData });
+    chrome.storage.sync.set({ enabledCategories: settings.enabledCategories, knownCategories: currentCategories, mode: settings.mode, obfuscateSensitiveData: settings.obfuscateSensitiveData });
   });
   chrome.storage.local.get(["rulesCatalog", "nanoStatus"], ({ rulesCatalog, nanoStatus }) => {
     if (rulesCatalog) applyRemoteCatalog(rulesCatalog);
@@ -55,7 +55,8 @@
     if (area === "sync") {
       settings = normalizeSettings({
         enabledCategories: changes.enabledCategories ? changes.enabledCategories.newValue : settings.enabledCategories,
-        mode: changes.mode ? changes.mode.newValue : settings.mode
+        mode: changes.mode ? changes.mode.newValue : settings.mode,
+        obfuscateSensitiveData: changes.obfuscateSensitiveData ? changes.obfuscateSensitiveData.newValue : settings.obfuscateSensitiveData
       });
       if (settings.mode === "heuristic") ensureNanoAvailable();
     }
@@ -73,7 +74,8 @@
   function normalizeSettings(value) {
     return {
       enabledCategories: Array.isArray(value.enabledCategories) ? value.enabledCategories : DEFAULTS.enabledCategories,
-      mode: AISafetyProtectionPolicy.normalizeMode(value.mode)
+      mode: AISafetyProtectionPolicy.normalizeMode(value.mode),
+      obfuscateSensitiveData: value.obfuscateSensitiveData === true
     };
   }
 
@@ -234,7 +236,10 @@
     const action = AISafetyProtectionPolicy.actionFor(settings.mode, result.decision);
     if (action === "block") {
       if (event) blockEvent(event);
-      showAlert(result, input);
+      const obfuscated = settings.obfuscateSensitiveData && ["detect", "heuristic"].includes(settings.mode)
+        ? obfuscatePromptInput(input, result)
+        : false;
+      showAlert(result, input, obfuscated);
       return false;
     }
     if (action === "warn") showWarning(result, input);
@@ -407,10 +412,30 @@
     }, 350);
   }
 
+  function obfuscatePromptInput(input, result) {
+    if (!result.findings.some((finding) => !finding.source)) return false;
+    const original = readInput(input);
+    const obfuscated = AISafetyGuard.obfuscate(original, {
+      enabledCategories: settings.enabledCategories,
+      sensitiveTerms: result.sensitiveTerms || []
+    });
+    if (!obfuscated || obfuscated === original) return false;
+    if (input instanceof HTMLTextAreaElement || input instanceof HTMLInputElement) {
+      const prototype = input instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+      const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
+      if (setter) setter.call(input, obfuscated);
+      else input.value = obfuscated;
+    } else {
+      input.textContent = obfuscated;
+    }
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    return true;
+  }
+
   function createRiskIndicator() {
     const host = document.createElement("div");
     host.id = "ai-safety-guard-indicator";
-    host.style.cssText = "position:fixed;z-index:2147483646;display:none;pointer-events:auto";
+    host.style.cssText = "position:fixed!important;right:18px!important;bottom:18px!important;left:auto!important;top:auto!important;z-index:2147483647!important;display:block!important;pointer-events:auto!important;isolation:isolate!important";
     const shadow = host.attachShadow({ mode: "closed" });
     const style = document.createElement("style");
     style.textContent = ":host{all:initial}button{display:flex;align-items:center;gap:7px;max-width:240px;border:1px solid rgba(255,255,255,.6);border-radius:999px;padding:6px 10px 6px 7px;background:#15803d;color:#fff;box-shadow:0 5px 18px rgba(15,23,42,.28);font:700 11px/1.2 system-ui,sans-serif;cursor:pointer;transition:background .18s,transform .18s}button:hover{transform:translateY(-1px)}button[data-state='risk'],button[data-state='unsupported']{background:#b91c1c}button[data-state='analyzing']{background:#6d28d9}img{width:20px;height:20px;flex:none}span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}";
@@ -429,34 +454,16 @@
 
     const mount = () => {
       if (!host.isConnected && document.documentElement) document.documentElement.appendChild(host);
-      const input = findInput(document);
-      if (input) position(input);
-    };
-    let positionFrame = 0;
-    const schedulePosition = () => {
-      if (positionFrame) return;
-      positionFrame = requestAnimationFrame(() => {
-        positionFrame = 0;
-        const input = findInput(document);
-        if (input) position(input);
-      });
     };
     if (document.documentElement) mount();
     else document.addEventListener("DOMContentLoaded", mount, { once: true });
     const observer = new MutationObserver(() => {
       if (!host.isConnected) mount();
-      schedulePosition();
     });
-    if (document.documentElement) observer.observe(document.documentElement, { childList: true, subtree: true });
-    addEventListener("resize", schedulePosition, { passive: true });
-    addEventListener("scroll", schedulePosition, { passive: true, capture: true });
+    observer.observe(document, { childList: true, subtree: true });
 
-    function position(input) {
-      const rect = input.getBoundingClientRect();
-      if (!rect.width || !rect.height) return;
-      host.style.display = "block";
-      host.style.left = `${Math.max(8, rect.left + 8)}px`;
-      host.style.top = `${Math.max(8, rect.bottom - 38)}px`;
+    function position() {
+      if (!host.isConnected) mount();
     }
 
     return Object.freeze({
@@ -475,7 +482,7 @@
     const notice = document.createElement("aside");
     notice.id = "ai-safety-guard-browser-notice";
     notice.setAttribute("role", "alert");
-    notice.style.cssText = "position:fixed;left:18px;bottom:18px;z-index:2147483647;max-width:390px;padding:14px 16px;border-radius:12px;background:#7f1d1d;color:#fff;box-shadow:0 12px 32px rgba(0,0,0,.3);font:600 13px/1.45 system-ui,sans-serif";
+    notice.style.cssText = "position:fixed;left:18px;bottom:18px;z-index:2147483646;max-width:390px;padding:14px 16px;border-radius:12px;background:#7f1d1d;color:#fff;box-shadow:0 12px 32px rgba(0,0,0,.3);font:600 13px/1.45 system-ui,sans-serif";
     const text = document.createElement("span");
     text.textContent = `${AISafetyNano.UNSUPPORTED_MESSAGE}. O modo Detecção foi ativado.`;
     const open = document.createElement("button");
@@ -505,7 +512,7 @@
     if (overlay) overlay.remove();
     overlay = document.createElement("div");
     overlay.id = "ai-safety-guard-alert";
-    overlay.style.cssText = "position:fixed;inset:0;z-index:2147483647;background:rgba(15,23,42,.72);display:grid;place-items:center;padding:20px;font-family:system-ui,sans-serif";
+    overlay.style.cssText = "position:fixed;inset:0;z-index:2147483646;background:rgba(15,23,42,.72);display:grid;place-items:center;padding:20px;font-family:system-ui,sans-serif";
     const panel = document.createElement("section");
     panel.setAttribute("role", "alertdialog");
     panel.setAttribute("aria-modal", "true");
@@ -533,12 +540,14 @@
     close.focus();
   }
 
-  function showAlert(result, input) {
+  function showAlert(result, input, obfuscated = false) {
     riskIndicator.position(input);
     riskIndicator.set("risk", `${result.findings.length} risco${result.findings.length === 1 ? "" : "s"} — envio bloqueado`);
     showDetectionDialog(result, input, {
       title: "AI Safety Guard - Envio bloqueado",
-      description: "Possível dado sensível detectado. Remova ou anonimize os dados abaixo antes de tentar novamente.",
+      description: obfuscated
+        ? "Os dados localizáveis foram ofuscados no prompt. Revise a mensagem antes de tentar novamente."
+        : "Possível dado sensível detectado. Remova ou anonimize os dados abaixo antes de tentar novamente.",
       button: "Revisar mensagem",
       color: "#b42318"
     });
@@ -595,7 +604,7 @@
     if (overlay) overlay.remove();
     overlay = document.createElement("div");
     overlay.id = "ai-safety-guard-alert";
-    overlay.style.cssText = "position:fixed;inset:0;z-index:2147483647;background:rgba(15,23,42,.72);display:grid;place-items:center;padding:20px;font-family:system-ui,sans-serif";
+    overlay.style.cssText = "position:fixed;inset:0;z-index:2147483646;background:rgba(15,23,42,.72);display:grid;place-items:center;padding:20px;font-family:system-ui,sans-serif";
     const panel = document.createElement("section");
     panel.setAttribute("role", "alertdialog");
     panel.setAttribute("aria-modal", "true");

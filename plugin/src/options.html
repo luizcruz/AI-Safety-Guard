@@ -9,48 +9,87 @@
   <body>
     <header class="hero">
       <img src="../icons/ai-safety-guard-128.png" alt="" width="72" height="72">
-      <div><p class="eyebrow">AI Safety Guard v1.2</p><h1>Proteção local para conversas com IA</h1><p>Configure detecção, alertas, bloqueios, regras e o modelo Gemini Nano sem enviar o conteúdo dos prompts para servidores externos.</p></div>
+      <div>
+        <p class="eyebrow">AI Safety Guard v2.0</p>
+        <h1>Proteção local para conversas com IA</h1>
+        <p>Configure níveis, IA local, regras, auditoria e servidor sem enviar prompts para serviços externos.</p>
+      </div>
     </header>
-    <main>
-      <section class="card" aria-labelledby="mode-title">
-        <div class="section-heading"><div><h2 id="mode-title">Nível de proteção</h2><p>Escolha uma estratégia. Modos mais altos incluem as verificações dos anteriores.</p></div><span id="save-status" class="pill">Carregando…</span></div>
-        <div class="modes">
-          <label class="mode"><input type="radio" name="protection-mode" value="log"><span><strong>Registrar</strong><small>Detecta e grava cada ocorrência na auditoria local, sem interromper o envio.</small></span></label>
-          <label class="mode"><input type="radio" name="protection-mode" value="warn"><span><strong>Avisar</strong><small>Exibe um alerta em cada tentativa e permite o envio após informar o usuário.</small></span></label>
-          <label class="mode"><input type="radio" name="protection-mode" value="detect"><span><strong>Detecção</strong><small>Bloqueia riscos encontrados pelas regras determinísticas, validações e análise de anexos.</small></span></label>
-          <label class="mode" id="heuristic-card"><input type="radio" name="protection-mode" value="heuristic"><span><strong>Heurística</strong><small>Adiciona análise semântica local com Gemini Nano e bloqueia riscos não capturados pelas regras.</small></span><em id="nano-mode-label">Verificando modelo…</em></label>
-        </div>
-      </section>
 
-      <section class="card" aria-labelledby="nano-title">
-        <div class="section-heading"><div><h2 id="nano-title">Gemini Nano local</h2><p>O Chrome gerencia o download e executa o modelo somente neste dispositivo.</p></div><span id="nano-state" class="pill">Verificando…</span></div>
-        <div id="nano-message" class="notice" role="status">Consultando compatibilidade do navegador.</div>
-        <progress id="nano-progress" max="1" value="0" hidden></progress>
-        <button id="install-nano" type="button" hidden>Instalar Gemini Nano</button>
-        <p class="fine-print">O Chrome exige um clique para iniciar o primeiro download. A página é aberta automaticamente na instalação para concluir essa etapa.</p>
-      </section>
+    <div class="options-shell">
+      <nav class="tabs" role="tablist" aria-label="Configurações do AI Safety Guard">
+        <button id="tab-protection" role="tab" aria-selected="true" aria-controls="panel-protection" data-tab="protection" type="button">Nível de proteção</button>
+        <button id="tab-local-ai" role="tab" aria-selected="false" aria-controls="panel-local-ai" data-tab="local-ai" tabindex="-1" type="button">IA local</button>
+        <button id="tab-rules" role="tab" aria-selected="false" aria-controls="panel-rules" data-tab="rules" tabindex="-1" type="button">Regras</button>
+        <button id="tab-audit" role="tab" aria-selected="false" aria-controls="panel-audit" data-tab="audit" tabindex="-1" type="button">Auditoria</button>
+        <button id="tab-server" role="tab" aria-selected="false" aria-controls="panel-server" data-tab="server" tabindex="-1" type="button">Servidor</button>
+      </nav>
 
-      <section class="card" aria-labelledby="rules-title">
-        <h2 id="rules-title">Categorias monitoradas</h2>
-        <p>Desative somente categorias que sua política permite compartilhar.</p>
-        <div id="categories" class="categories"></div>
-      </section>
+      <main>
+        <section id="panel-protection" class="card tab-panel" role="tabpanel" aria-labelledby="tab-protection" data-panel="protection">
+          <div class="section-heading">
+            <div><h2>Nível de proteção</h2><p>Modos mais altos incluem as verificações dos anteriores.</p></div>
+            <span id="save-status" class="pill" role="status">Carregando…</span>
+          </div>
+          <div class="modes">
+            <label class="mode"><input type="radio" name="protection-mode" value="log"><span><strong>Registrar</strong><small>Registra ocorrências localmente sem interromper o envio.</small></span></label>
+            <label class="mode"><input type="radio" name="protection-mode" value="warn"><span><strong>Avisar</strong><small>Alerta em cada tentativa e permite o envio.</small></span></label>
+            <label class="mode"><input type="radio" name="protection-mode" value="detect"><span><strong>Detecção</strong><small>Bloqueia riscos encontrados pelas regras e anexos.</small></span></label>
+            <label class="mode" id="heuristic-card"><input type="radio" name="protection-mode" value="heuristic"><span><strong>Heurística</strong><small>Adiciona análise semântica local com Gemini Nano.</small></span><em id="nano-mode-label">Verificando modelo…</em></label>
+          </div>
+          <label class="privacy-option"><input id="obfuscate-sensitive-data" type="checkbox"><span><strong>Ofuscar dados detectados</strong><small>Em Detecção e Heurística, substitui valores localizáveis por <code>[REDACTED]</code> quando o envio é bloqueado.</small></span></label>
+        </section>
 
-      <section class="card split" aria-labelledby="audit-title">
-        <div><h2 id="audit-title">Auditoria local</h2><p id="audit-status" class="notice">Carregando auditoria…</p></div>
-        <button id="download-audit" type="button" disabled>Baixar log</button>
-      </section>
+        <section id="panel-local-ai" class="card tab-panel" role="tabpanel" aria-labelledby="tab-local-ai" data-panel="local-ai" hidden>
+          <div class="section-heading">
+            <div><h2>Gemini Nano local</h2><p>Valide a disponibilidade e teste o classificador DLP executado no navegador.</p></div>
+            <span id="nano-state" class="pill">Verificando…</span>
+          </div>
+          <div id="nano-message" class="notice" role="status">Consultando compatibilidade do navegador.</div>
+          <progress id="nano-progress" max="1" value="0" hidden></progress>
+          <button id="install-nano" type="button" hidden>Instalar Gemini Nano</button>
+          <p class="fine-print">O Chrome pode exigir um clique para iniciar o primeiro download.</p>
 
-      <section class="card" aria-labelledby="api-title">
-        <h2 id="api-title">Atualização de regras</h2>
-        <form id="api-settings">
-          <label>URL da API<input id="api-url" type="url" required placeholder="http://127.0.0.1:8000"></label>
-          <label>Bearer token<input id="api-token" type="password" autocomplete="off" required></label>
-          <button type="submit">Salvar e atualizar agora</button>
-        </form>
-        <p id="rules-status" class="notice">Carregando status…</p>
-      </section>
-    </main>
+          <form id="nano-test-form" class="stacked-form">
+            <label for="nano-test-input">Mensagem para teste</label>
+            <textarea id="nano-test-input" rows="6" maxlength="12000" required placeholder="Digite uma mensagem para avaliar localmente."></textarea>
+            <p class="fine-print">O pré-prompt classifica risco, gravidade e categoria. O conteúdo não sai do dispositivo.</p>
+            <button id="run-nano-test" type="submit" disabled>Avaliar risco</button>
+          </form>
+          <output id="nano-test-result" class="notice" for="nano-test-input" aria-live="polite">Aguardando teste.</output>
+        </section>
+
+        <section id="panel-rules" class="card tab-panel" role="tabpanel" aria-labelledby="tab-rules" data-panel="rules" hidden>
+          <div class="section-heading">
+            <div><h2>Categorias monitoradas</h2><p>Desative somente categorias que sua política permite compartilhar.</p></div>
+            <span id="rules-save-status" class="pill" role="status">Carregando…</span>
+          </div>
+          <div id="categories" class="categories"></div>
+        </section>
+
+        <section id="panel-audit" class="card tab-panel" role="tabpanel" aria-labelledby="tab-audit" data-panel="audit" hidden>
+          <div class="section-heading">
+            <div><h2>Auditoria local</h2><p>Consulte os registros mascarados armazenados neste navegador.</p></div>
+            <button id="download-audit" type="button" disabled>Baixar log</button>
+          </div>
+          <p id="audit-status" class="notice" role="status">Carregando auditoria…</p>
+          <label for="audit-log-preview">Conteúdo do log</label>
+          <textarea id="audit-log-preview" class="log-preview" rows="18" readonly spellcheck="false" placeholder="Nenhum registro disponível."></textarea>
+        </section>
+
+        <section id="panel-server" class="card tab-panel" role="tabpanel" aria-labelledby="tab-server" data-panel="server" hidden>
+          <h2>Servidor de regras</h2>
+          <p>Salve a conexão e solicite a versão mais recente do catálogo.</p>
+          <form id="api-settings" class="server-form">
+            <label>URL da API<input id="api-url" type="url" required placeholder="http://127.0.0.1:8000"></label>
+            <label>Bearer token<input id="api-token" type="password" autocomplete="off" required></label>
+            <button type="submit">Salvar e atualizar</button>
+          </form>
+          <p id="rules-status" class="notice" role="status">Carregando status…</p>
+        </section>
+      </main>
+    </div>
+
     <script src="rules.js"></script>
     <script src="detector.js"></script>
     <script src="audit-log.js"></script>

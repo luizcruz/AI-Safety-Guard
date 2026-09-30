@@ -97,8 +97,12 @@ test("conteúdo integra indicador flutuante, Gemini Nano e fallback seguro", () 
   const content = fs.readFileSync(path.join(__dirname, "..", "plugin", "src", "content.js"), "utf8");
   assert.match(content, /createRiskIndicator\(\)/);
   assert.match(content, /ai-safety-guard-indicator/);
-  assert.match(content, /rect\.left \+ 8/);
+  assert.match(content, /right:18px!important;bottom:18px!important/);
+  assert.match(content, /z-index:2147483647!important/);
+  assert.match(content, /observer\.observe\(document,/);
   assert.match(content, /button\[data-state='risk'\]/);
+  assert.match(content, /obfuscatePromptInput/);
+  assert.match(content, /AISafetyGuard\.obfuscate/);
   assert.match(content, /AISafetyNano\.classify\(originalText\)/);
   assert.match(content, /blockEvent\(event\);\s*inspectWithNano/);
   assert.match(content, /replaySubmission\(replay, input\)/);
@@ -115,29 +119,44 @@ test("página de opções apresenta os quatro níveis e instalação do Gemini N
   assert.equal(manifest.options_ui.open_in_tab, true);
   assert.equal(manifest.action.default_popup, undefined);
   assert.ok(manifest.web_accessible_resources[0].resources.includes("icons/ai-safety-guard-32.png"));
+  for (const tab of ["protection", "local-ai", "rules", "audit", "server"]) {
+    assert.match(options, new RegExp(`data-tab="${tab}"`));
+    assert.match(options, new RegExp(`data-panel="${tab}"`));
+  }
   for (const mode of ["log", "warn", "detect", "heuristic"]) assert.match(options, new RegExp(`value="${mode}"`));
   assert.match(options, /id="install-nano"/);
+  assert.match(options, /id="nano-test-form"/);
+  assert.match(options, /id="nano-test-input"/);
+  assert.match(options, /id="nano-test-result"/);
   assert.match(options, /id="categories"/);
+  assert.match(options, /id="obfuscate-sensitive-data"/);
   assert.match(options, /id="audit-status"/);
+  assert.match(options, /id="audit-log-preview"[^>]*readonly/);
   assert.match(options, /id="download-audit"[^>]*>Baixar log<\/button>/);
+  assert.match(options, /id="api-settings"/);
   assert.match(options, /<script src="nano\.js"><\/script>/);
   assert.match(optionsScript, /AISafetyNano\.install/);
+  assert.match(optionsScript, /AISafetyNano\.classify\(message\)/);
   assert.match(optionsScript, /enforceNanoAvailability/);
+  assert.match(optionsScript, /obfuscateSensitiveData/);
+  assert.match(optionsScript, /AISafetyAuditLog\.serialize\(entries\)/);
   assert.match(optionsScript, /AISafetyAuditLog\.download\(auditLog\)/);
+  assert.match(optionsScript, /REFRESH_RULES/);
+  assert.match(optionsScript, /ArrowRight/);
 });
 
-test("identidade pública usa exclusivamente AI Safety Guard v1.2", () => {
+test("identidade pública usa exclusivamente AI Safety Guard v2.0", () => {
   const root = path.join(__dirname, "..");
   const manifest = JSON.parse(fs.readFileSync(path.join(root, "plugin", "manifest.json"), "utf8"));
   const packageManifest = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
   const packageLock = JSON.parse(fs.readFileSync(path.join(root, "package-lock.json"), "utf8"));
   const options = fs.readFileSync(path.join(root, "plugin", "src", "options.html"), "utf8");
   const readme = fs.readFileSync(path.join(root, "README.md"), "utf8");
-  assert.equal(manifest.version, "1.2.5");
+  assert.equal(manifest.version, "2.0.0");
   assert.equal(packageManifest.version, manifest.version);
   assert.equal(packageLock.version, manifest.version);
   assert.equal(packageLock.packages[""].version, manifest.version);
-  assert.equal(manifest.name, "AI Safety Guard v1.2");
-  assert.equal(manifest.action.default_title, "AI Safety Guard v1.2");
+  assert.equal(manifest.name, "AI Safety Guard v2.0");
+  assert.equal(manifest.action.default_title, "AI Safety Guard v2.0");
   assert.doesNotMatch(`${options}\n${readme}`, /AI Chat DLP Guard/i);
 });
