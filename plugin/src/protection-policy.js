@@ -5,8 +5,8 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function createProtectionPolicy() {
   "use strict";
 
-  const DEFAULT_MODE = "heuristic";
-  const MODES = Object.freeze([DEFAULT_MODE, "warn", "log"]);
+  const DEFAULT_MODE = "detect";
+  const MODES = Object.freeze(["log", "warn", DEFAULT_MODE, "heuristic"]);
 
   function normalizeMode(value) {
     if (value === "block") return DEFAULT_MODE;
@@ -19,6 +19,11 @@
     if (normalized === "log") return "log";
     if (normalized === "warn") return "warn";
     return "block";
+  }
+
+  function enforceNanoAvailability(mode, available) {
+    const normalized = normalizeMode(mode);
+    return normalized === "heuristic" && !available ? DEFAULT_MODE : normalized;
   }
 
   function createEmissionGate({ windowMs = 250, now = Date.now } = {}) {
@@ -34,5 +39,5 @@
     };
   }
 
-  return Object.freeze({ DEFAULT_MODE, MODES, normalizeMode, actionFor, createEmissionGate });
+  return Object.freeze({ DEFAULT_MODE, MODES, normalizeMode, actionFor, enforceNanoAvailability, createEmissionGate });
 });

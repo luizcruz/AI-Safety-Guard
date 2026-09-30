@@ -2,12 +2,15 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { normalizeMode, actionFor, createEmissionGate } = require("../plugin/src/protection-policy.js");
+const { DEFAULT_MODE, MODES, normalizeMode, actionFor, enforceNanoAvailability, createEmissionGate } = require("../plugin/src/protection-policy.js");
 const { analyze } = require("../plugin/src/detector.js");
 
-test("migra modo block legado para heuristic", () => {
-  assert.equal(normalizeMode("block"), "heuristic");
-  assert.equal(normalizeMode(undefined), "heuristic");
+test("migra modo block legado para detecção", () => {
+  assert.equal(DEFAULT_MODE, "detect");
+  assert.deepEqual(MODES, ["log", "warn", "detect", "heuristic"]);
+  assert.equal(normalizeMode("block"), "detect");
+  assert.equal(normalizeMode(undefined), "detect");
+  assert.equal(normalizeMode("detect"), "detect");
   assert.equal(normalizeMode("warn"), "warn");
   assert.equal(normalizeMode("log"), "log");
 });
@@ -25,6 +28,15 @@ test("modo heurística bloqueia qualquer score acionável a partir de 50", () =>
   const invalidCpf = analyze("Este é um teste CPF 111.222.111-12");
   assert.equal(invalidCpf.decision, "warn");
   assert.equal(actionFor("heuristic", invalidCpf.decision), "block");
+});
+
+test("modo detecção bloqueia regras e heurística requer Gemini Nano", () => {
+  assert.equal(actionFor("detect", "block"), "block");
+  assert.equal(actionFor("detect", "warn"), "block");
+  assert.equal(actionFor("detect", "allow"), "allow");
+  assert.equal(enforceNanoAvailability("heuristic", false), "detect");
+  assert.equal(enforceNanoAvailability("heuristic", true), "heuristic");
+  assert.equal(enforceNanoAvailability("warn", false), "warn");
 });
 
 test("modos avisar e registrar sempre permitem resultados acionáveis", () => {

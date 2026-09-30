@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Configurações — AI Safety Guard</title>
+    <link rel="stylesheet" href="options.css">
+  </head>
+  <body>
+    <header class="hero">
+      <img src="../icons/ai-safety-guard-128.png" alt="" width="72" height="72">
+      <div><p class="eyebrow">AI Safety Guard v1.2</p><h1>Proteção local para conversas com IA</h1><p>Configure detecção, alertas, bloqueios, regras e o modelo Gemini Nano sem enviar o conteúdo dos prompts para servidores externos.</p></div>
+    </header>
+    <main>
+      <section class="card" aria-labelledby="mode-title">
+        <div class="section-heading"><div><h2 id="mode-title">Nível de proteção</h2><p>Escolha uma estratégia. Modos mais altos incluem as verificações dos anteriores.</p></div><span id="save-status" class="pill">Carregando…</span></div>
+        <div class="modes">
+          <label class="mode"><input type="radio" name="protection-mode" value="log"><span><strong>Registrar</strong><small>Detecta e grava cada ocorrência na auditoria local, sem interromper o envio.</small></span></label>
+          <label class="mode"><input type="radio" name="protection-mode" value="warn"><span><strong>Avisar</strong><small>Exibe um alerta em cada tentativa e permite o envio após informar o usuário.</small></span></label>
+          <label class="mode"><input type="radio" name="protection-mode" value="detect"><span><strong>Detecção</strong><small>Bloqueia riscos encontrados pelas regras determinísticas, validações e análise de anexos.</small></span></label>
+          <label class="mode" id="heuristic-card"><input type="radio" name="protection-mode" value="heuristic"><span><strong>Heurística</strong><small>Adiciona análise semântica local com Gemini Nano e bloqueia riscos não capturados pelas regras.</small></span><em id="nano-mode-label">Verificando modelo…</em></label>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="nano-title">
+        <div class="section-heading"><div><h2 id="nano-title">Gemini Nano local</h2><p>O Chrome gerencia o download e executa o modelo somente neste dispositivo.</p></div><span id="nano-state" class="pill">Verificando…</span></div>
+        <div id="nano-message" class="notice" role="status">Consultando compatibilidade do navegador.</div>
+        <progress id="nano-progress" max="1" value="0" hidden></progress>
+        <button id="install-nano" type="button" hidden>Instalar Gemini Nano</button>
+        <p class="fine-print">O Chrome exige um clique para iniciar o primeiro download. A página é aberta automaticamente na instalação para concluir essa etapa.</p>
+      </section>
+
+      <section class="card" aria-labelledby="rules-title">
+        <h2 id="rules-title">Categorias monitoradas</h2>
+        <p>Desative somente categorias que sua política permite compartilhar.</p>
+        <div id="categories" class="categories"></div>
+      </section>
+
+      <section class="card split" aria-labelledby="audit-title">
+        <div><h2 id="audit-title">Auditoria local</h2><p id="audit-status" class="notice">Carregando auditoria…</p></div>
+        <button id="download-audit" type="button" disabled>Baixar log</button>
+      </section>
+
+      <section class="card" aria-labelledby="api-title">
+        <h2 id="api-title">Atualização de regras</h2>
+        <form id="api-settings">
+          <label>URL da API<input id="api-url" type="url" required placeholder="http://127.0.0.1:8000"></label>
+          <label>Bearer token<input id="api-token" type="password" autocomplete="off" required></label>
+          <button type="submit">Salvar e atualizar agora</button>
+        </form>
+        <p id="rules-status" class="notice">Carregando status…</p>
+      </section>
+    </main>
+    <script src="rules.js"></script>
+    <script src="detector.js"></script>
+    <script src="audit-log.js"></script>
+    <script src="protection-policy.js"></script>
+    <script src="nano.js"></script>
+    <script src="options.js"></script>
+  </body>
+</html>

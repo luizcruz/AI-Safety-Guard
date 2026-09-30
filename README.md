@@ -1,194 +1,78 @@
 # AI Safety Guard
 
-**Local-first AI security and (kind off) DLP for ChatGPT, Claude, Gemini, Perplexity, DeepSeek and Kimi.**
+Chrome Manifest V3 extension that detects sensitive data before it is sent to ChatGPT, Claude, Gemini, Perplexity, Copilot, DeepSeek, or Kimi.
 
-AI Safety Guard is a Chrome Manifest V3 extension that detects sensitive data before it is submitted to web-based AI tools.
-
-It analyzes prompts and PDF/DOCX/DOC attachments locally using configurable heuristic rules, then **blocks, warns, or logs** potential policy violations. 
+Prompts, attachments, and audit events are processed locally. The rules API never receives analyzed content.
 
 ## Features
 
-* Local-first sensitive data detection
-* Chrome Manifest V3
-* ChatGPT, Claude, Gemini, Perplexity, DeepSeek and Kimi support
-* Prompt and attachment scanning
-* PDF, DOCX, and legacy DOC analysis
-* PII detection
-* PCI and banking data detection
-* Infrastructure and credential patterns
-* Intellectual property detection
-* HR and confidential data rules
-* Sensitive filename detection
-* Block, Warn, or Log modes
-* Configurable heuristic rule engine
-* Versioned remote rulesets
-* Web-based rule management
-* Offline fallback to the last valid ruleset
-* Masked security logs
-* No prompt content sent to the rules API
+- Detects personal, medical, financial, corporate, credential, infrastructure, source code, and HR data.
+- Analyzes prompts and PDF, DOCX, and DOC attachments locally.
+- Uses versioned rules with offline support.
+- Displays a risk indicator beside the prompt field.
+- Stores a local audit trail with masked samples.
+- Provides optional semantic analysis with Gemini Nano.
 
-## How it works
+## Protection levels
 
-Rules are defined in:
+| Level | Behavior |
+| --- | --- |
+| **Log** | Allows submission and records the event locally. |
+| **Warn** | Displays a warning and allows submission. |
+| **Detection** | Blocks risks found by deterministic rules. |
+| **Heuristic** | Adds local Gemini Nano analysis and blocks risks. |
 
-```text
-plugin/src/rules.js
-```
+If Gemini Nano is unavailable, **Heuristic** is disabled and **Detection** is selected automatically.
 
-The ruleset contains:
-
-* categories
-* regular expressions
-* keywords
-* scores
-* validators
-* heuristics
-* filename rules
-
-`plugin/src/detector.js` compiles and runs these rules directly in the browser.
-
-Detection is deterministic and does not require an LLM or external inference service.
-
-## Rule Management
-
-The Python API under `api/` provides:
-
-* authenticated (simple) CRUD
-* versioned rulesets
-* ruleset validation
-* `/v1/rulesets/latest`
-
-The Chrome service worker checks for newer rulesets when the extension starts.
-
-Valid rules are stored in `chrome.storage.local` and distributed to the content scripts.
-
-If the API is unavailable, AI Safety Guard keeps using the last valid ruleset or the built-in default rules.
-
-## Admin UI
-
-`admin-ui/` provides a Node.js web interface for managing rules.
-
-When started with Docker Compose:
-
-```text
-http://127.0.0.1:3000
-```
-
-The UI communicates with the Python API internally and keeps the Bearer token server-side.
-
-Rule updates use optimistic version control to prevent accidental overwrites.
-
-## Attachment Scanning
-
-Supported formats:
-
-| Format | Detection                          |
-| ------ | ---------------------------------- |
-| PDF    | PDF.js local text extraction       |
-| DOCX   | Mammoth.js local extraction        |
-| DOC    | Defensive embedded text extraction |
-
-Limits:
-
-* 15 MB per file
-* 200 PDF pages
-* 2 million characters
-* 20 seconds per analysis
-
-Scanned PDFs and image-only documents require OCR before they can be inspected. Local network rules should apply. And sometimes file load streams are not correctly captured. 
-
-Attachment contents are never sent to the rules API.
-
-### Upload protection
-
-File selection, drag-and-drop, and paste events can be intercepted before the file reaches the AI website.
-
-In **Block** mode, suspicious or unreadable attachments are rejected.
-
-In **Warn** and **Log** modes, uploads continue according to the configured policy.
-
-Filename detection always runs, even when document extraction is unavailable.
-
-## Modes
-
-### Heuristic
-
-Stops submission when sensitive content is detected, if scores are higher than 50. 
-
-The user must remove or anonymize the detected information before continuing.
-
-### Warn
-
-Displays one warning for each detection event and allows the user to continue.
-
-### Log
-
-Allows the submission and stores a local security event containing:
-
-* timestamp
-* AI service
-* detected categories
-* triggered rules
-* masked samples
-
-Logs are stored in `chrome.storage.local`. Chrome extension could not write files. 
-
-Use **Download log** from the extension popup to export:
-
-```text
-ai-safety-guard.log
-```
-
-## Privacy
-
-AI Safety Guard is designed around **local processing**.
-
-Prompt and document analysis happens inside the browser.
-
-The rules API receives **no chat messages, prompts, documents, or detected content**.
-
-Extension preferences use:
-
-```text
-chrome.storage.sync
-```
-
-Security events generated by Log mode use:
-
-```text
-chrome.storage.local
-```
-
-Only masked samples are stored.
-
-## Local Installation
+## Local installation
 
 1. Open `chrome://extensions`.
 2. Enable **Developer mode**.
-3. Click **Load unpacked**.
-4. Select the `plugin/` directory.
+3. Select **Load unpacked**.
+4. Choose the `plugin/` directory.
+5. Complete the Gemini Nano installation on the options page.
 
-## Run the Services
+Chrome may require a click to start the download. See the [built-in AI requirements](https://developer.chrome.com/docs/ai/get-started).
 
-From WSL:
+## Configuration
+
+Click the extension icon to open its options. You can:
+
+- select the protection level;
+- enable categories;
+- install or check Gemini Nano;
+- configure the rules API;
+- download `ai-safety-guard.log`.
+
+## Attachments
+
+| Format | Local processing |
+| --- | --- |
+| PDF | PDF.js |
+| DOCX | Mammoth.js |
+| DOC | Defensive text extraction |
+
+Limits: 15 MB, 200 pages, 2 million characters, and 20 seconds per analysis. Image-only PDFs require OCR first.
+
+## Local services
+
+Create `api/.env` from `api/.env.example`, then run in WSL:
 
 ```bash
 ./bin/deploy
 ```
 
-The launcher checks the remote branch, applies fast-forward updates, and starts the API and admin interface with Docker Compose.
+- API: `http://127.0.0.1:8000`
+- Admin UI: `http://127.0.0.1:3000`
 
-Check for updates only:
+Launcher options:
 
 ```bash
 ./bin/deploy --check-only
-```
-
-Start without checking the remote repository:
-
-```bash
 ./bin/deploy --no-update
 ```
+
+API details: [api/README.md](api/README.md).
 
 ## Development
 
@@ -203,18 +87,22 @@ API tests:
 ```bash
 python3 -m venv api/.venv
 api/.venv/bin/python -m pip install -r api/requirements-dev.txt
-api/.venv/bin/python -m pytest api/tests --cov=api/app
+api/.venv/bin/python -m pytest api/tests
 ```
 
+## Structure
+
+- `plugin/src/rules.js`: bundled rule catalog.
+- `plugin/src/detector.js`: deterministic detection.
+- `plugin/src/nano.js`: Gemini Nano integration.
+- `plugin/src/content.js`: interception and risk indicator.
+- `plugin/src/options.html`: extension settings.
+- `api/`: FastAPI rules API.
+- `admin-ui/`: administration interface.
 
 ## Limitations
 
-Heuristic and pattern-based detection can produce false positives and false negatives. It´s simple yet efficient way to do it. 
-
-AI Safety Guard complements existing enterprise security and  (kind off) Data Loss Prevention (DLP) controls; it is not a replacement for them.
-
-Changes to the DOM of supported AI websites may require selector updates.
-
-## Keywords
-
-`ai-security` · `llm-security` · `ai-governance` · `data-loss-prevention` · `chrome-extension`
+- Detection may produce false positives or false negatives.
+- Changes to AI websites may require new selectors.
+- Gemini Nano depends on browser, operating system, hardware, and storage availability.
+- The extension complements DLP controls; it does not replace them.
