@@ -1,80 +1,80 @@
 # AI Safety Guard
 
-Extensão Chrome Manifest V3 que detecta dados sensíveis antes do envio para ChatGPT, Claude, Gemini, Perplexity, Copilot, DeepSeek e Kimi.
+Chrome Manifest V3 extension that detects sensitive data before it is sent to ChatGPT, Claude, Gemini, Perplexity, Copilot, DeepSeek, or Kimi.
 
-Prompts, anexos e eventos de auditoria são processados localmente. A API de regras nunca recebe o conteúdo analisado.
+Prompts, attachments, and audit events are processed locally. The rules API never receives analyzed content.
 
-## Recursos
+## Features
 
-- Detecção de dados pessoais, médicos, financeiros, corporativos, credenciais, infraestrutura, código e RH.
-- Análise local de prompts e anexos PDF, DOCX e DOC.
-- Regras versionadas com funcionamento offline.
-- Indicador de risco junto ao campo do prompt.
-- Auditoria local com amostras mascaradas.
-- Análise semântica opcional com Gemini Nano.
+- Detects personal, medical, financial, corporate, credential, infrastructure, source code, and HR data.
+- Analyzes prompts and PDF, DOCX, and DOC attachments locally.
+- Uses versioned rules with offline support.
+- Displays a risk indicator beside the prompt field.
+- Stores a local audit trail with masked samples.
+- Provides optional semantic analysis with Gemini Nano.
 
-## Níveis de proteção
+## Protection levels
 
-| Nível | Comportamento |
+| Level | Behavior |
 | --- | --- |
-| **Registrar** | Permite o envio e grava a ocorrência localmente. |
-| **Avisar** | Exibe um alerta e permite o envio. |
-| **Detecção** | Bloqueia riscos encontrados pelas regras determinísticas. |
-| **Heurística** | Adiciona análise semântica local com Gemini Nano e bloqueia riscos. |
+| **Log** | Allows submission and records the event locally. |
+| **Warn** | Displays a warning and allows submission. |
+| **Detection** | Blocks risks found by deterministic rules. |
+| **Heuristic** | Adds local Gemini Nano analysis and blocks risks. |
 
-Se o Gemini Nano não estiver disponível, **Heurística** é desativada e **Detecção** assume automaticamente.
+If Gemini Nano is unavailable, **Heuristic** is disabled and **Detection** is selected automatically.
 
-## Instalação local
+## Local installation
 
-1. Abra `chrome://extensions`.
-2. Ative **Modo do desenvolvedor**.
-3. Selecione **Carregar sem compactação**.
-4. Escolha a pasta `plugin/`.
-5. Na página aberta, conclua a instalação do Gemini Nano.
+1. Open `chrome://extensions`.
+2. Enable **Developer mode**.
+3. Select **Load unpacked**.
+4. Choose the `plugin/` directory.
+5. Complete the Gemini Nano installation on the options page.
 
-O Chrome pode exigir um clique para iniciar o download. Consulte os [requisitos da IA integrada](https://developer.chrome.com/docs/ai/get-started).
+Chrome may require a click to start the download. See the [built-in AI requirements](https://developer.chrome.com/docs/ai/get-started).
 
-## Configuração
+## Configuration
 
-Clique no ícone da extensão para abrir as opções. Nessa página é possível:
+Click the extension icon to open its options. You can:
 
-- selecionar o nível de proteção;
-- habilitar categorias;
-- instalar ou verificar o Gemini Nano;
-- configurar a API de regras;
-- baixar `ai-safety-guard.log`.
+- select the protection level;
+- enable categories;
+- install or check Gemini Nano;
+- configure the rules API;
+- download `ai-safety-guard.log`.
 
-## Anexos
+## Attachments
 
-| Formato | Processamento local |
+| Format | Local processing |
 | --- | --- |
 | PDF | PDF.js |
 | DOCX | Mammoth.js |
-| DOC | Extração defensiva de texto |
+| DOC | Defensive text extraction |
 
-Limites: 15 MB, 200 páginas, 2 milhões de caracteres e 20 segundos por análise. PDFs somente com imagem exigem OCR prévio.
+Limits: 15 MB, 200 pages, 2 million characters, and 20 seconds per analysis. Image-only PDFs require OCR first.
 
-## Serviços locais
+## Local services
 
-Crie `api/.env` a partir de `api/.env.example` e execute no WSL:
+Create `api/.env` from `api/.env.example`, then run in WSL:
 
 ```bash
 ./bin/deploy
 ```
 
 - API: `http://127.0.0.1:8000`
-- Painel administrativo: `http://127.0.0.1:3000`
+- Admin UI: `http://127.0.0.1:3000`
 
-Opções do launcher:
+Launcher options:
 
 ```bash
 ./bin/deploy --check-only
 ./bin/deploy --no-update
 ```
 
-Detalhes da API: [api/README.md](api/README.md).
+API details: [api/README.md](api/README.md).
 
-## Desenvolvimento
+## Development
 
 ```bash
 npm test
@@ -82,7 +82,7 @@ npm run check
 npm run build:vendor
 ```
 
-Testes da API:
+API tests:
 
 ```bash
 python3 -m venv api/.venv
@@ -90,19 +90,19 @@ api/.venv/bin/python -m pip install -r api/requirements-dev.txt
 api/.venv/bin/python -m pytest api/tests
 ```
 
-## Estrutura
+## Structure
 
-- `plugin/src/rules.js`: catálogo embarcado.
-- `plugin/src/detector.js`: detecção determinística.
-- `plugin/src/nano.js`: integração com Gemini Nano.
-- `plugin/src/content.js`: interceptação e indicador de risco.
-- `plugin/src/options.html`: configurações da extensão.
-- `api/`: API FastAPI de regras.
-- `admin-ui/`: painel administrativo.
+- `plugin/src/rules.js`: bundled rule catalog.
+- `plugin/src/detector.js`: deterministic detection.
+- `plugin/src/nano.js`: Gemini Nano integration.
+- `plugin/src/content.js`: interception and risk indicator.
+- `plugin/src/options.html`: extension settings.
+- `api/`: FastAPI rules API.
+- `admin-ui/`: administration interface.
 
-## Limitações
+## Limitations
 
-- Detecções podem produzir falsos positivos ou negativos.
-- Alterações nas páginas das IAs podem exigir novos seletores.
-- Gemini Nano depende do navegador, sistema, hardware e armazenamento disponíveis.
-- A extensão complementa controles DLP; não os substitui.
+- Detection may produce false positives or false negatives.
+- Changes to AI websites may require new selectors.
+- Gemini Nano depends on browser, operating system, hardware, and storage availability.
+- The extension complements DLP controls; it does not replace them.

@@ -1,12 +1,12 @@
-# API de regras
+# Rules API
 
-API FastAPI para consultar e administrar o catálogo do AI Safety Guard.
+FastAPI service for querying and managing the AI Safety Guard catalog.
 
-Rotas de regras exigem `Authorization: Bearer <token>`. Mutações incrementam a versão patch e criam um snapshot em `data/rulesets`.
+Rules routes require `Authorization: Bearer <token>`. Mutations increment the patch version and create a snapshot in `data/rulesets`.
 
-## Configuração
+## Setup
 
-No WSL:
+In WSL:
 
 ```bash
 cp api/.env.example api/.env
@@ -17,16 +17,16 @@ sed -i "s|^AI_SAFETY_ADMIN_KEY=.*|AI_SAFETY_ADMIN_KEY=${AI_SAFETY_ADMIN_KEY}|" a
 unset AI_SAFETY_TOKEN AI_SAFETY_ADMIN_KEY
 ```
 
-## Execução
+## Run
 
-Com Docker:
+With Docker:
 
 ```bash
 ./bin/deploy
 curl --fail http://127.0.0.1:8000/health
 ```
 
-Sem Docker:
+Without Docker:
 
 ```bash
 python3 -m venv api/.venv
@@ -37,25 +37,25 @@ cd api
 
 - API: `http://127.0.0.1:8000`
 - OpenAPI: `http://127.0.0.1:8000/docs`
-- Painel: `http://127.0.0.1:3000`
+- Admin UI: `http://127.0.0.1:3000`
 
-O painel usa `AI_SAFETY_ADMIN_KEY`; o token Bearer permanece no servidor.
+The admin UI uses `AI_SAFETY_ADMIN_KEY`; the bearer token remains on the server.
 
 ## Endpoints
 
-| Método | Rota | Função |
+| Method | Route | Purpose |
 | --- | --- | --- |
-| `GET` | `/health` | Verifica a API. |
-| `GET` | `/v1/rulesets/latest` | Retorna o catálogo atual. |
-| `GET` | `/v1/rules` | Lista regras. |
-| `GET` | `/v1/rules/{id}` | Consulta uma regra. |
-| `POST` | `/v1/rules` | Cria uma regra. |
-| `PUT` | `/v1/rules/{id}` | Substitui uma regra. |
-| `DELETE` | `/v1/rules/{id}` | Remove uma regra. |
+| `GET` | `/health` | Checks API health. |
+| `GET` | `/v1/rulesets/latest` | Returns the current catalog. |
+| `GET` | `/v1/rules` | Lists rules. |
+| `GET` | `/v1/rules/{id}` | Returns one rule. |
+| `POST` | `/v1/rules` | Creates a rule. |
+| `PUT` | `/v1/rules/{id}` | Replaces a rule. |
+| `DELETE` | `/v1/rules/{id}` | Deletes a rule. |
 
-Tipos: `pattern`, `keyword`, `heuristic` e `filename`. Validadores: `luhn`, `iban`, `cpf`, `cnpj` e `pis`.
+Kinds: `pattern`, `keyword`, `heuristic`, and `filename`. Validators: `luhn`, `iban`, `cpf`, `cnpj`, and `pis`.
 
-Use `If-Match: "<versão>"` nas mutações. A versão atual é retornada em `ETag`.
+Use `If-Match: "<version>"` for mutations. The current version is returned in `ETag`.
 
 ```bash
 AI_SAFETY_TOKEN="$(sed -n 's/^AI_SAFETY_API_TOKEN=//p' api/.env)"
@@ -67,9 +67,9 @@ curl --fail-with-body -X POST http://127.0.0.1:8000/v1/rules \
 unset AI_SAFETY_TOKEN
 ```
 
-## Produção
+## Production
 
 - Use HTTPS.
-- Persista `/data/rulesets` em volume.
-- Execute um worker por instância.
-- Não exponha `api/.env` nem a saída completa de `docker compose config`.
+- Persist `/data/rulesets` in a volume.
+- Run one worker per instance.
+- Do not expose `api/.env` or the full output of `docker compose config`.
