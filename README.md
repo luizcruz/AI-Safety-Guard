@@ -10,6 +10,8 @@ Prompts, attachments, and audit events are processed locally. The rules API neve
 - Analyzes prompts and PDF, DOCX, and DOC attachments locally.
 - Uses versioned rules with offline support.
 - Displays a risk indicator beside the prompt field.
+- Keeps the status banner above the page in the bottom-right corner.
+- Optionally replaces detected prompt values with `[REDACTED]` before review.
 - Stores a local audit trail with masked samples.
 - Provides optional semantic analysis with Gemini Nano.
 
@@ -39,6 +41,7 @@ Chrome may require a click to start the download. See the [built-in AI requireme
 Click the extension icon to open its options. You can:
 
 - select the protection level;
+- enable prompt obfuscation for Detection and Heuristic modes;
 - enable categories;
 - install or check Gemini Nano;
 - configure the rules API;

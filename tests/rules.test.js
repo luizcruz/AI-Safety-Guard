@@ -97,8 +97,12 @@ test("conteúdo integra indicador flutuante, Gemini Nano e fallback seguro", () 
   const content = fs.readFileSync(path.join(__dirname, "..", "plugin", "src", "content.js"), "utf8");
   assert.match(content, /createRiskIndicator\(\)/);
   assert.match(content, /ai-safety-guard-indicator/);
-  assert.match(content, /rect\.left \+ 8/);
+  assert.match(content, /right:18px!important;bottom:18px!important/);
+  assert.match(content, /z-index:2147483647!important/);
+  assert.match(content, /observer\.observe\(document,/);
   assert.match(content, /button\[data-state='risk'\]/);
+  assert.match(content, /obfuscatePromptInput/);
+  assert.match(content, /AISafetyGuard\.obfuscate/);
   assert.match(content, /AISafetyNano\.classify\(originalText\)/);
   assert.match(content, /blockEvent\(event\);\s*inspectWithNano/);
   assert.match(content, /replaySubmission\(replay, input\)/);
@@ -118,11 +122,13 @@ test("página de opções apresenta os quatro níveis e instalação do Gemini N
   for (const mode of ["log", "warn", "detect", "heuristic"]) assert.match(options, new RegExp(`value="${mode}"`));
   assert.match(options, /id="install-nano"/);
   assert.match(options, /id="categories"/);
+  assert.match(options, /id="obfuscate-sensitive-data"/);
   assert.match(options, /id="audit-status"/);
   assert.match(options, /id="download-audit"[^>]*>Baixar log<\/button>/);
   assert.match(options, /<script src="nano\.js"><\/script>/);
   assert.match(optionsScript, /AISafetyNano\.install/);
   assert.match(optionsScript, /enforceNanoAvailability/);
+  assert.match(optionsScript, /obfuscateSensitiveData/);
   assert.match(optionsScript, /AISafetyAuditLog\.download\(auditLog\)/);
 });
 

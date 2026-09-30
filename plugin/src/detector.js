@@ -119,6 +119,56 @@
     return `${normalized.slice(0, 3)}••••${normalized.slice(-3)}`;
   }
 
+  function obfuscate(text, options = {}) {
+    const input = String(text || "");
+    const enabledCategories = new Set(options.enabledCategories || Object.keys(CATEGORIES));
+    const ranges = [];
+    const addRange = (start, end) => {
+      if (Number.isInteger(start) && end > start) ranges.push({ start, end });
+    };
+
+    for (const item of compiledPatterns) {
+      if (!enabledCategories.has(item.category)) continue;
+      const flags = item.regex.flags.includes("g") ? item.regex.flags : `${item.regex.flags}g`;
+      const regex = new RegExp(item.regex.source, flags);
+      for (const match of input.matchAll(regex)) {
+        const value = match[0];
+        if (isMasked(value) || PLACEHOLDER.test(value)) continue;
+        const validate = item.validator ? validators[item.validator] : null;
+        const actionable = !item.validator || (validate && validate(value)) || CHECKSUM_IDENTIFIERS.has(item.validator);
+        if (actionable) addRange(match.index, match.index + value.length);
+      }
+    }
+
+    const lower = input.toLocaleLowerCase("pt-BR");
+    for (const rawTerm of Array.isArray(options.sensitiveTerms) ? options.sensitiveTerms : []) {
+      const term = String(rawTerm || "").trim();
+      if (term.length < 3 || term.length > 256) continue;
+      const needle = term.toLocaleLowerCase("pt-BR");
+      let start = lower.indexOf(needle);
+      while (start >= 0) {
+        addRange(start, start + term.length);
+        start = lower.indexOf(needle, start + term.length);
+      }
+    }
+
+    if (!ranges.length) return input;
+    ranges.sort((left, right) => left.start - right.start || right.end - left.end);
+    const merged = [];
+    for (const range of ranges) {
+      const previous = merged.at(-1);
+      if (previous && range.start <= previous.end) previous.end = Math.max(previous.end, range.end);
+      else merged.push({ ...range });
+    }
+    let output = "";
+    let cursor = 0;
+    for (const range of merged) {
+      output += `${input.slice(cursor, range.start)}[REDACTED]`;
+      cursor = range.end;
+    }
+    return output + input.slice(cursor);
+  }
+
   const clampScore = (value) => Math.max(0, Math.min(100, Math.round(value)));
   const contextWindow = (text, index, length) => text.slice(Math.max(0, index - CONTEXT_RADIUS), Math.min(text.length, index + length + CONTEXT_RADIUS));
 
@@ -322,5 +372,5 @@
   }
 
   compileCatalog(catalog);
-  return Object.freeze({ analyze, analyzeFileName, updateCatalog, CATEGORIES, get version() { return catalog.version; }, _internal: Object.freeze({ isLuhnMatch, isIbanMatch, isCpfMatch, isCnpjMatch, isPisMatch, normalizeText, redact, normalizeFileName, aggregateCategoryScores, resultFromFindings }) });
+  return Object.freeze({ analyze, analyzeFileName, obfuscate, updateCatalog, CATEGORIES, get version() { return catalog.version; }, _internal: Object.freeze({ isLuhnMatch, isIbanMatch, isCpfMatch, isCnpjMatch, isPisMatch, normalizeText, redact, normalizeFileName, aggregateCategoryScores, resultFromFindings }) });
 });

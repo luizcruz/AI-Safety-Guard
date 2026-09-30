@@ -2,7 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { analyze, analyzeFileName, updateCatalog, _internal } = require("../plugin/src/detector.js");
+const { analyze, analyzeFileName, obfuscate, updateCatalog, _internal } = require("../plugin/src/detector.js");
 
 test("detecta documentos pessoais", () => {
   const result = analyze("CPF: 123.456.789-09\nRG: 12.345.678-X\nÓrgão Emissor: SSP");
@@ -70,6 +70,18 @@ test("não bloqueia conversa comum", () => {
 test("redação não expõe o valor completo", () => {
   assert.equal(_internal.redact("123.456.789-09"), "123••••-09");
   assert.equal(_internal.isLuhnMatch("4111 1111 1111 1111"), true);
+});
+
+test("ofusca valores detectados e termos semânticos sem alterar texto seguro", () => {
+  assert.equal(
+    obfuscate("CPF 529.982.247-25 e senha AKIA1234567890ABCDEF"),
+    "CPF [REDACTED] e senha [REDACTED]"
+  );
+  assert.equal(obfuscate("Teste CPF 111.222.111-12"), "Teste CPF [REDACTED]");
+  assert.equal(obfuscate("Cartão ilustrativo 1234 5678 9012 3456"), "Cartão ilustrativo 1234 5678 9012 3456");
+  assert.equal(obfuscate("CPF 529.982.247-25", { enabledCategories: ["medical"] }), "CPF 529.982.247-25");
+  assert.equal(obfuscate("Projeto Apollo é confidencial", { sensitiveTerms: ["Projeto Apollo"] }), "[REDACTED] é confidencial");
+  assert.equal(obfuscate("Conversa comum"), "Conversa comum");
 });
 
 test("retorna decisão e confiança determinísticas", () => {

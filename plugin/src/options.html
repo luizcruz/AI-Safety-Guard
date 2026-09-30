@@ -20,6 +20,7 @@
           <label class="mode"><input type="radio" name="protection-mode" value="detect"><span><strong>Detecção</strong><small>Bloqueia riscos encontrados pelas regras determinísticas, validações e análise de anexos.</small></span></label>
           <label class="mode" id="heuristic-card"><input type="radio" name="protection-mode" value="heuristic"><span><strong>Heurística</strong><small>Adiciona análise semântica local com Gemini Nano e bloqueia riscos não capturados pelas regras.</small></span><em id="nano-mode-label">Verificando modelo…</em></label>
         </div>
+        <label class="privacy-option"><input id="obfuscate-sensitive-data" type="checkbox"><span><strong>Ofuscar dados detectados</strong><small>Nos modos Detecção e Heurística, substitui valores localizáveis por <code>[REDACTED]</code> quando o envio é bloqueado.</small></span></label>
       </section>
 
       <section class="card" aria-labelledby="nano-title">

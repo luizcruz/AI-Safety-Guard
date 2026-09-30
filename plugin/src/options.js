@@ -16,6 +16,7 @@
   const installNano = document.querySelector("#install-nano");
   const nanoModeLabel = document.querySelector("#nano-mode-label");
   const heuristicInput = document.querySelector("input[value='heuristic']");
+  const obfuscationInput = document.querySelector("#obfuscate-sensitive-data");
   const modeInputs = [...document.querySelectorAll("input[name='protection-mode']")];
   const categoryInputs = new Map();
   let nanoAvailable = false;
@@ -35,15 +36,18 @@
       try { AISafetyGuard.updateCatalog(remote.rulesCatalog); } catch { /* keep bundled catalog */ }
     }
     renderCategories();
-    const settings = await chrome.storage.sync.get({ enabledCategories: Object.keys(AISafetyGuard.CATEGORIES), knownCategories: [], mode: AISafetyProtectionPolicy.DEFAULT_MODE });
+    const settings = await chrome.storage.sync.get({ enabledCategories: Object.keys(AISafetyGuard.CATEGORIES), knownCategories: [], mode: AISafetyProtectionPolicy.DEFAULT_MODE, obfuscateSensitiveData: false });
     const currentCategories = Object.keys(AISafetyGuard.CATEGORIES);
     const knownCategories = settings.knownCategories.length ? settings.knownCategories : currentCategories.filter((category) => category !== "sensitiveFileNames");
     const addedCategories = currentCategories.filter((category) => !knownCategories.includes(category));
     settings.enabledCategories = [...new Set([...(settings.enabledCategories || currentCategories), ...addedCategories])];
     settings.mode = AISafetyProtectionPolicy.normalizeMode(settings.mode);
-    await chrome.storage.sync.set({ enabledCategories: settings.enabledCategories, knownCategories: currentCategories, mode: settings.mode });
+    settings.obfuscateSensitiveData = settings.obfuscateSensitiveData === true;
+    await chrome.storage.sync.set({ enabledCategories: settings.enabledCategories, knownCategories: currentCategories, mode: settings.mode, obfuscateSensitiveData: settings.obfuscateSensitiveData });
     for (const [key, input] of categoryInputs) input.checked = settings.enabledCategories.includes(key);
     (modeInputs.find((input) => input.value === settings.mode) || modeInputs.find((input) => input.value === AISafetyProtectionPolicy.DEFAULT_MODE)).checked = true;
+    obfuscationInput.checked = settings.obfuscateSensitiveData;
+    updateObfuscationAvailability(settings.mode);
     apiUrl.value = remote.apiUrl;
     apiToken.value = remote.apiToken;
     showRulesStatus(remote.rulesLastError ? `Falha: ${remote.rulesLastError}` : `Regras ativas: v${remote.rulesVersion}`, Boolean(remote.rulesLastError));
@@ -150,6 +154,7 @@
   });
 
   for (const input of modeInputs) input.addEventListener("change", saveProtection);
+  obfuscationInput.addEventListener("change", saveProtection);
 
   async function saveProtection() {
     const selected = modeInputs.find((input) => input.checked)?.value;
@@ -161,9 +166,15 @@
     }
     await chrome.storage.sync.set({
       enabledCategories: [...categoryInputs].filter(([, input]) => input.checked).map(([key]) => key),
-      mode
+      mode,
+      obfuscateSensitiveData: obfuscationInput.checked
     });
+    updateObfuscationAvailability(mode);
     showSaveStatus("Configuração salva", false);
+  }
+
+  function updateObfuscationAvailability(mode) {
+    obfuscationInput.disabled = !["detect", "heuristic"].includes(mode);
   }
 
   function showSaveStatus(message, error) {
