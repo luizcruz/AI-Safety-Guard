@@ -94,7 +94,7 @@ test("limita retenção da auditoria local", async () => {
 test("prepara Gemini Nano automaticamente ou exige conclusão assistida", async () => {
   const state = {};
   const chromeApi = { storage: { local: { set: async (values) => Object.assign(state, values) } } };
-  const ready = { availability: async () => "available", install: async () => undefined, UNSUPPORTED_MESSAGE: "sem suporte" };
+  const ready = { availability: async () => "available", install: async () => assert.fail("não deve criar sessão para validar"), UNSUPPORTED_MESSAGE: "sem suporte" };
   assert.equal((await prepareNano(chromeApi, ready)).state, "available");
   const activationRequired = { availability: async () => "downloadable", install: async () => { throw new Error("user activation required"); }, UNSUPPORTED_MESSAGE: "sem suporte" };
   assert.equal((await prepareNano(chromeApi, activationRequired)).state, "setup-required");

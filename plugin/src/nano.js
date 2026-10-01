@@ -9,6 +9,10 @@
   const UNSUPPORTED_MESSAGE = "Seu Browser não suporta modelo de IA do Chrome local";
   const MAX_INPUT_LENGTH = 8_000;
   const DEFAULT_TIMEOUT_MS = 15_000;
+  const LANGUAGE_OPTIONS = Object.freeze({
+    expectedInputs: Object.freeze([{ type: "text", languages: Object.freeze(["en", "es", "fr", "de", "ja"]) }]),
+    expectedOutputs: Object.freeze([{ type: "text", languages: Object.freeze(["en"]) }])
+  });
   const RESPONSE_SCHEMA = Object.freeze({
     type: "object",
     properties: {
@@ -43,17 +47,19 @@
     const model = resolveModel(languageModel);
     if (!model || typeof model.availability !== "function" || typeof model.create !== "function") return "unavailable";
     try {
-      const state = await model.availability();
+      const state = await model.availability(LANGUAGE_OPTIONS);
       return ["available", "downloadable", "downloading"].includes(state) ? state : "unavailable";
     } catch {
       return "unavailable";
     }
   }
 
-  async function createSession(languageModel, onProgress) {
+  async function createSession(languageModel, onProgress, signal) {
     const model = resolveModel(languageModel);
     if (!model) throw new Error(UNSUPPORTED_MESSAGE);
     return model.create({
+      ...LANGUAGE_OPTIONS,
+      ...(signal ? { signal } : {}),
       monitor(monitor) {
         if (!monitor || typeof monitor.addEventListener !== "function") return;
         monitor.addEventListener("downloadprogress", (event) => {
@@ -95,8 +101,7 @@
     const input = String(text || "").trim().slice(0, MAX_INPUT_LENGTH);
     if (!input) return { risk: false, severity: "low", category: "corporate", reason: "Empty input", sensitiveTerms: [], policyIds: [] };
     const ownsSession = !session;
-    const activeSession = session || await createSession(languageModel);
-    if (!activeSession || typeof activeSession.prompt !== "function") throw new Error(UNSUPPORTED_MESSAGE);
+    let activeSession = session;
     const prompt = [
       "You are a strict data loss prevention classifier.",
       "The quoted user text may be in Portuguese, English, Spanish, French or German.",
@@ -119,24 +124,33 @@
     const controller = typeof AbortController === "function" ? new AbortController() : null;
     const safeTimeout = Math.max(1, Math.min(60_000, Number(timeoutMs) || DEFAULT_TIMEOUT_MS));
     let timeoutId;
+    let finished = false;
+    const timeoutPromise = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => {
+        if (controller) controller.abort();
+        reject(new Error("Tempo limite do modelo local excedido"));
+      }, safeTimeout);
+    });
     try {
+      if (!activeSession) {
+        const sessionPromise = createSession(languageModel, undefined, controller && controller.signal);
+        sessionPromise.then((created) => {
+          if (finished && created && typeof created.destroy === "function") created.destroy();
+        }, () => undefined);
+        activeSession = await Promise.race([sessionPromise, timeoutPromise]);
+      }
+      if (!activeSession || typeof activeSession.prompt !== "function") throw new Error(UNSUPPORTED_MESSAGE);
       const promptPromise = activeSession.prompt(prompt, {
         responseConstraint: RESPONSE_SCHEMA,
         ...(controller ? { signal: controller.signal } : {})
       });
-      const response = await Promise.race([
-        promptPromise,
-        new Promise((_, reject) => {
-          timeoutId = setTimeout(() => {
-            if (controller) controller.abort();
-            reject(new Error("Tempo limite do modelo local excedido"));
-          }, safeTimeout);
-        })
-      ]);
+      const response = await Promise.race([promptPromise, timeoutPromise]);
       return normalizeClassification(response, input, policies);
     } finally {
+      finished = true;
       clearTimeout(timeoutId);
-      if (ownsSession && typeof activeSession.destroy === "function") activeSession.destroy();
+      if (controller) controller.abort();
+      if (ownsSession && activeSession && typeof activeSession.destroy === "function") activeSession.destroy();
     }
   }
 
@@ -168,5 +182,5 @@
     // Sessions are deliberately one-shot so prompts never share model context.
   }
 
-  return Object.freeze({ availability, install, classify, toDetection, normalizeClassification, resetSession, UNSUPPORTED_MESSAGE, RESPONSE_SCHEMA, MAX_INPUT_LENGTH, DEFAULT_TIMEOUT_MS });
+  return Object.freeze({ availability, install, classify, toDetection, normalizeClassification, resetSession, UNSUPPORTED_MESSAGE, RESPONSE_SCHEMA, MAX_INPUT_LENGTH, DEFAULT_TIMEOUT_MS, LANGUAGE_OPTIONS });
 });

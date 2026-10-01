@@ -136,12 +136,7 @@
   async function refreshNanoStatus() {
     const state = await AISafetyNano.availability();
     if (state === "available") {
-      try {
-        await AISafetyNano.install();
-        return setNanoReady();
-      } catch (error) {
-        return setNanoUnavailable(error.message);
-      }
+      return setNanoReady();
     }
     if (state === "downloadable" || state === "downloading") {
       nanoAvailable = false;

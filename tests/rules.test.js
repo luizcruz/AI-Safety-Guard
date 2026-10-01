@@ -53,14 +53,13 @@ test("bibliotecas de documentos são empacotadas localmente", () => {
   }
 });
 
-test("worker PDF é carregado antes da biblioteca para evitar worker blob", () => {
+test("PDF usa Web Worker real para não bloquear a interface", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "plugin", "src", "attachments.js"), "utf8");
   const pdfBundle = fs.readFileSync(path.join(__dirname, "..", "plugin", "vendor", "pdf.mjs"), "utf8");
-  const workerImport = source.indexOf("await import(workerUrl)");
-  const pdfImport = source.indexOf('await import(root.chrome.runtime.getURL("vendor/pdf.mjs"))');
-  assert.ok(workerImport >= 0 && pdfImport > workerImport);
-  assert.match(pdfBundle, /static #isWorkerDisabled = true;/);
-  assert.doesNotMatch(pdfBundle, /static #isWorkerDisabled = false;/);
+  assert.match(source, /new root\.Worker\(workerUrl, \{ type: "module", name: "ai-safety-pdf" \}\)/);
+  assert.match(source, /GlobalWorkerOptions\.workerPort/);
+  assert.match(pdfBundle, /static #isWorkerDisabled = false;/);
+  assert.doesNotMatch(pdfBundle, /static #isWorkerDisabled = true;/);
 });
 
 test("seed da API corresponde ao catálogo embarcado", () => {
@@ -145,6 +144,7 @@ test("página de opções apresenta os quatro níveis e instalação do Gemini N
   assert.match(options, /id="api-settings"/);
   assert.match(options, /<script src="policies\.js"><\/script>[\s\S]*<script src="nano\.js"><\/script>/);
   assert.match(optionsScript, /AISafetyNano\.install/);
+  assert.doesNotMatch(optionsScript, /state === "available"\) \{[\s\S]{0,120}AISafetyNano\.install/);
   assert.match(optionsScript, /AISafetyNano\.classify\(message, \{ policies: heuristicPolicies \}\)/);
   assert.match(optionsScript, /AISafetyPolicies\.addPolicy/);
   assert.match(optionsScript, /enforceNanoAvailability/);

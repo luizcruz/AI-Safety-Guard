@@ -59,7 +59,7 @@ Click the extension icon to select the protection level. Use **Open all settings
 | DOCX | Mammoth.js |
 | DOC | Defensive text extraction |
 
-Limits: 15 MB, 200 pages, 2 million characters, and 20 seconds per analysis. Image-only PDFs require OCR first.
+Limits: 5 MB, 50 pages, 500,000 characters, and 10 seconds per analysis. Files are scanned sequentially. Image-only PDFs require OCR first.
 
 ## Local services
 

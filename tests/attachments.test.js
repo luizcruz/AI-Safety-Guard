@@ -140,6 +140,28 @@ test("registro aguarda falhas de leitura antes de liberar o fluxo", async () => 
   assert.match(completed[0].error, /falha local/);
 });
 
+test("registro processa anexos sequencialmente para limitar CPU e memória", async () => {
+  let active = 0;
+  let peak = 0;
+  const releases = [];
+  const registry = new Registry(async () => {
+    active += 1;
+    peak = Math.max(peak, active);
+    await new Promise((resolve) => releases.push(resolve));
+    active -= 1;
+    return { result: { decision: "allow", blocked: false, findings: [], categories: [] } };
+  });
+  const ids = registry.add([file("a.pdf", createPdf("a")), file("b.pdf", createPdf("b"))]);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(active, 1);
+  releases.shift()();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(active, 1);
+  releases.shift()();
+  await registry.wait(ids);
+  assert.equal(peak, 1);
+});
+
 test("usa nome do arquivo quando não existe leitor para o formato", async () => {
   const result = await scanFile(file("credentials.csv", new TextEncoder().encode("ignored")), analyze, {}, undefined, undefined, require("../plugin/src/detector.js").analyzeFileName);
   assert.equal(result.type, "filename");

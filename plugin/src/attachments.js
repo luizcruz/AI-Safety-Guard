@@ -5,12 +5,13 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function createAttachmentScanner(root) {
   "use strict";
 
-  const MAX_FILE_BYTES = 15 * 1024 * 1024;
-  const MAX_TEXT_CHARS = 2_000_000;
-  const MAX_PDF_PAGES = 200;
+  const MAX_FILE_BYTES = 5 * 1024 * 1024;
+  const MAX_TEXT_CHARS = 500_000;
+  const MAX_PDF_PAGES = 50;
   const MAX_DOCX_EXPANDED_BYTES = 50 * 1024 * 1024;
-  const EXTRACTION_TIMEOUT_MS = 20_000;
+  const EXTRACTION_TIMEOUT_MS = 10_000;
   const RECORD_TTL_MS = 15 * 60 * 1000;
+  let pdfLoaderPromise;
 
   class AttachmentError extends Error {
     constructor(code, message) {
@@ -50,11 +51,23 @@
 
   async function defaultPdfLoader() {
     if (!root.chrome || !root.chrome.runtime) throw new AttachmentError("pdf-unavailable", "Leitor de PDF indisponível");
-    const workerUrl = root.chrome.runtime.getURL("vendor/pdf.worker.mjs");
-    await import(workerUrl);
-    const pdfjs = await import(root.chrome.runtime.getURL("vendor/pdf.mjs"));
-    pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
-    return pdfjs;
+    if (typeof root.Worker !== "function") throw new AttachmentError("pdf-worker-unavailable", "Web Worker para PDF indisponível");
+    if (!pdfLoaderPromise) {
+      pdfLoaderPromise = (async () => {
+        const workerUrl = root.chrome.runtime.getURL("vendor/pdf.worker.mjs");
+        const pdfjs = await import(root.chrome.runtime.getURL("vendor/pdf.mjs"));
+        try {
+          pdfjs.GlobalWorkerOptions.workerPort = new root.Worker(workerUrl, { type: "module", name: "ai-safety-pdf" });
+        } catch {
+          throw new AttachmentError("pdf-worker-unavailable", "O Chrome não permitiu iniciar a análise isolada do PDF");
+        }
+        return pdfjs;
+      })().catch((error) => {
+        pdfLoaderPromise = undefined;
+        throw error;
+      });
+    }
+    return pdfLoaderPromise;
   }
 
   async function defaultMammothLoader() {
@@ -204,6 +217,7 @@
       this._scan = scan;
       this._now = now;
       this._records = new Map();
+      this._queue = Promise.resolve();
     }
 
     add(files) {
@@ -214,7 +228,7 @@
         if (this._records.has(id)) continue;
         const record = { id, fileName: file.name || "documento", status: "pending", createdAt: this._now(), scan: null, error: null };
         this._records.set(id, record);
-        record.completion = Promise.resolve().then(() => this._scan(file)).then((scan) => {
+        record.completion = this._queue.catch(() => undefined).then(() => this._scan(file)).then((scan) => {
           record.scan = scan;
           if (scan.extractionError) {
             record.error = scan.extractionError;
@@ -226,6 +240,7 @@
           record.error = error instanceof Error ? error.message : String(error);
           record.status = "error";
         });
+        this._queue = record.completion;
       }
       return ids;
     }

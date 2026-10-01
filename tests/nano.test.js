@@ -14,6 +14,23 @@ test("detecta indisponibilidade e estados suportados do Gemini Nano", async () =
   assert.equal(await nano.availability({ availability: async () => "unknown", create: async () => ({}) }), "unavailable");
 });
 
+test("declara idiomas suportados na disponibilidade e na criação", async () => {
+  let availabilityOptions;
+  let creationOptions;
+  const model = {
+    availability: async (options) => { availabilityOptions = options; return "available"; },
+    create: async (options) => {
+      creationOptions = options;
+      return { destroy: () => undefined };
+    }
+  };
+  await nano.availability(model);
+  await nano.install({ languageModel: model });
+  assert.deepEqual(availabilityOptions, nano.LANGUAGE_OPTIONS);
+  assert.deepEqual(creationOptions.expectedInputs, nano.LANGUAGE_OPTIONS.expectedInputs);
+  assert.deepEqual(creationOptions.expectedOutputs, nano.LANGUAGE_OPTIONS.expectedOutputs);
+});
+
 test("instala o modelo com progresso e encerra a sessão de preparação", async () => {
   const progress = [];
   let destroyed = false;
@@ -94,6 +111,17 @@ test("interrompe inferência travada e encerra a sessão", async () => {
   await assert.rejects(() => nano.classify("texto", { languageModel, timeoutMs: 5 }), /Tempo limite do modelo local excedido/);
   assert.equal(aborted, true);
   assert.equal(destroyed, true);
+});
+
+test("aplica timeout também à criação da sessão", async () => {
+  let aborted = false;
+  const languageModel = {
+    create: (options) => new Promise(() => {
+      options.signal.addEventListener("abort", () => { aborted = true; });
+    })
+  };
+  await assert.rejects(() => nano.classify("texto", { languageModel, timeoutMs: 5 }), /Tempo limite do modelo local excedido/);
+  assert.equal(aborted, true);
 });
 
 test("falha fechada para resposta inválida e navegador incompatível", async () => {
