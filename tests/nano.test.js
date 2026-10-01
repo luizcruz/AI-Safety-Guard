@@ -3,6 +3,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const nano = require("../plugin/src/nano.js");
+const policyApi = require("../plugin/src/policies.js");
 
 test("detecta indisponibilidade e estados suportados do Gemini Nano", async () => {
   assert.equal(await nano.availability(null), "unavailable");
@@ -37,26 +38,28 @@ test("classifica com saída estruturada e converte risco em detecção", async (
   const session = {
     prompt: async (prompt, options) => {
       captured = { prompt, options };
-      return JSON.stringify({ risk: true, severity: "high", category: "credentials", reason: "Segredo exposto\nno texto", sensitiveTerms: ["password de produção", "valor inexistente"] });
+      return JSON.stringify({ risk: true, severity: "high", category: "credentials", reason: "Segredo exposto\nno texto", sensitiveTerms: ["password de produção", "valor inexistente"], policyIds: ["credentials-secrets", "unknown"] });
     }
   };
-  const classification = await nano.classify("password de produção", { session });
+  const classification = await nano.classify("password de produção", { session, policies: policyApi.normalizePolicies() });
   assert.equal(captured.options.responseConstraint, nano.RESPONSE_SCHEMA);
   assert.match(captured.prompt, /USER_TEXT_START[\s\S]*password de produção[\s\S]*USER_TEXT_END/);
   assert.match(captured.prompt, /Assign severity=low[\s\S]*medium[\s\S]*high[\s\S]*critical/);
-  assert.deepEqual(classification, { risk: true, severity: "high", category: "credentials", reason: "Segredo exposto no texto", sensitiveTerms: ["password de produção"] });
+  assert.match(captured.prompt, /POLICY_JSON_START[\s\S]*credentials-secrets[\s\S]*POLICY_JSON_END/);
+  assert.deepEqual(classification, { risk: true, severity: "high", category: "credentials", reason: "Segredo exposto no texto", sensitiveTerms: ["password de produção"], policyIds: ["credentials-secrets"] });
   const detection = nano.toDetection(classification);
   assert.equal(detection.decision, "block");
   assert.equal(detection.confidence, 80);
   assert.equal(detection.findings[0].family, "local-ai");
   assert.deepEqual(detection.sensitiveTerms, ["password de produção"]);
+  assert.deepEqual(detection.policyIds, ["credentials-secrets"]);
 });
 
 test("resultado seguro não cria achados e entrada vazia não chama o modelo", async () => {
   const safe = nano.toDetection({ risk: false, severity: "low", category: "corporate", reason: "público", sensitiveTerms: [] });
   assert.equal(safe.decision, "allow");
   assert.deepEqual(safe.findings, []);
-  assert.deepEqual(await nano.classify("", { session: { prompt: () => assert.fail("não deve chamar") } }), { risk: false, severity: "low", category: "corporate", reason: "Empty input", sensitiveTerms: [] });
+  assert.deepEqual(await nano.classify("", { session: { prompt: () => assert.fail("não deve chamar") } }), { risk: false, severity: "low", category: "corporate", reason: "Empty input", sensitiveTerms: [], policyIds: [] });
 });
 
 test("cada classificação usa e encerra uma sessão isolada", async () => {
@@ -66,7 +69,7 @@ test("cada classificação usa e encerra uma sessão isolada", async () => {
     create: async () => {
       created += 1;
       return {
-        prompt: async () => JSON.stringify({ risk: false, severity: "low", category: "corporate", reason: "public", sensitiveTerms: [] }),
+        prompt: async () => JSON.stringify({ risk: false, severity: "low", category: "corporate", reason: "public", sensitiveTerms: [], policyIds: [] }),
         destroy: () => { destroyed += 1; }
       };
     }

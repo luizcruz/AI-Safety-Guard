@@ -47,14 +47,18 @@ test("não substitui catálogo por versão igual ou anterior", async () => {
 });
 
 test("sanitiza registros de auditoria sem conteúdo multilinha", () => {
-  const entry = sanitizeAuditEntry({ timestamp: "inválida", ai: "Gemini\nforjado", confidence: 87, decision: "block", findings: [{ category: "Credenciais", label: "JWT\r\nToken", sample: "eyJ***", source: "prompt" }] }, () => new Date("2026-08-16T12:00:00Z"));
+  const entry = sanitizeAuditEntry({ timestamp: "inválida", ai: "Gemini\nforjado", mode: "heuristic", confidence: 87, decision: "block", policyIds: ["credentials-secrets", "inválida!", "credentials-secrets"], policies: ["Credenciais\ncríticas", "Credenciais\ncríticas"], findings: [{ category: "Credenciais", label: "JWT\r\nToken", sample: "eyJ***", source: "prompt" }] }, () => new Date("2026-08-16T12:00:00Z"));
   assert.equal(entry.timestamp, "2026-08-16T12:00:00.000Z");
   assert.equal(entry.ai, "Gemini forjado");
   assert.equal(entry.findings[0].label, "JWT Token");
   assert.equal(entry.confidence, 87);
   assert.equal(entry.decision, "block");
+  assert.equal(entry.mode, "heuristic");
+  assert.deepEqual(entry.policyIds, ["credentials-secrets"]);
+  assert.deepEqual(entry.policies, ["Credenciais críticas"]);
   assert.equal(sanitizeAuditEntry({ confidence: 999, decision: "invalid" }).confidence, 100);
   assert.equal(sanitizeAuditEntry({ confidence: 999, decision: "invalid" }).decision, "allow");
+  assert.equal(sanitizeAuditEntry({ mode: "invalid" }).mode, "unknown");
 });
 
 test("persiste auditoria silenciosamente no armazenamento local", async () => {
@@ -112,8 +116,7 @@ test("registra eventos do Chrome, descarta cache antigo e persiste catálogo atu
       onInstalled: { addListener: (listener) => { listeners.installed = listener; } },
       onMessage: { addListener: (listener) => { listeners.message = listener; } },
       openOptionsPage: async () => { optionsOpened += 1; }
-    },
-    action: { onClicked: { addListener: (listener) => { listeners.action = listener; } } }
+    }
   };
   const catalog = { ...bundled, version: "1.3.1" };
   const updater = register(chromeApi, async () => ({ ok: true, json: async () => catalog }));
@@ -123,20 +126,16 @@ test("registra eventos do Chrome, descarta cache antigo e persiste catálogo atu
   assert.equal(state.rulesCatalog.version, "1.3.1");
   assert.equal(typeof listeners.startup, "function");
   assert.equal(typeof listeners.installed, "function");
-  assert.equal(typeof listeners.action, "function");
   listeners.installed({ reason: "install" });
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(state.nanoStatus.state, "setup-required");
   assert.equal(optionsOpened, 1);
-  listeners.action();
-  await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(optionsOpened, 2);
   assert.equal(listeners.message({ type: "IGNORED" }, null, () => undefined), false);
   const optionsResponse = await new Promise((resolve) => {
     assert.equal(listeners.message({ type: "OPEN_OPTIONS" }, null, resolve), true);
   });
   assert.equal(optionsResponse.ok, true);
-  assert.equal(optionsOpened, 3);
+  assert.equal(optionsOpened, 2);
   const auditResponse = await new Promise((resolve) => {
     assert.equal(listeners.message({ type: "RECORD_DETECTION", entry: { ai: "Gemini", findings: [] } }, null, resolve), true);
   });

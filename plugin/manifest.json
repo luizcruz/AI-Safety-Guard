@@ -17,6 +17,7 @@
   },
   "action": {
     "default_title": "AI Safety Guard v2.0",
+    "default_popup": "src/popup.html",
     "default_icon": {
       "16": "icons/ai-safety-guard-16.png",
       "32": "icons/ai-safety-guard-32.png",
@@ -43,7 +44,7 @@
         "https://kimi.com/*",
         "https://www.kimi.com/*"
       ],
-      "js": ["src/platforms.js", "src/protection-policy.js", "src/rules.js", "src/detector.js", "src/attachments.js", "src/nano.js", "src/content.js"],
+      "js": ["src/platforms.js", "src/protection-policy.js", "src/rules.js", "src/detector.js", "src/attachments.js", "src/policies.js", "src/nano.js", "src/content.js"],
       "run_at": "document_start"
     }
   ],

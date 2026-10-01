@@ -13,7 +13,9 @@ Prompts, attachments, and audit events are processed locally. The rules API neve
 - Keeps the status banner above the page in the bottom-right corner.
 - Optionally replaces detected prompt values with `[REDACTED]` before review.
 - Stores a local audit trail with masked samples.
+- Records Heuristic-mode blocks with matched policy IDs.
 - Provides optional semantic analysis with Gemini Nano.
+- Includes configurable heuristic policies with context and exceptions.
 
 ## Protection levels
 
@@ -38,12 +40,13 @@ Chrome may require a click to start the download. See the [built-in AI requireme
 
 ## Configuration
 
-Click the extension icon to open its options. You can:
+Click the extension icon to select the protection level. Use **Open all settings** for the complete configuration page, where you can:
 
 - select the protection level;
 - enable prompt obfuscation for Detection and Heuristic modes;
 - install or validate Gemini Nano and run a local risk test;
 - enable categories;
+- manage built-in and custom heuristic policies;
 - inspect and download the local audit log;
 - configure and refresh the rules API.
 
@@ -98,6 +101,7 @@ api/.venv/bin/python -m pytest api/tests
 - `plugin/src/rules.js`: bundled rule catalog.
 - `plugin/src/detector.js`: deterministic detection.
 - `plugin/src/nano.js`: Gemini Nano integration.
+- `plugin/src/policies.js`: nuanced heuristic policy catalog.
 - `plugin/src/content.js`: interception and risk indicator.
 - `plugin/src/options.html`: extension settings.
 - `api/`: FastAPI rules API.

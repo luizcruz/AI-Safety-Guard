@@ -69,12 +69,29 @@ textarea:focus, input:focus { outline: 3px solid #bbf7d0; border-color: #16a34a;
 .server-form { display: grid; grid-template-columns: 1fr 1fr auto; align-items: end; gap: 12px; }
 .server-form label { font-weight: 700; font-size: 13px; }
 .server-form input { display: block; margin-top: 5px; }
+.policies-list { display: grid; gap: 12px; }
+.policy-item { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: start; padding: 15px; border: 1px solid #dbe3ee; border-radius: 12px; background: #f8fafc; }
+.policy-item input[type="checkbox"] { margin-top: 5px; accent-color: #16a34a; }
+.policy-item h3 { margin: 0; font-size: 15px; }
+.policy-item p { margin: 4px 0; color: #64748b; font-size: 13px; }
+.policy-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.policy-meta span { border-radius: 999px; padding: 3px 8px; background: #e2e8f0; color: #334155; font-size: 11px; }
+.policy-item .remove-policy { padding: 6px 9px; background: #991b1b; font-size: 12px; }
+.policy-form { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px; margin-top: 24px; padding-top: 20px; border-top: 1px solid #e2e8f0; }
+.policy-form h3, .policy-form .wide { grid-column: 1 / -1; }
+.policy-form h3 { margin: 0; }
+.policy-form label { font-weight: 700; font-size: 13px; }
+.policy-form input, .policy-form select, .policy-form textarea { display: block; width: 100%; margin-top: 5px; border: 1px solid #cbd5e1; border-radius: 9px; padding: 10px; background: #fff; }
+.policy-form button { justify-self: start; }
 
 @media (max-width: 720px) {
   .hero { align-items: flex-start; padding: 24px; }
   .hero img { width: 52px; height: 52px; }
   .options-shell { padding: 0 12px; }
-  .modes, .categories, .server-form { grid-template-columns: 1fr; }
+  .modes, .categories, .server-form, .policy-form { grid-template-columns: 1fr; }
+  .policy-form h3, .policy-form .wide { grid-column: auto; }
+  .policy-item { grid-template-columns: auto 1fr; }
+  .policy-item .remove-policy { grid-column: 2; justify-self: start; }
   .section-heading { align-items: stretch; flex-direction: column; }
   .tabs button { flex-basis: auto; }
 }

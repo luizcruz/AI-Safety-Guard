@@ -67,8 +67,11 @@ if (typeof importScripts === "function" && typeof globalThis.AISafetyNano === "u
     return {
       timestamp,
       ai: clean(entry && entry.ai, 80) || "Desconhecida",
+      mode: ["log", "warn", "detect", "heuristic"].includes(entry && entry.mode) ? entry.mode : "unknown",
       confidence: Math.max(0, Math.min(100, Number(entry && entry.confidence) || 0)),
       decision: ["block", "warn", "allow"].includes(entry && entry.decision) ? entry.decision : "allow",
+      policyIds: Array.isArray(entry && entry.policyIds) ? [...new Set(entry.policyIds.map((id) => clean(id, 64)).filter((id) => /^[a-z0-9-]{3,64}$/.test(id)))].slice(0, 5) : [],
+      policies: Array.isArray(entry && entry.policies) ? [...new Set(entry.policies.map((name) => clean(name, 80)).filter(Boolean))].slice(0, 5) : [],
       findings: Array.isArray(entry && entry.findings) ? entry.findings.slice(0, 10).map((finding) => ({
         category: clean(finding.category, 120),
         label: clean(finding.label, 180),
@@ -133,9 +136,6 @@ if (typeof importScripts === "function" && typeof globalThis.AISafetyNano === "u
           .catch(() => undefined);
       }
     });
-    if (chromeApi.action && chromeApi.action.onClicked && chromeApi.runtime.openOptionsPage) {
-      chromeApi.action.onClicked.addListener(() => { chromeApi.runtime.openOptionsPage().catch(() => undefined); });
-    }
     chromeApi.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (message && message.type === "OPEN_OPTIONS" && chromeApi.runtime.openOptionsPage) {
         chromeApi.runtime.openOptionsPage().then(() => sendResponse({ ok: true })).catch((error) => sendResponse({ ok: false, error: error.message }));

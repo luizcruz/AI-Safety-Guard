@@ -21,6 +21,7 @@
         <button id="tab-protection" role="tab" aria-selected="true" aria-controls="panel-protection" data-tab="protection" type="button">Nível de proteção</button>
         <button id="tab-local-ai" role="tab" aria-selected="false" aria-controls="panel-local-ai" data-tab="local-ai" tabindex="-1" type="button">IA local</button>
         <button id="tab-rules" role="tab" aria-selected="false" aria-controls="panel-rules" data-tab="rules" tabindex="-1" type="button">Regras</button>
+        <button id="tab-policies" role="tab" aria-selected="false" aria-controls="panel-policies" data-tab="policies" tabindex="-1" type="button">Políticas</button>
         <button id="tab-audit" role="tab" aria-selected="false" aria-controls="panel-audit" data-tab="audit" tabindex="-1" type="button">Auditoria</button>
         <button id="tab-server" role="tab" aria-selected="false" aria-controls="panel-server" data-tab="server" tabindex="-1" type="button">Servidor</button>
       </nav>
@@ -67,6 +68,26 @@
           <div id="categories" class="categories"></div>
         </section>
 
+        <section id="panel-policies" class="card tab-panel" role="tabpanel" aria-labelledby="tab-policies" data-panel="policies" hidden>
+          <div class="section-heading">
+            <div><h2>Políticas heurísticas</h2><p>Defina casos específicos com indicadores, contexto obrigatório, exceções e severidade.</p></div>
+            <span id="policy-status" class="pill" role="status">Carregando…</span>
+          </div>
+          <div id="policies-list" class="policies-list"></div>
+
+          <form id="policy-form" class="policy-form">
+            <h3>Adicionar política</h3>
+            <label>Nome<input id="policy-name" maxlength="80" required></label>
+            <label>Categoria<select id="policy-category" required></select></label>
+            <label>Severidade<select id="policy-severity" required><option value="medium">Média</option><option value="high" selected>Alta</option><option value="critical">Crítica</option></select></label>
+            <label class="wide">Descrição<textarea id="policy-description" rows="2" maxlength="240" required></textarea></label>
+            <label class="wide">Indicadores separados por vírgula<input id="policy-terms" required placeholder="sob embargo, não publicar"></label>
+            <label class="wide">Contexto obrigatório separado por vírgula<input id="policy-context" placeholder="projeto, diretoria"></label>
+            <label class="wide">Exceções separadas por vírgula<input id="policy-exceptions" placeholder="já publicado, exemplo fictício"></label>
+            <button type="submit">Adicionar política</button>
+          </form>
+        </section>
+
         <section id="panel-audit" class="card tab-panel" role="tabpanel" aria-labelledby="tab-audit" data-panel="audit" hidden>
           <div class="section-heading">
             <div><h2>Auditoria local</h2><p>Consulte os registros mascarados armazenados neste navegador.</p></div>
@@ -94,6 +115,7 @@
     <script src="detector.js"></script>
     <script src="audit-log.js"></script>
     <script src="protection-policy.js"></script>
+    <script src="policies.js"></script>
     <script src="nano.js"></script>
     <script src="options.js"></script>
   </body>
