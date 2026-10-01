@@ -40,7 +40,7 @@ Chrome may require a click to start the download. See the [built-in AI requireme
 
 ## Configuration
 
-Click the extension icon to open its options. You can:
+Click the extension icon to select the protection level. Use **Open all settings** for the complete configuration page, where you can:
 
 - select the protection level;
 - enable prompt obfuscation for Detection and Heuristic modes;

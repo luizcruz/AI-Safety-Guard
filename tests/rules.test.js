@@ -90,6 +90,7 @@ test("alerta explicita as categorias possivelmente infringidas", () => {
   assert.match(content, /createEmissionGate/);
   assert.match(content, /RECORD_DETECTION/);
   assert.match(content, /settings\.mode === "heuristic"\) recordAudit\(result\.findings/);
+  assert.match(content, /settings\.mode === "heuristic"\) recordAudit\(findings, \{ decision: "block", confidence: 100 \}\)/);
   assert.match(content, /policyIds: Array\.isArray\(result\.policyIds\)/);
   assert.match(content, /AI Safety Guard - Aviso/);
   assert.doesNotMatch(content, /warnedDetections|recentAuditRecords|handledMode|showWarningOnce/);
@@ -119,7 +120,7 @@ test("página de opções apresenta os quatro níveis e instalação do Gemini N
   const optionsScript = fs.readFileSync(path.join(root, "plugin", "src", "options.js"), "utf8");
   assert.equal(manifest.options_ui.page, "src/options.html");
   assert.equal(manifest.options_ui.open_in_tab, true);
-  assert.equal(manifest.action.default_popup, undefined);
+  assert.equal(manifest.action.default_popup, "src/popup.html");
   assert.ok(manifest.web_accessible_resources[0].resources.includes("icons/ai-safety-guard-32.png"));
   for (const tab of ["protection", "local-ai", "rules", "policies", "audit", "server"]) {
     assert.match(options, new RegExp(`data-tab="${tab}"`));
@@ -148,6 +149,19 @@ test("página de opções apresenta os quatro níveis e instalação do Gemini N
   assert.match(optionsScript, /AISafetyAuditLog\.download\(auditLog\)/);
   assert.match(optionsScript, /REFRESH_RULES/);
   assert.match(optionsScript, /ArrowRight/);
+});
+
+test("popup permite selecionar nível por controle deslizante", () => {
+  const root = path.join(__dirname, "..");
+  const popup = fs.readFileSync(path.join(root, "plugin", "src", "popup.html"), "utf8");
+  const popupScript = fs.readFileSync(path.join(root, "plugin", "src", "popup.js"), "utf8");
+  assert.match(popup, /id="mode-slider"[^>]*type="range"[^>]*min="0"[^>]*max="3"/);
+  for (const label of ["Registrar", "Avisar", "Detecção", "Heurística"]) assert.match(popup, new RegExp(label));
+  assert.match(popup, /id="open-options"[^>]*>Abrir todas as configurações<\/button>/);
+  assert.match(popupScript, /AISafetyNano\.availability\(\)/);
+  assert.match(popupScript, /enforceNanoAvailability/);
+  assert.match(popupScript, /chrome\.storage\.sync\.set\(\{ mode \}\)/);
+  assert.match(popupScript, /chrome\.runtime\.openOptionsPage\(\)/);
 });
 
 test("identidade pública usa exclusivamente AI Safety Guard v2.0", () => {

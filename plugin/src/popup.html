@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>AI Safety Guard</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <header>
+      <img src="../icons/ai-safety-guard-48.png" alt="" width="40" height="40">
+      <div><strong>AI Safety Guard</strong><span>Proteção local ativa</span></div>
+    </header>
+
+    <main>
+      <div class="current"><span>Nível de proteção</span><strong id="mode-name">Carregando…</strong></div>
+      <input id="mode-slider" type="range" min="0" max="3" step="1" value="2" aria-label="Nível de proteção" aria-describedby="mode-description">
+      <div class="marks" aria-hidden="true"><span>Registrar</span><span>Avisar</span><span>Detecção</span><span id="heuristic-mark">Heurística</span></div>
+      <p id="mode-description">Carregando configuração.</p>
+      <p id="nano-status" class="status" role="status"></p>
+      <p id="save-status" class="save-status" role="status" aria-live="polite"></p>
+    </main>
+
+    <footer><button id="open-options" type="button">Abrir todas as configurações</button></footer>
+
+    <script src="protection-policy.js"></script>
+    <script src="policies.js"></script>
+    <script src="nano.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>

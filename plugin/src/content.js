@@ -218,8 +218,10 @@
   function handleInspectionIssue(records, input, event) {
     riskIndicator.position(input);
     riskIndicator.set("risk", "Anexo não pôde ser analisado");
+    const findings = [{ category: "attachmentAnalysis", label: "Falha na análise do anexo", sample: records.map((record) => record.error || "falha desconhecida").join("; "), source: records.map((record) => record.fileName).join(", ") }];
     if (["detect", "heuristic"].includes(settings.mode)) {
       if (event) blockEvent(event);
+      if (settings.mode === "heuristic") recordAudit(findings, { decision: "block", confidence: 100 });
       showInspectionAlert("Anexo não pôde ser analisado", "Por segurança, remova o arquivo ou converta-o para um PDF/DOCX com texto extraível.", records, input);
       return false;
     }
@@ -229,7 +231,7 @@
         showInspectionAlert("AI Safety Guard - Aviso", "O anexo não pôde ser analisado. O envio será permitido conforme o modo selecionado.", records, input);
       }
     } else {
-      recordAudit([{ category: "attachmentAnalysis", label: "Falha na análise do anexo", sample: records.map((record) => record.error || "falha desconhecida").join("; "), source: records.map((record) => record.fileName).join(", ") }]);
+      recordAudit(findings);
     }
     return true;
   }
