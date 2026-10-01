@@ -80,6 +80,22 @@ test("cada classificação usa e encerra uma sessão isolada", async () => {
   assert.equal(destroyed, 2);
 });
 
+test("interrompe inferência travada e encerra a sessão", async () => {
+  let destroyed = false;
+  let aborted = false;
+  const languageModel = {
+    create: async () => ({
+      prompt: (_prompt, options) => new Promise(() => {
+        options.signal.addEventListener("abort", () => { aborted = true; });
+      }),
+      destroy: () => { destroyed = true; }
+    })
+  };
+  await assert.rejects(() => nano.classify("texto", { languageModel, timeoutMs: 5 }), /Tempo limite do modelo local excedido/);
+  assert.equal(aborted, true);
+  assert.equal(destroyed, true);
+});
+
 test("falha fechada para resposta inválida e navegador incompatível", async () => {
   await assert.rejects(() => nano.install({ languageModel: {} }), new RegExp(nano.UNSUPPORTED_MESSAGE));
   await assert.rejects(() => nano.classify("texto", { session: { prompt: async () => "{}" } }), /Resposta inválida/);

@@ -102,11 +102,15 @@ test("conteúdo integra indicador flutuante, Gemini Nano e fallback seguro", () 
   assert.match(content, /ai-safety-guard-indicator/);
   assert.match(content, /right:18px!important;bottom:18px!important/);
   assert.match(content, /z-index:2147483647!important/);
-  assert.match(content, /observer\.observe\(document,/);
+  assert.match(content, /documentObserver\.observe\(document, \{ childList: true \}\)/);
+  assert.match(content, /rootObserver\.observe\(observedRoot, \{ childList: true \}\)/);
+  assert.doesNotMatch(content, /observer\.observe\(document, \{ childList: true, subtree: true \}\)/);
+  assert.match(content, /MAX_LIVE_SCAN_CHARS = 20_000/);
+  assert.match(content, /MAX_PROMPT_CHARS = 100_000/);
   assert.match(content, /button\[data-state='risk'\]/);
   assert.match(content, /obfuscatePromptInput/);
   assert.match(content, /AISafetyGuard\.obfuscate/);
-  assert.match(content, /AISafetyNano\.classify\(originalText, \{ policies: settings\.policies \}\)/);
+  assert.match(content, /AISafetyNano\.classify\(originalText, \{ policies: settings\.policies, timeoutMs: NANO_TIMEOUT_MS \}\)/);
   assert.match(content, /blockEvent\(event\);\s*inspectWithNano/);
   assert.match(content, /replaySubmission\(replay, input\)/);
   assert.match(content, /AISafetyProtectionPolicy\.DEFAULT_MODE/);

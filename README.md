@@ -16,6 +16,7 @@ Prompts, attachments, and audit events are processed locally. The rules API neve
 - Records Heuristic-mode blocks with matched policy IDs.
 - Provides optional semantic analysis with Gemini Nano.
 - Includes configurable heuristic policies with context and exceptions.
+- Limits live scanning, oversized prompts, and local-model execution to protect browser responsiveness.
 
 ## Protection levels
 

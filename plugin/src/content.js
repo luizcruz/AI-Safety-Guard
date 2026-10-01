@@ -23,6 +23,9 @@
     "[contenteditable='true']",
     ...(platform ? platform.inputSelectors : [])
   ])].join(",");
+  const MAX_LIVE_SCAN_CHARS = 20_000;
+  const MAX_PROMPT_CHARS = 100_000;
+  const NANO_TIMEOUT_MS = 15_000;
   let settings = DEFAULTS;
   let overlay = null;
   let internalSend = false;
@@ -315,7 +318,7 @@
       const allowed = handleDetection(resultFromRecords(attachmentDetections), input, event);
       if (!allowed) return true;
     }
-    const result = AISafetyGuard.analyze(readInput(input), settings);
+    const result = analyzePrompt(readInput(input));
     if (result.decision === "allow") {
       setTimeout(() => attachments.clear(), 2000);
       return false;
@@ -338,13 +341,13 @@
       if (attachmentState.errors.length && !handleInspectionIssue(attachmentState.errors, input)) return;
       const attachmentDetections = [...attachmentState.blocked, ...attachmentState.warnings];
       if (attachmentDetections.length && !handleDetection(resultFromRecords(attachmentDetections), input)) return;
-      const deterministic = AISafetyGuard.analyze(originalText, settings);
+      const deterministic = analyzePrompt(originalText);
       if (deterministic.decision !== "allow") {
         handleDetection(deterministic, input);
         return;
       }
       riskIndicator.set("analyzing", "Gemini Nano analisando…");
-      const classification = await withTimeout(AISafetyNano.classify(originalText, { policies: settings.policies }), 30_000);
+      const classification = await AISafetyNano.classify(originalText, { policies: settings.policies, timeoutMs: NANO_TIMEOUT_MS });
       if (readInput(input) !== originalText) {
         riskIndicator.set("safe", "Prompt alterado — analise novamente");
         return;
@@ -365,11 +368,16 @@
     }
   }
 
-  function withTimeout(promise, timeoutMs) {
-    return Promise.race([
-      promise,
-      new Promise((_, reject) => setTimeout(() => reject(new Error("Tempo limite do modelo local excedido")), timeoutMs))
-    ]);
+  function analyzePrompt(text) {
+    if (text.length <= MAX_PROMPT_CHARS) return AISafetyGuard.analyze(text, settings);
+    const finding = {
+      category: "corporate",
+      label: "Prompt excede o limite seguro de análise",
+      family: "resource-guard",
+      score: 100,
+      sample: `${text.length} caracteres`
+    };
+    return { decision: "block", confidence: 100, confidenceLevel: "high", blocked: true, findings: [finding], categories: [finding.category] };
   }
 
   async function ensureNanoAvailable() {
@@ -412,8 +420,13 @@
     riskIndicator.position(input);
     clearTimeout(typingTimer);
     typingTimer = setTimeout(() => {
-      if (!input.isConnected) return;
-      const result = AISafetyGuard.analyze(readInput(input), settings);
+      if (!input.isConnected || document.hidden) return;
+      const text = readInput(input);
+      if (text.length > MAX_LIVE_SCAN_CHARS) {
+        riskIndicator.set("analyzing", "Mensagem extensa — análise no envio");
+        return;
+      }
+      const result = analyzePrompt(text);
       if (result.decision === "allow") riskIndicator.set("safe", "Nenhum risco identificado");
       else riskIndicator.set("risk", `${result.findings.length} risco${result.findings.length === 1 ? "" : "s"} identificado${result.findings.length === 1 ? "" : "s"}`);
     }, 350);
@@ -464,10 +477,20 @@
     };
     if (document.documentElement) mount();
     else document.addEventListener("DOMContentLoaded", mount, { once: true });
-    const observer = new MutationObserver(() => {
+    let observedRoot = null;
+    const rootObserver = new MutationObserver(() => {
       if (!host.isConnected) mount();
     });
-    observer.observe(document, { childList: true, subtree: true });
+    const observeRoot = () => {
+      if (observedRoot === document.documentElement) return;
+      rootObserver.disconnect();
+      observedRoot = document.documentElement;
+      if (observedRoot) rootObserver.observe(observedRoot, { childList: true });
+      mount();
+    };
+    const documentObserver = new MutationObserver(observeRoot);
+    documentObserver.observe(document, { childList: true });
+    observeRoot();
 
     function position() {
       if (!host.isConnected) mount();

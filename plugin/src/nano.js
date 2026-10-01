@@ -7,7 +7,8 @@
   "use strict";
 
   const UNSUPPORTED_MESSAGE = "Seu Browser não suporta modelo de IA do Chrome local";
-  const MAX_INPUT_LENGTH = 12_000;
+  const MAX_INPUT_LENGTH = 8_000;
+  const DEFAULT_TIMEOUT_MS = 15_000;
   const RESPONSE_SCHEMA = Object.freeze({
     type: "object",
     properties: {
@@ -90,7 +91,7 @@
     return { risk: parsed.risk, severity, category, reason, sensitiveTerms, policyIds: matchedPolicyIds };
   }
 
-  async function classify(text, { languageModel, session, policies = [] } = {}) {
+  async function classify(text, { languageModel, session, policies = [], timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
     const input = String(text || "").trim().slice(0, MAX_INPUT_LENGTH);
     if (!input) return { risk: false, severity: "low", category: "corporate", reason: "Empty input", sensitiveTerms: [], policyIds: [] };
     const ownsSession = !session;
@@ -115,10 +116,26 @@
       input,
       "USER_TEXT_END"
     ].join("\n");
+    const controller = typeof AbortController === "function" ? new AbortController() : null;
+    const safeTimeout = Math.max(1, Math.min(60_000, Number(timeoutMs) || DEFAULT_TIMEOUT_MS));
+    let timeoutId;
     try {
-      const response = await activeSession.prompt(prompt, { responseConstraint: RESPONSE_SCHEMA });
+      const promptPromise = activeSession.prompt(prompt, {
+        responseConstraint: RESPONSE_SCHEMA,
+        ...(controller ? { signal: controller.signal } : {})
+      });
+      const response = await Promise.race([
+        promptPromise,
+        new Promise((_, reject) => {
+          timeoutId = setTimeout(() => {
+            if (controller) controller.abort();
+            reject(new Error("Tempo limite do modelo local excedido"));
+          }, safeTimeout);
+        })
+      ]);
       return normalizeClassification(response, input, policies);
     } finally {
+      clearTimeout(timeoutId);
       if (ownsSession && typeof activeSession.destroy === "function") activeSession.destroy();
     }
   }
@@ -151,5 +168,5 @@
     // Sessions are deliberately one-shot so prompts never share model context.
   }
 
-  return Object.freeze({ availability, install, classify, toDetection, normalizeClassification, resetSession, UNSUPPORTED_MESSAGE, RESPONSE_SCHEMA, MAX_INPUT_LENGTH });
+  return Object.freeze({ availability, install, classify, toDetection, normalizeClassification, resetSession, UNSUPPORTED_MESSAGE, RESPONSE_SCHEMA, MAX_INPUT_LENGTH, DEFAULT_TIMEOUT_MS });
 });
