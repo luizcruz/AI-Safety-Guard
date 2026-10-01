@@ -8,7 +8,7 @@
 
   const UNSUPPORTED_MESSAGE = "Seu Browser não suporta modelo de IA do Chrome local";
   const MAX_INPUT_LENGTH = 8_000;
-  const DEFAULT_TIMEOUT_MS = 15_000;
+  const DEFAULT_TIMEOUT_MS = 45_000;
   const LANGUAGE_OPTIONS = Object.freeze({
     expectedInputs: Object.freeze([{ type: "text", languages: Object.freeze(["en", "es", "fr", "de", "ja"]) }]),
     expectedOutputs: Object.freeze([{ type: "text", languages: Object.freeze(["en"]) }])
@@ -127,8 +127,9 @@
     let finished = false;
     const timeoutPromise = new Promise((_, reject) => {
       timeoutId = setTimeout(() => {
-        if (controller) controller.abort();
-        reject(new Error("Tempo limite do modelo local excedido"));
+        const timeoutError = new Error("Tempo limite do modelo local excedido");
+        reject(timeoutError);
+        if (controller && !controller.signal.aborted) controller.abort(timeoutError);
       }, safeTimeout);
     });
     try {
@@ -149,7 +150,6 @@
     } finally {
       finished = true;
       clearTimeout(timeoutId);
-      if (controller) controller.abort();
       if (ownsSession && activeSession && typeof activeSession.destroy === "function") activeSession.destroy();
     }
   }

@@ -60,6 +60,7 @@ test("classifica com saída estruturada e converte risco em detecção", async (
   };
   const classification = await nano.classify("password de produção", { session, policies: policyApi.normalizePolicies() });
   assert.equal(captured.options.responseConstraint, nano.RESPONSE_SCHEMA);
+  assert.equal(captured.options.signal.aborted, false);
   assert.match(captured.prompt, /USER_TEXT_START[\s\S]*password de produção[\s\S]*USER_TEXT_END/);
   assert.match(captured.prompt, /Assign severity=low[\s\S]*medium[\s\S]*high[\s\S]*critical/);
   assert.match(captured.prompt, /POLICY_JSON_START[\s\S]*credentials-secrets[\s\S]*POLICY_JSON_END/);

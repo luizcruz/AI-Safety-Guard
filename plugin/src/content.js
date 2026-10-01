@@ -25,7 +25,7 @@
   ])].join(",");
   const MAX_LIVE_SCAN_CHARS = 20_000;
   const MAX_PROMPT_CHARS = 100_000;
-  const NANO_TIMEOUT_MS = 15_000;
+  const NANO_TIMEOUT_MS = 45_000;
   let settings = DEFAULTS;
   let overlay = null;
   let internalSend = false;
