@@ -20,7 +20,7 @@ test("todas as regras apontam para categorias existentes", () => {
 
 test("manifest carrega catálogo antes do detector", () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "plugin", "manifest.json"), "utf8"));
-  assert.deepEqual(manifest.content_scripts[0].js, ["src/platforms.js", "src/protection-policy.js", "src/rules.js", "src/detector.js", "src/attachments.js", "src/nano.js", "src/content.js"]);
+  assert.deepEqual(manifest.content_scripts[0].js, ["src/platforms.js", "src/protection-policy.js", "src/rules.js", "src/detector.js", "src/attachments.js", "src/policies.js", "src/nano.js", "src/content.js"]);
   assert.equal(manifest.background.service_worker, "src/background.js");
   assert.deepEqual(manifest.permissions, ["storage"]);
 });
@@ -89,6 +89,8 @@ test("alerta explicita as categorias possivelmente infringidas", () => {
   assert.match(content, /AISafetyProtectionPolicy\.actionFor/);
   assert.match(content, /createEmissionGate/);
   assert.match(content, /RECORD_DETECTION/);
+  assert.match(content, /settings\.mode === "heuristic"\) recordAudit\(result\.findings/);
+  assert.match(content, /policyIds: Array\.isArray\(result\.policyIds\)/);
   assert.match(content, /AI Safety Guard - Aviso/);
   assert.doesNotMatch(content, /warnedDetections|recentAuditRecords|handledMode|showWarningOnce/);
 });
@@ -103,7 +105,7 @@ test("conteúdo integra indicador flutuante, Gemini Nano e fallback seguro", () 
   assert.match(content, /button\[data-state='risk'\]/);
   assert.match(content, /obfuscatePromptInput/);
   assert.match(content, /AISafetyGuard\.obfuscate/);
-  assert.match(content, /AISafetyNano\.classify\(originalText\)/);
+  assert.match(content, /AISafetyNano\.classify\(originalText, \{ policies: settings\.policies \}\)/);
   assert.match(content, /blockEvent\(event\);\s*inspectWithNano/);
   assert.match(content, /replaySubmission\(replay, input\)/);
   assert.match(content, /AISafetyProtectionPolicy\.DEFAULT_MODE/);
@@ -119,7 +121,7 @@ test("página de opções apresenta os quatro níveis e instalação do Gemini N
   assert.equal(manifest.options_ui.open_in_tab, true);
   assert.equal(manifest.action.default_popup, undefined);
   assert.ok(manifest.web_accessible_resources[0].resources.includes("icons/ai-safety-guard-32.png"));
-  for (const tab of ["protection", "local-ai", "rules", "audit", "server"]) {
+  for (const tab of ["protection", "local-ai", "rules", "policies", "audit", "server"]) {
     assert.match(options, new RegExp(`data-tab="${tab}"`));
     assert.match(options, new RegExp(`data-panel="${tab}"`));
   }
@@ -129,14 +131,17 @@ test("página de opções apresenta os quatro níveis e instalação do Gemini N
   assert.match(options, /id="nano-test-input"/);
   assert.match(options, /id="nano-test-result"/);
   assert.match(options, /id="categories"/);
+  assert.match(options, /id="policies-list"/);
+  assert.match(options, /id="policy-form"/);
   assert.match(options, /id="obfuscate-sensitive-data"/);
   assert.match(options, /id="audit-status"/);
   assert.match(options, /id="audit-log-preview"[^>]*readonly/);
   assert.match(options, /id="download-audit"[^>]*>Baixar log<\/button>/);
   assert.match(options, /id="api-settings"/);
-  assert.match(options, /<script src="nano\.js"><\/script>/);
+  assert.match(options, /<script src="policies\.js"><\/script>[\s\S]*<script src="nano\.js"><\/script>/);
   assert.match(optionsScript, /AISafetyNano\.install/);
-  assert.match(optionsScript, /AISafetyNano\.classify\(message\)/);
+  assert.match(optionsScript, /AISafetyNano\.classify\(message, \{ policies: heuristicPolicies \}\)/);
+  assert.match(optionsScript, /AISafetyPolicies\.addPolicy/);
   assert.match(optionsScript, /enforceNanoAvailability/);
   assert.match(optionsScript, /obfuscateSensitiveData/);
   assert.match(optionsScript, /AISafetyAuditLog\.serialize\(entries\)/);

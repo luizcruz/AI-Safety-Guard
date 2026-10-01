@@ -14,6 +14,16 @@
   const downloadAudit = document.querySelector("#download-audit");
   const saveStatus = document.querySelector("#save-status");
   const rulesSaveStatus = document.querySelector("#rules-save-status");
+  const policyStatus = document.querySelector("#policy-status");
+  const policiesList = document.querySelector("#policies-list");
+  const policyForm = document.querySelector("#policy-form");
+  const policyName = document.querySelector("#policy-name");
+  const policyCategory = document.querySelector("#policy-category");
+  const policySeverity = document.querySelector("#policy-severity");
+  const policyDescription = document.querySelector("#policy-description");
+  const policyTerms = document.querySelector("#policy-terms");
+  const policyContext = document.querySelector("#policy-context");
+  const policyExceptions = document.querySelector("#policy-exceptions");
   const nanoState = document.querySelector("#nano-state");
   const nanoMessage = document.querySelector("#nano-message");
   const nanoProgress = document.querySelector("#nano-progress");
@@ -28,6 +38,7 @@
   const modeInputs = [...document.querySelectorAll("input[name='protection-mode']")];
   const categoryInputs = new Map();
   let nanoAvailable = false;
+  let heuristicPolicies = AISafetyPolicies.normalizePolicies();
 
   initializeTabs();
   initialize().catch((error) => {
@@ -71,12 +82,16 @@
       rulesVersion: AISafetyGuard.version,
       rulesCatalog: null,
       rulesLastError: "",
-      auditLog: []
+      auditLog: [],
+      heuristicPolicies: null
     });
     if (remote.rulesCatalog) {
       try { AISafetyGuard.updateCatalog(remote.rulesCatalog); } catch { /* keep bundled catalog */ }
     }
     renderCategories();
+    renderPolicyCategories();
+    heuristicPolicies = AISafetyPolicies.normalizePolicies(remote.heuristicPolicies);
+    renderPolicies();
     const settings = await chrome.storage.sync.get({
       enabledCategories: Object.keys(AISafetyGuard.CATEGORIES),
       knownCategories: [],
@@ -211,12 +226,14 @@
     nanoTestButton.disabled = true;
     showNanoTestResult("Analisando localmente…", false);
     try {
-      const classification = await AISafetyNano.classify(message);
+      const classification = await AISafetyNano.classify(message, { policies: heuristicPolicies });
       const detection = AISafetyNano.toDetection(classification);
       const category = AISafetyGuard.CATEGORIES[classification.category] || classification.category;
       const severity = { low: "baixo", medium: "médio", high: "alto", critical: "crítico" }[classification.severity] || "médio";
+      const matchedPolicies = classification.policyIds.map((id) => heuristicPolicies.find((item) => item.id === id)?.name).filter(Boolean);
+      const policySummary = matchedPolicies.length ? ` Políticas: ${matchedPolicies.join(", ")}.` : "";
       if (detection.decision === "allow") showNanoTestResult("Risco baixo — nenhuma exposição sensível identificada.", false, true);
-      else showNanoTestResult(`Risco ${severity}: ${detection.confidence}/100 — ${category}. ${classification.reason}`, true);
+      else showNanoTestResult(`Risco ${severity}: ${detection.confidence}/100 — ${category}. ${classification.reason}${policySummary}`, true);
     } catch (error) {
       showNanoTestResult(`Falha no teste local: ${error.message}`, true);
     } finally {
@@ -261,6 +278,103 @@
     }
   }
 
+  function renderPolicyCategories() {
+    policyCategory.replaceChildren();
+    for (const category of AISafetyPolicies.CATEGORIES) {
+      const option = document.createElement("option");
+      option.value = category;
+      option.textContent = AISafetyGuard.CATEGORIES[category] || category;
+      policyCategory.appendChild(option);
+    }
+  }
+
+  function renderPolicies() {
+    policiesList.replaceChildren();
+    for (const item of heuristicPolicies) {
+      const card = document.createElement("article");
+      card.className = "policy-item";
+      const enabled = document.createElement("input");
+      enabled.type = "checkbox";
+      enabled.checked = item.enabled;
+      enabled.setAttribute("aria-label", `Ativar política ${item.name}`);
+      enabled.addEventListener("change", async () => {
+        heuristicPolicies = heuristicPolicies.map((policy) => policy.id === item.id ? { ...policy, enabled: enabled.checked } : policy);
+        await persistPolicies();
+      });
+      const body = document.createElement("div");
+      const title = document.createElement("h3");
+      title.textContent = item.name;
+      const description = document.createElement("p");
+      description.textContent = item.description;
+      const indicators = document.createElement("p");
+      indicators.textContent = `Indicadores: ${item.terms.join(", ")}`;
+      const nuance = document.createElement("p");
+      const context = item.contextTerms.length ? item.contextTerms.join(", ") : "qualquer contexto";
+      const exceptions = item.exceptions.length ? item.exceptions.join(", ") : "nenhuma";
+      nuance.textContent = `Contexto: ${context}. Exceções: ${exceptions}.`;
+      const meta = document.createElement("div");
+      meta.className = "policy-meta";
+      for (const value of [AISafetyGuard.CATEGORIES[item.category] || item.category, `Severidade ${item.severity}`, item.builtIn ? "Padrão" : "Personalizada"]) {
+        const badge = document.createElement("span");
+        badge.textContent = value;
+        meta.appendChild(badge);
+      }
+      body.append(title, description, indicators, nuance, meta);
+      card.append(enabled, body);
+      if (!item.builtIn) {
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "remove-policy";
+        remove.textContent = "Remover";
+        remove.addEventListener("click", async () => {
+          heuristicPolicies = heuristicPolicies.filter((policy) => policy.id !== item.id);
+          await persistPolicies();
+          renderPolicies();
+        });
+        card.appendChild(remove);
+      }
+      policiesList.appendChild(card);
+    }
+    showPolicyStatus();
+  }
+
+  policyForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    try {
+      const slug = policyName.value.toLocaleLowerCase("pt-BR").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+      heuristicPolicies = AISafetyPolicies.addPolicy(heuristicPolicies, {
+        id: `custom-${slug}-${Date.now().toString(36)}`,
+        name: policyName.value,
+        category: policyCategory.value,
+        severity: policySeverity.value,
+        description: policyDescription.value,
+        terms: policyTerms.value,
+        contextTerms: policyContext.value,
+        exceptions: policyExceptions.value,
+        enabled: true
+      });
+      await persistPolicies();
+      policyForm.reset();
+      policySeverity.value = "high";
+      renderPolicies();
+    } catch (error) {
+      showPolicyStatus(error.message, true);
+    }
+  });
+
+  async function persistPolicies() {
+    heuristicPolicies = AISafetyPolicies.normalizePolicies(heuristicPolicies);
+    await chrome.storage.local.set({ heuristicPolicies });
+    showPolicyStatus("Políticas salvas");
+  }
+
+  function showPolicyStatus(message, error = false) {
+    const active = heuristicPolicies.filter((item) => item.enabled).length;
+    policyStatus.textContent = message || `${active}/${heuristicPolicies.length} ativas`;
+    policyStatus.style.background = error ? "#fef2f2" : "#f0fdf4";
+    policyStatus.style.color = error ? "#991b1b" : "#166534";
+  }
+
   downloadAudit.addEventListener("click", async () => {
     try {
       const { auditLog } = await chrome.storage.local.get({ auditLog: [] });
@@ -274,6 +388,10 @@
 
   chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName === "local" && changes.auditLog) showAuditStatus(changes.auditLog.newValue);
+    if (areaName === "local" && changes.heuristicPolicies) {
+      heuristicPolicies = AISafetyPolicies.normalizePolicies(changes.heuristicPolicies.newValue);
+      renderPolicies();
+    }
   });
 
   function showAuditStatus(auditLog, prefix = "") {

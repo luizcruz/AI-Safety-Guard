@@ -2,7 +2,7 @@
   "use strict";
 
   const platform = AISafetyPlatforms.resolve(location.hostname);
-  const DEFAULTS = { enabledCategories: Object.keys(AISafetyGuard.CATEGORIES), mode: AISafetyProtectionPolicy.DEFAULT_MODE, obfuscateSensitiveData: false };
+  const DEFAULTS = { enabledCategories: Object.keys(AISafetyGuard.CATEGORIES), mode: AISafetyProtectionPolicy.DEFAULT_MODE, obfuscateSensitiveData: false, policies: AISafetyPolicies.normalizePolicies() };
   const SEND_SELECTOR = [...new Set([
     "button[data-testid*='send']",
     "button[type='submit']",
@@ -43,20 +43,23 @@
     const currentCategories = Object.keys(AISafetyGuard.CATEGORIES);
     const knownCategories = Array.isArray(stored.knownCategories) ? stored.knownCategories : currentCategories.filter((category) => category !== "sensitiveFileNames");
     const addedCategories = currentCategories.filter((category) => !knownCategories.includes(category));
-    settings = normalizeSettings({ enabledCategories: [...new Set([...(stored.enabledCategories || currentCategories), ...addedCategories])], mode: stored.mode, obfuscateSensitiveData: stored.obfuscateSensitiveData });
+    settings = normalizeSettings({ enabledCategories: [...new Set([...(stored.enabledCategories || currentCategories), ...addedCategories])], mode: stored.mode, obfuscateSensitiveData: stored.obfuscateSensitiveData, policies: settings.policies });
     chrome.storage.sync.set({ enabledCategories: settings.enabledCategories, knownCategories: currentCategories, mode: settings.mode, obfuscateSensitiveData: settings.obfuscateSensitiveData });
   });
-  chrome.storage.local.get(["rulesCatalog", "nanoStatus"], ({ rulesCatalog, nanoStatus }) => {
+  chrome.storage.local.get(["rulesCatalog", "nanoStatus", "heuristicPolicies"], ({ rulesCatalog, nanoStatus, heuristicPolicies }) => {
     if (rulesCatalog) applyRemoteCatalog(rulesCatalog);
+    settings.policies = AISafetyPolicies.normalizePolicies(heuristicPolicies);
     if (nanoStatus && nanoStatus.state === "unavailable") riskIndicator.set("unsupported", AISafetyNano.UNSUPPORTED_MESSAGE);
   });
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === "local" && changes.rulesCatalog && changes.rulesCatalog.newValue) applyRemoteCatalog(changes.rulesCatalog.newValue);
+    if (area === "local" && changes.heuristicPolicies) settings.policies = AISafetyPolicies.normalizePolicies(changes.heuristicPolicies.newValue);
     if (area === "sync") {
       settings = normalizeSettings({
         enabledCategories: changes.enabledCategories ? changes.enabledCategories.newValue : settings.enabledCategories,
         mode: changes.mode ? changes.mode.newValue : settings.mode,
-        obfuscateSensitiveData: changes.obfuscateSensitiveData ? changes.obfuscateSensitiveData.newValue : settings.obfuscateSensitiveData
+        obfuscateSensitiveData: changes.obfuscateSensitiveData ? changes.obfuscateSensitiveData.newValue : settings.obfuscateSensitiveData,
+        policies: settings.policies
       });
       if (settings.mode === "heuristic") ensureNanoAvailable();
     }
@@ -75,7 +78,8 @@
     return {
       enabledCategories: Array.isArray(value.enabledCategories) ? value.enabledCategories : DEFAULTS.enabledCategories,
       mode: AISafetyProtectionPolicy.normalizeMode(value.mode),
-      obfuscateSensitiveData: value.obfuscateSensitiveData === true
+      obfuscateSensitiveData: value.obfuscateSensitiveData === true,
+      policies: AISafetyPolicies.normalizePolicies(value.policies)
     };
   }
 
@@ -236,6 +240,7 @@
     const action = AISafetyProtectionPolicy.actionFor(settings.mode, result.decision);
     if (action === "block") {
       if (event) blockEvent(event);
+      if (settings.mode === "heuristic") recordAudit(result.findings, { ...result, decision: "block" });
       const obfuscated = settings.obfuscateSensitiveData && ["detect", "heuristic"].includes(settings.mode)
         ? obfuscatePromptInput(input, result)
         : false;
@@ -337,7 +342,7 @@
         return;
       }
       riskIndicator.set("analyzing", "Gemini Nano analisando…");
-      const classification = await withTimeout(AISafetyNano.classify(originalText), 30_000);
+      const classification = await withTimeout(AISafetyNano.classify(originalText, { policies: settings.policies }), 30_000);
       if (readInput(input) !== originalText) {
         riskIndicator.set("safe", "Prompt alterado — analise novamente");
         return;
@@ -575,8 +580,11 @@
       entry: {
         timestamp: new Date(now).toISOString(),
         ai: currentAI(),
+        mode: settings.mode,
         confidence: Number(result.confidence) || Math.max(0, ...findings.map((finding) => Number(finding.score) || 0)),
         decision: result.decision || "warn",
+        policyIds: Array.isArray(result.policyIds) ? result.policyIds : [],
+        policies: Array.isArray(result.policyIds) ? result.policyIds.map((id) => settings.policies.find((policy) => policy.id === id)?.name).filter(Boolean) : [],
         findings: findings.map((finding) => ({
           category: AISafetyGuard.CATEGORIES[finding.category] || finding.category,
           label: finding.label,

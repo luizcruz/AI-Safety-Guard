@@ -47,14 +47,18 @@ test("não substitui catálogo por versão igual ou anterior", async () => {
 });
 
 test("sanitiza registros de auditoria sem conteúdo multilinha", () => {
-  const entry = sanitizeAuditEntry({ timestamp: "inválida", ai: "Gemini\nforjado", confidence: 87, decision: "block", findings: [{ category: "Credenciais", label: "JWT\r\nToken", sample: "eyJ***", source: "prompt" }] }, () => new Date("2026-08-16T12:00:00Z"));
+  const entry = sanitizeAuditEntry({ timestamp: "inválida", ai: "Gemini\nforjado", mode: "heuristic", confidence: 87, decision: "block", policyIds: ["credentials-secrets", "inválida!", "credentials-secrets"], policies: ["Credenciais\ncríticas", "Credenciais\ncríticas"], findings: [{ category: "Credenciais", label: "JWT\r\nToken", sample: "eyJ***", source: "prompt" }] }, () => new Date("2026-08-16T12:00:00Z"));
   assert.equal(entry.timestamp, "2026-08-16T12:00:00.000Z");
   assert.equal(entry.ai, "Gemini forjado");
   assert.equal(entry.findings[0].label, "JWT Token");
   assert.equal(entry.confidence, 87);
   assert.equal(entry.decision, "block");
+  assert.equal(entry.mode, "heuristic");
+  assert.deepEqual(entry.policyIds, ["credentials-secrets"]);
+  assert.deepEqual(entry.policies, ["Credenciais críticas"]);
   assert.equal(sanitizeAuditEntry({ confidence: 999, decision: "invalid" }).confidence, 100);
   assert.equal(sanitizeAuditEntry({ confidence: 999, decision: "invalid" }).decision, "allow");
+  assert.equal(sanitizeAuditEntry({ mode: "invalid" }).mode, "detect");
 });
 
 test("persiste auditoria silenciosamente no armazenamento local", async () => {
