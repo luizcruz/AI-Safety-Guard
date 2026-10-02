@@ -22,7 +22,7 @@ test("manifest carrega catálogo antes do detector", () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "plugin", "manifest.json"), "utf8"));
   assert.deepEqual(manifest.content_scripts[0].js, ["src/platforms.js", "src/protection-policy.js", "src/rules.js", "src/detector.js", "src/attachments.js", "src/policies.js", "src/nano.js", "src/content.js"]);
   assert.equal(manifest.background.service_worker, "src/background.js");
-  assert.deepEqual(manifest.permissions, ["storage"]);
+  assert.deepEqual(manifest.permissions, ["storage", "offscreen"]);
 });
 
 test("manifest referencia todos os ícones nos tamanhos corretos", () => {
@@ -109,11 +109,22 @@ test("conteúdo integra indicador flutuante, Gemini Nano e fallback seguro", () 
   assert.match(content, /button\[data-state='risk'\]/);
   assert.match(content, /obfuscatePromptInput/);
   assert.match(content, /AISafetyGuard\.obfuscate/);
-  assert.match(content, /AISafetyNano\.classify\(originalText, \{ policies: settings\.policies, timeoutMs: NANO_TIMEOUT_MS \}\)/);
+  assert.match(content, /requestNano\("NANO_CLASSIFY", \{ text: originalText, policies: settings\.policies, timeoutMs: NANO_TIMEOUT_MS \}\)/);
   assert.match(content, /blockEvent\(event\);\s*inspectWithNano/);
   assert.match(content, /replaySubmission\(replay, input\)/);
   assert.match(content, /AISafetyProtectionPolicy\.DEFAULT_MODE/);
   assert.match(content, /Seu Browser não suporta modelo de IA do Chrome local|AISafetyNano\.UNSUPPORTED_MESSAGE/);
+});
+
+test("Gemini Nano em sites usa contexto offscreen da extensão", () => {
+  const root = path.join(__dirname, "..", "plugin", "src");
+  const html = fs.readFileSync(path.join(root, "offscreen.html"), "utf8");
+  const script = fs.readFileSync(path.join(root, "offscreen.js"), "utf8");
+  assert.match(html, /<script src="policies\.js"><\/script>[\s\S]*<script src="nano\.js"><\/script>[\s\S]*<script src="offscreen\.js"><\/script>/);
+  assert.match(script, /target !== "nano-offscreen"/);
+  assert.match(script, /AISafetyNano\.availability\(\)/);
+  assert.match(script, /AISafetyNano\.classify/);
+  assert.match(script, /classificationQueue/);
 });
 
 test("página de opções apresenta os quatro níveis e instalação do Gemini Nano", () => {

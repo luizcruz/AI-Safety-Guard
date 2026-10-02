@@ -10,6 +10,32 @@ if (typeof importScripts === "function" && typeof globalThis.AISafetyNano === "u
 
   const DEFAULT_API_URL = "http://127.0.0.1:8000";
   const MAX_AUDIT_ENTRIES = 500;
+  const OFFSCREEN_DOCUMENT_PATH = "src/offscreen.html";
+  let offscreenCreation;
+
+  async function ensureOffscreenDocument(chromeApi) {
+    if (!chromeApi.offscreen || typeof chromeApi.offscreen.createDocument !== "function") throw new Error("Contexto local de IA indisponível");
+    const documentUrl = chromeApi.runtime.getURL(OFFSCREEN_DOCUMENT_PATH);
+    if (typeof chromeApi.runtime.getContexts === "function") {
+      const contexts = await chromeApi.runtime.getContexts({ contextTypes: ["OFFSCREEN_DOCUMENT"], documentUrls: [documentUrl] });
+      if (contexts.length) return;
+    }
+    if (!offscreenCreation) {
+      offscreenCreation = chromeApi.offscreen.createDocument({
+        url: OFFSCREEN_DOCUMENT_PATH,
+        reasons: ["WORKERS"],
+        justification: "Executar a classificação local do Gemini Nano fora das páginas monitoradas."
+      }).finally(() => { offscreenCreation = undefined; });
+    }
+    await offscreenCreation;
+  }
+
+  async function requestNano(chromeApi, message) {
+    await ensureOffscreenDocument(chromeApi);
+    const response = await chromeApi.runtime.sendMessage({ ...message, target: "nano-offscreen" });
+    if (!response || response.ok !== true) throw new Error((response && response.error) || "Gemini Nano indisponível");
+    return response;
+  }
 
   function compareVersions(left, right) {
     const a = String(left || "0.0.0").split(".").map(Number);
@@ -88,11 +114,11 @@ if (typeof importScripts === "function" && typeof globalThis.AISafetyNano === "u
     return auditLog.at(-1);
   }
 
-  async function prepareNano(chromeApi, nanoApi) {
+  async function prepareNano(chromeApi, nanoApi, resolveAvailability) {
     let nanoStatus;
     try {
       if (!nanoApi) throw new Error("Seu Browser não suporta modelo de IA do Chrome local");
-      const state = await nanoApi.availability();
+      const state = resolveAvailability ? await resolveAvailability() : await nanoApi.availability();
       if (state === "unavailable") throw new Error(nanoApi.UNSUPPORTED_MESSAGE);
       nanoStatus = state === "available"
         ? { state: "available", message: "Gemini Nano instalado e pronto para análise semântica local." }
@@ -134,12 +160,19 @@ if (typeof importScripts === "function" && typeof globalThis.AISafetyNano === "u
     chromeApi.runtime.onInstalled.addListener((details) => {
       refresh().catch(() => undefined);
       if (details && details.reason === "install" && chromeApi.runtime.openOptionsPage) {
-        prepareNano(chromeApi, nanoApi)
+        const resolveAvailability = chromeApi.offscreen
+          ? async () => (await requestNano(chromeApi, { type: "NANO_AVAILABILITY" })).state
+          : undefined;
+        prepareNano(chromeApi, nanoApi, resolveAvailability)
           .then(() => chromeApi.runtime.openOptionsPage())
           .catch(() => undefined);
       }
     });
     chromeApi.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+      if (message && message.target !== "nano-offscreen" && ["NANO_AVAILABILITY", "NANO_CLASSIFY"].includes(message.type)) {
+        requestNano(chromeApi, message).then(sendResponse).catch((error) => sendResponse({ ok: false, error: error.message }));
+        return true;
+      }
       if (message && message.type === "OPEN_OPTIONS" && chromeApi.runtime.openOptionsPage) {
         chromeApi.runtime.openOptionsPage().then(() => sendResponse({ ok: true })).catch((error) => sendResponse({ ok: false, error: error.message }));
         return true;
@@ -158,5 +191,5 @@ if (typeof importScripts === "function" && typeof globalThis.AISafetyNano === "u
     return { refresh };
   }
 
-  return Object.freeze({ compareVersions, validateCatalog, downloadRules, sanitizeAuditEntry, appendAuditLog, prepareNano, register, DEFAULT_API_URL });
+  return Object.freeze({ compareVersions, validateCatalog, downloadRules, sanitizeAuditEntry, appendAuditLog, prepareNano, ensureOffscreenDocument, requestNano, register, DEFAULT_API_URL, OFFSCREEN_DOCUMENT_PATH });
 });
