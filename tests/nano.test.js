@@ -60,7 +60,7 @@ test("classifica com saída estruturada e converte risco em detecção", async (
   };
   const classification = await nano.classify("password de produção", { session, policies: policyApi.normalizePolicies() });
   assert.equal(captured.options.responseConstraint, nano.RESPONSE_SCHEMA);
-  assert.equal(captured.options.signal.aborted, false);
+  assert.equal("signal" in captured.options, false);
   assert.match(captured.prompt, /USER_TEXT_START[\s\S]*password de produção[\s\S]*USER_TEXT_END/);
   assert.match(captured.prompt, /Assign severity=low[\s\S]*medium[\s\S]*high[\s\S]*critical/);
   assert.match(captured.prompt, /POLICY_JSON_START[\s\S]*credentials-secrets[\s\S]*POLICY_JSON_END/);
@@ -100,29 +100,32 @@ test("cada classificação usa e encerra uma sessão isolada", async () => {
 
 test("interrompe inferência travada e encerra a sessão", async () => {
   let destroyed = false;
-  let aborted = false;
   const languageModel = {
     create: async () => ({
-      prompt: (_prompt, options) => new Promise(() => {
-        options.signal.addEventListener("abort", () => { aborted = true; });
-      }),
+      prompt: () => new Promise(() => undefined),
       destroy: () => { destroyed = true; }
     })
   };
   await assert.rejects(() => nano.classify("texto", { languageModel, timeoutMs: 5 }), /Tempo limite do modelo local excedido/);
-  assert.equal(aborted, true);
   assert.equal(destroyed, true);
 });
 
 test("aplica timeout também à criação da sessão", async () => {
-  let aborted = false;
   const languageModel = {
-    create: (options) => new Promise(() => {
-      options.signal.addEventListener("abort", () => { aborted = true; });
-    })
+    create: () => new Promise(() => undefined)
   };
   await assert.rejects(() => nano.classify("texto", { languageModel, timeoutMs: 5 }), /Tempo limite do modelo local excedido/);
-  assert.equal(aborted, true);
+});
+
+test("falha ao destruir sessão não invalida resultado concluído", async () => {
+  const languageModel = {
+    create: async () => ({
+      prompt: async () => JSON.stringify({ risk: false, severity: "low", category: "corporate", reason: "public", sensitiveTerms: [], policyIds: [] }),
+      destroy: () => { throw new Error("signal is aborted without reason"); }
+    })
+  };
+  const result = await nano.classify("texto público", { languageModel });
+  assert.equal(result.risk, false);
 });
 
 test("falha fechada para resposta inválida e navegador incompatível", async () => {

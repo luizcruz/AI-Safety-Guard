@@ -54,12 +54,11 @@
     }
   }
 
-  async function createSession(languageModel, onProgress, signal) {
+  async function createSession(languageModel, onProgress) {
     const model = resolveModel(languageModel);
     if (!model) throw new Error(UNSUPPORTED_MESSAGE);
     return model.create({
       ...LANGUAGE_OPTIONS,
-      ...(signal ? { signal } : {}),
       monitor(monitor) {
         if (!monitor || typeof monitor.addEventListener !== "function") return;
         monitor.addEventListener("downloadprogress", (event) => {
@@ -69,11 +68,19 @@
     });
   }
 
+  function destroySession(session) {
+    try {
+      if (session && typeof session.destroy === "function") session.destroy();
+    } catch {
+      // Cleanup failures must never replace a valid classification result.
+    }
+  }
+
   async function install({ languageModel, onProgress } = {}) {
     const state = await availability(languageModel);
     if (state === "unavailable") throw new Error(UNSUPPORTED_MESSAGE);
     const session = await createSession(languageModel, onProgress);
-    if (session && typeof session.destroy === "function") session.destroy();
+    destroySession(session);
     return { state: "available", downloaded: state !== "available" };
   }
 
@@ -121,36 +128,38 @@
       input,
       "USER_TEXT_END"
     ].join("\n");
-    const controller = typeof AbortController === "function" ? new AbortController() : null;
     const safeTimeout = Math.max(1, Math.min(60_000, Number(timeoutMs) || DEFAULT_TIMEOUT_MS));
     let timeoutId;
     let finished = false;
+    let destroyed = false;
+    const destroyOwnedSession = () => {
+      if (!ownsSession || destroyed || !activeSession) return;
+      destroyed = true;
+      destroySession(activeSession);
+    };
     const timeoutPromise = new Promise((_, reject) => {
       timeoutId = setTimeout(() => {
         const timeoutError = new Error("Tempo limite do modelo local excedido");
         reject(timeoutError);
-        if (controller && !controller.signal.aborted) controller.abort(timeoutError);
+        destroyOwnedSession();
       }, safeTimeout);
     });
     try {
       if (!activeSession) {
-        const sessionPromise = createSession(languageModel, undefined, controller && controller.signal);
+        const sessionPromise = createSession(languageModel);
         sessionPromise.then((created) => {
-          if (finished && created && typeof created.destroy === "function") created.destroy();
+          if (finished) destroySession(created);
         }, () => undefined);
         activeSession = await Promise.race([sessionPromise, timeoutPromise]);
       }
       if (!activeSession || typeof activeSession.prompt !== "function") throw new Error(UNSUPPORTED_MESSAGE);
-      const promptPromise = activeSession.prompt(prompt, {
-        responseConstraint: RESPONSE_SCHEMA,
-        ...(controller ? { signal: controller.signal } : {})
-      });
+      const promptPromise = activeSession.prompt(prompt, { responseConstraint: RESPONSE_SCHEMA });
       const response = await Promise.race([promptPromise, timeoutPromise]);
       return normalizeClassification(response, input, policies);
     } finally {
       finished = true;
       clearTimeout(timeoutId);
-      if (ownsSession && activeSession && typeof activeSession.destroy === "function") activeSession.destroy();
+      destroyOwnedSession();
     }
   }
 
