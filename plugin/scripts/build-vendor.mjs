@@ -22,9 +22,3 @@ for (const license of ["vendor/LICENSE.mammoth", "vendor/LICENSE.pdfjs"]) {
   const source = await readFile(licensePath, "utf8");
   await writeFile(licensePath, source.replace(/[ \t]+$/gm, ""));
 }
-
-const pdfPath = resolve(pluginRoot, "vendor/pdf.mjs");
-const pdfSource = await readFile(pdfPath, "utf8");
-const workerFlag = "static #isWorkerDisabled = false;";
-if (!pdfSource.includes(workerFlag)) throw new Error("Não foi possível desabilitar o Web Worker do PDF.js");
-await writeFile(pdfPath, pdfSource.replace(workerFlag, "static #isWorkerDisabled = true;"));

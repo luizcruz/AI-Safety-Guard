@@ -16012,7 +16012,7 @@ class PDFWorker {
   #port = null;
   #webWorker = null;
   static #fakeWorkerId = 0;
-  static #isWorkerDisabled = true;
+  static #isWorkerDisabled = false;
   static #workerPorts = new WeakMap();
   static {
     if (isNodeJS) {

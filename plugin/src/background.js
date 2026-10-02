@@ -91,9 +91,12 @@ if (typeof importScripts === "function" && typeof globalThis.AISafetyNano === "u
   async function prepareNano(chromeApi, nanoApi) {
     let nanoStatus;
     try {
-      if (!nanoApi || await nanoApi.availability() === "unavailable") throw new Error(nanoApi ? nanoApi.UNSUPPORTED_MESSAGE : "Seu Browser não suporta modelo de IA do Chrome local");
-      await nanoApi.install();
-      nanoStatus = { state: "available", message: "Gemini Nano instalado e pronto para análise semântica local." };
+      if (!nanoApi) throw new Error("Seu Browser não suporta modelo de IA do Chrome local");
+      const state = await nanoApi.availability();
+      if (state === "unavailable") throw new Error(nanoApi.UNSUPPORTED_MESSAGE);
+      nanoStatus = state === "available"
+        ? { state: "available", message: "Gemini Nano instalado e pronto para análise semântica local." }
+        : { state: "setup-required", message: "Clique em Instalar Gemini Nano para concluir o download exigido pelo Chrome." };
     } catch (error) {
       const unsupported = nanoApi && error.message === nanoApi.UNSUPPORTED_MESSAGE;
       nanoStatus = unsupported

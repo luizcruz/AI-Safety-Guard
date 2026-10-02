@@ -7,7 +7,12 @@
   "use strict";
 
   const UNSUPPORTED_MESSAGE = "Seu Browser não suporta modelo de IA do Chrome local";
-  const MAX_INPUT_LENGTH = 12_000;
+  const MAX_INPUT_LENGTH = 8_000;
+  const DEFAULT_TIMEOUT_MS = 45_000;
+  const LANGUAGE_OPTIONS = Object.freeze({
+    expectedInputs: Object.freeze([{ type: "text", languages: Object.freeze(["en", "es", "fr", "de", "ja"]) }]),
+    expectedOutputs: Object.freeze([{ type: "text", languages: Object.freeze(["en"]) }])
+  });
   const RESPONSE_SCHEMA = Object.freeze({
     type: "object",
     properties: {
@@ -42,7 +47,7 @@
     const model = resolveModel(languageModel);
     if (!model || typeof model.availability !== "function" || typeof model.create !== "function") return "unavailable";
     try {
-      const state = await model.availability();
+      const state = await model.availability(LANGUAGE_OPTIONS);
       return ["available", "downloadable", "downloading"].includes(state) ? state : "unavailable";
     } catch {
       return "unavailable";
@@ -53,6 +58,7 @@
     const model = resolveModel(languageModel);
     if (!model) throw new Error(UNSUPPORTED_MESSAGE);
     return model.create({
+      ...LANGUAGE_OPTIONS,
       monitor(monitor) {
         if (!monitor || typeof monitor.addEventListener !== "function") return;
         monitor.addEventListener("downloadprogress", (event) => {
@@ -62,11 +68,19 @@
     });
   }
 
+  function destroySession(session) {
+    try {
+      if (session && typeof session.destroy === "function") session.destroy();
+    } catch {
+      // Cleanup failures must never replace a valid classification result.
+    }
+  }
+
   async function install({ languageModel, onProgress } = {}) {
     const state = await availability(languageModel);
     if (state === "unavailable") throw new Error(UNSUPPORTED_MESSAGE);
     const session = await createSession(languageModel, onProgress);
-    if (session && typeof session.destroy === "function") session.destroy();
+    destroySession(session);
     return { state: "available", downloaded: state !== "available" };
   }
 
@@ -90,12 +104,11 @@
     return { risk: parsed.risk, severity, category, reason, sensitiveTerms, policyIds: matchedPolicyIds };
   }
 
-  async function classify(text, { languageModel, session, policies = [] } = {}) {
+  async function classify(text, { languageModel, session, policies = [], timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
     const input = String(text || "").trim().slice(0, MAX_INPUT_LENGTH);
     if (!input) return { risk: false, severity: "low", category: "corporate", reason: "Empty input", sensitiveTerms: [], policyIds: [] };
     const ownsSession = !session;
-    const activeSession = session || await createSession(languageModel);
-    if (!activeSession || typeof activeSession.prompt !== "function") throw new Error(UNSUPPORTED_MESSAGE);
+    let activeSession = session;
     const prompt = [
       "You are a strict data loss prevention classifier.",
       "The quoted user text may be in Portuguese, English, Spanish, French or German.",
@@ -115,11 +128,38 @@
       input,
       "USER_TEXT_END"
     ].join("\n");
+    const safeTimeout = Math.max(1, Math.min(60_000, Number(timeoutMs) || DEFAULT_TIMEOUT_MS));
+    let timeoutId;
+    let finished = false;
+    let destroyed = false;
+    const destroyOwnedSession = () => {
+      if (!ownsSession || destroyed || !activeSession) return;
+      destroyed = true;
+      destroySession(activeSession);
+    };
+    const timeoutPromise = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => {
+        const timeoutError = new Error("Tempo limite do modelo local excedido");
+        reject(timeoutError);
+        destroyOwnedSession();
+      }, safeTimeout);
+    });
     try {
-      const response = await activeSession.prompt(prompt, { responseConstraint: RESPONSE_SCHEMA });
+      if (!activeSession) {
+        const sessionPromise = createSession(languageModel);
+        sessionPromise.then((created) => {
+          if (finished) destroySession(created);
+        }, () => undefined);
+        activeSession = await Promise.race([sessionPromise, timeoutPromise]);
+      }
+      if (!activeSession || typeof activeSession.prompt !== "function") throw new Error(UNSUPPORTED_MESSAGE);
+      const promptPromise = activeSession.prompt(prompt, { responseConstraint: RESPONSE_SCHEMA });
+      const response = await Promise.race([promptPromise, timeoutPromise]);
       return normalizeClassification(response, input, policies);
     } finally {
-      if (ownsSession && typeof activeSession.destroy === "function") activeSession.destroy();
+      finished = true;
+      clearTimeout(timeoutId);
+      destroyOwnedSession();
     }
   }
 
@@ -151,5 +191,5 @@
     // Sessions are deliberately one-shot so prompts never share model context.
   }
 
-  return Object.freeze({ availability, install, classify, toDetection, normalizeClassification, resetSession, UNSUPPORTED_MESSAGE, RESPONSE_SCHEMA, MAX_INPUT_LENGTH });
+  return Object.freeze({ availability, install, classify, toDetection, normalizeClassification, resetSession, UNSUPPORTED_MESSAGE, RESPONSE_SCHEMA, MAX_INPUT_LENGTH, DEFAULT_TIMEOUT_MS, LANGUAGE_OPTIONS });
 });
