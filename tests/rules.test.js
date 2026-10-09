@@ -166,7 +166,9 @@ test("página de opções apresenta os quatro níveis e instalação do Gemini N
   assert.match(options, /data-mcp-platform-panel="windows"/);
   assert.match(options, /data-mcp-platform-panel="wsl"[^>]*hidden/);
   assert.match(options, /Linux \(WSL\)/);
-  assert.match(options, /\/mnt\/c\/Users\/SEU_USUARIO\/Downloads\/ai-safety-mcp\.cjs/);
+  assert.match(options, /WINDOWS_USER="\$\(cmd\.exe \/c "echo %USERNAME%" 2>\/dev\/null \| tr -d '\\r'\)"/);
+  assert.match(options, /WINDOWS_HOME="\/mnt\/c\/Users\/\$WINDOWS_USER"/);
+  assert.match(options, /\$WINDOWS_HOME\/Downloads\/ai-safety-mcp\.cjs/);
   assert.match(options, /\$HOME\/\.ai-safety-guard\/ai-safety-mcp\.cjs/);
   assert.match(options, /claude mcp add --scope user ai-safety-guard/);
   assert.match(options, /codex mcp add ai-safety-guard/);

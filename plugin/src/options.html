@@ -192,10 +192,12 @@ codex mcp list</code></pre>
                 <li>Baixe os dois arquivos pelo Chrome no Windows.</li>
                 <li>No terminal WSL, copie-os para uma pasta permanente:</li>
               </ol>
-              <pre><code>mkdir -p "$HOME/.ai-safety-guard"
-cp "/mnt/c/Users/SEU_USUARIO/Downloads/ai-safety-mcp.cjs" "$HOME/.ai-safety-guard/ai-safety-mcp.cjs"
-cp "/mnt/c/Users/SEU_USUARIO/Downloads/config.json" "$HOME/.ai-safety-guard/config.json"</code></pre>
-              <p class="fine-print">Substitua <code>SEU_USUARIO</code> pelo usuário do Windows. Se o Chrome salvar em outra pasta, ajuste a origem.</p>
+              <pre><code>WINDOWS_USER="$(cmd.exe /c "echo %USERNAME%" 2>/dev/null | tr -d '\r')"
+WINDOWS_HOME="/mnt/c/Users/$WINDOWS_USER"
+mkdir -p "$HOME/.ai-safety-guard"
+cp "$WINDOWS_HOME/Downloads/ai-safety-mcp.cjs" "$HOME/.ai-safety-guard/ai-safety-mcp.cjs"
+cp "$WINDOWS_HOME/Downloads/config.json" "$HOME/.ai-safety-guard/config.json"</code></pre>
+              <p class="fine-print">O comando identifica automaticamente o usuário do Windows. Se o Chrome salvar em outra pasta, ajuste a origem.</p>
             </div>
 
             <article class="setup-guide">

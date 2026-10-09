@@ -61,9 +61,11 @@ Merge into `~/.codex/hooks.json` using the same hook structure and this command:
 Install Node.js 18 or newer inside WSL. Chrome downloads the files on Windows; copy them from the mounted Windows directory:
 
 ```bash
+WINDOWS_USER="$(cmd.exe /c "echo %USERNAME%" 2>/dev/null | tr -d '\r')"
+WINDOWS_HOME="/mnt/c/Users/$WINDOWS_USER"
 mkdir -p "$HOME/.ai-safety-guard"
-cp "/mnt/c/Users/SEU_USUARIO/Downloads/ai-safety-mcp.cjs" "$HOME/.ai-safety-guard/ai-safety-mcp.cjs"
-cp "/mnt/c/Users/SEU_USUARIO/Downloads/config.json" "$HOME/.ai-safety-guard/config.json"
+cp "$WINDOWS_HOME/Downloads/ai-safety-mcp.cjs" "$HOME/.ai-safety-guard/ai-safety-mcp.cjs"
+cp "$WINDOWS_HOME/Downloads/config.json" "$HOME/.ai-safety-guard/config.json"
 ```
 
 ### Claude Code
