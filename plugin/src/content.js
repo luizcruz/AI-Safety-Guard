@@ -347,7 +347,7 @@
         return;
       }
       riskIndicator.set("analyzing", "Gemini Nano analisando…");
-      const classification = await AISafetyNano.classify(originalText, { policies: settings.policies, timeoutMs: NANO_TIMEOUT_MS });
+      const { classification } = await requestNano("NANO_CLASSIFY", { text: originalText, policies: settings.policies, timeoutMs: NANO_TIMEOUT_MS });
       if (readInput(input) !== originalText) {
         riskIndicator.set("safe", "Prompt alterado — analise novamente");
         return;
@@ -381,9 +381,18 @@
   }
 
   async function ensureNanoAvailable() {
-    if (await AISafetyNano.availability() === "available") return true;
+    try {
+      const { state } = await requestNano("NANO_AVAILABILITY");
+      if (state === "available") return true;
+    } catch { /* handled by the common fallback below */ }
     await disableHeuristic(new Error(AISafetyNano.UNSUPPORTED_MESSAGE));
     return false;
+  }
+
+  async function requestNano(type, payload = {}) {
+    const response = await chrome.runtime.sendMessage({ type, ...payload });
+    if (!response || response.ok !== true) throw new Error((response && response.error) || AISafetyNano.UNSUPPORTED_MESSAGE);
+    return response;
   }
 
   async function disableHeuristic(error) {

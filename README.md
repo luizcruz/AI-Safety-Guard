@@ -16,6 +16,10 @@ Prompts, attachments, and audit events are processed locally. The rules API neve
 - Records Heuristic-mode blocks with matched policy IDs.
 - Provides optional semantic analysis with Gemini Nano.
 - Includes configurable heuristic policies with context and exceptions.
+- Exposes heuristic evaluation through WebMCP and a local stdio MCP server.
+- Records blocked WebMCP evaluations in the local audit log as `MCP (WebMCP)` without storing submitted text.
+- Provides an MCP settings tab with a browser toggle and guided Windows/WSL setup for Claude Code and Codex.
+- Bundles a downloadable standalone MCP server; end users do not need the source repository or npm dependencies.
 - Limits live scanning, oversized prompts, and local-model execution to protect browser responsiveness.
 
 ## Protection levels
@@ -49,7 +53,16 @@ Click the extension icon to select the protection level. Use **Open all settings
 - enable categories;
 - manage built-in and custom heuristic policies;
 - inspect and download the local audit log;
+- enable WebMCP and follow the platform-specific MCP setup instructions;
 - configure and refresh the rules API.
+
+## MCP integrations
+
+WebMCP is registered in supported Chrome pages only when MCP and **Heuristic** mode are enabled. Its `evaluate_ai_prompt` tool returns risk metadata, never the submitted prompt. Blocked evaluations appear in the extension audit log as `MCP (WebMCP)`; prompt text is not included.
+
+For Claude Code or Codex hooks, use the **MCP** settings tab to download the standalone server and run the guided Windows or WSL setup. On Windows, Codex desktop does not require `codex.exe` on `PATH`: the installer writes its MCP entry to `%USERPROFILE%\.codex\config.toml` when the CLI is unavailable. The generated setup uses the installed extension’s bundled server; the repository and npm dependencies are not required. Hook blocks include a reason and, when obfuscation is enabled, a `[REDACTED]` copy for review. Hooks cannot replace the original prompt automatically: review and resubmit the redacted text yourself.
+
+The standalone MCP process runs outside Chrome and cannot write to the extension’s browser audit storage. Its hook decision is returned to the coding client; the extension audit log entry described above applies to WebMCP calls made in supported browser pages.
 
 ## Attachments
 
@@ -87,7 +100,10 @@ API details: [api/README.md](api/README.md).
 npm test
 npm run check
 npm run build:vendor
+npm run build:mcp
 ```
+
+MCP and hook setup: [docs/MCP.md](docs/MCP.md). Increment the plugin’s minor version for each feature or fix release.
 
 API tests:
 
@@ -102,8 +118,14 @@ api/.venv/bin/python -m pytest api/tests
 - `plugin/src/rules.js`: bundled rule catalog.
 - `plugin/src/detector.js`: deterministic detection.
 - `plugin/src/nano.js`: Gemini Nano integration.
+- `plugin/src/offscreen.js`: extension-context inference bridge.
 - `plugin/src/policies.js`: nuanced heuristic policy catalog.
+- `plugin/src/heuristic-evaluator.js`: shared heuristic evaluation engine.
+- `plugin/src/webmcp.js`: WebMCP tool registered in supported Chrome pages.
 - `plugin/src/content.js`: interception and risk indicator.
+- `mcp/`: local MCP server for coding agents.
+- `plugin/mcp/ai-safety-mcp.cjs`: dependency-free MCP download bundled with the extension.
+- `integrations/`: Claude Code and Codex hook examples.
 - `plugin/src/options.html`: extension settings.
 - `api/`: FastAPI rules API.
 - `admin-ui/`: administration interface.

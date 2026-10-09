@@ -2,7 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { compareVersions, validateCatalog, downloadRules, sanitizeAuditEntry, appendAuditLog, prepareNano, register } = require("../plugin/src/background.js");
+const { compareVersions, validateCatalog, downloadRules, sanitizeAuditEntry, appendAuditLog, prepareNano, requestNano, register } = require("../plugin/src/background.js");
 const bundled = require("../plugin/src/rules.js");
 
 test("compara versões semânticas", () => {
@@ -100,6 +100,33 @@ test("prepara Gemini Nano automaticamente ou exige conclusão assistida", async 
   assert.equal((await prepareNano(chromeApi, activationRequired)).state, "setup-required");
   const unavailable = { availability: async () => "unavailable", install: async () => assert.fail("não deve instalar"), UNSUPPORTED_MESSAGE: "sem suporte" };
   assert.deepEqual(await prepareNano(chromeApi, unavailable), { state: "unavailable", message: "sem suporte" });
+});
+
+test("encaminha Gemini Nano para documento offscreen da extensão", async () => {
+  let created = false;
+  let creationOptions;
+  let forwarded;
+  const chromeApi = {
+    runtime: {
+      getURL: (path) => `chrome-extension://test/${path}`,
+      getContexts: async () => created ? [{}] : [],
+      sendMessage: async (message) => {
+        forwarded = message;
+        return { ok: true, state: "available" };
+      }
+    },
+    offscreen: {
+      createDocument: async (options) => {
+        created = true;
+        creationOptions = options;
+      }
+    }
+  };
+  const response = await requestNano(chromeApi, { type: "NANO_AVAILABILITY" });
+  assert.deepEqual(response, { ok: true, state: "available" });
+  assert.equal(creationOptions.url, "src/offscreen.html");
+  assert.deepEqual(creationOptions.reasons, ["WORKERS"]);
+  assert.deepEqual(forwarded, { type: "NANO_AVAILABILITY", target: "nano-offscreen" });
 });
 
 test("registra eventos do Chrome, descarta cache antigo e persiste catálogo atualizado", async () => {

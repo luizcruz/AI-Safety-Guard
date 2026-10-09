@@ -42,3 +42,43 @@ test("gera contexto estruturado para o pré-prompt", () => {
   assert.ok(context.policies.every((item) => Array.isArray(item.exceptions)));
   assert.ok(JSON.stringify(context).length <= policies.MAX_PROMPT_CONTEXT_LENGTH);
 });
+
+test("exclui políticas iniciais com marcador persistente e permite restaurá-las", () => {
+  const removedId = "credentials-secrets";
+  const stored = policies.serializePolicies(policies.normalizePolicies(), [removedId]);
+  assert.deepEqual(policies.getDeletedBuiltInPolicyIds(stored), [removedId]);
+  assert.equal(policies.normalizePolicies(stored).some((item) => item.id === removedId), false);
+  assert.equal(policies.evaluate("password da conta de produção", stored).some((item) => item.id === removedId), false);
+
+  const restored = policies.serializePolicies(policies.normalizePolicies(stored), []);
+  assert.equal(policies.normalizePolicies(restored).some((item) => item.id === removedId), true);
+  assert.deepEqual(policies.getDeletedBuiltInPolicyIds(restored), []);
+});
+
+test("ignora marcadores de exclusão para políticas que não são iniciais", () => {
+  const stored = policies.serializePolicies([], ["custom-policy", "unknown"]);
+  assert.deepEqual(policies.getDeletedBuiltInPolicyIds(stored), []);
+  assert.equal(policies.normalizePolicies(stored).length, policies.DEFAULT_POLICIES.length);
+});
+
+test("preserva edições de políticas iniciais e detecta necessidade de restauração", () => {
+  const configured = policies.normalizePolicies();
+  const edited = configured.map((item) => item.id === "press-embargo" ? {
+    ...item,
+    name: "Embargo editorial",
+    description: "Política inicial editada.",
+    terms: ["informação reservada"],
+    contextTerms: ["redação"]
+  } : item);
+  const stored = policies.serializePolicies(edited);
+  const normalized = policies.normalizePolicies(stored);
+  const changed = normalized.find((item) => item.id === "press-embargo");
+  assert.equal(changed.name, "Embargo editorial");
+  assert.deepEqual(changed.terms, ["informação reservada"]);
+  assert.equal(policies.hasBuiltInPolicyChanges(stored), true);
+
+  const customOnly = normalized.filter((item) => !item.builtIn);
+  const restored = policies.serializePolicies(policies.normalizePolicies(customOnly));
+  assert.equal(policies.normalizePolicies(restored).find((item) => item.id === "press-embargo").name, "Embargo e fontes jornalísticas");
+  assert.equal(policies.hasBuiltInPolicyChanges(restored), false);
+});

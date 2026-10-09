@@ -20,9 +20,9 @@ test("todas as regras apontam para categorias existentes", () => {
 
 test("manifest carrega catálogo antes do detector", () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "plugin", "manifest.json"), "utf8"));
-  assert.deepEqual(manifest.content_scripts[0].js, ["src/platforms.js", "src/protection-policy.js", "src/rules.js", "src/detector.js", "src/attachments.js", "src/policies.js", "src/nano.js", "src/content.js"]);
+  assert.deepEqual(manifest.content_scripts[0].js, ["src/platforms.js", "src/protection-policy.js", "src/rules.js", "src/detector.js", "src/attachments.js", "src/policies.js", "src/heuristic-evaluator.js", "src/nano.js", "src/webmcp.js", "src/content.js"]);
   assert.equal(manifest.background.service_worker, "src/background.js");
-  assert.deepEqual(manifest.permissions, ["storage"]);
+  assert.deepEqual(manifest.permissions, ["storage", "offscreen"]);
 });
 
 test("manifest referencia todos os ícones nos tamanhos corretos", () => {
@@ -109,11 +109,22 @@ test("conteúdo integra indicador flutuante, Gemini Nano e fallback seguro", () 
   assert.match(content, /button\[data-state='risk'\]/);
   assert.match(content, /obfuscatePromptInput/);
   assert.match(content, /AISafetyGuard\.obfuscate/);
-  assert.match(content, /AISafetyNano\.classify\(originalText, \{ policies: settings\.policies, timeoutMs: NANO_TIMEOUT_MS \}\)/);
+  assert.match(content, /requestNano\("NANO_CLASSIFY", \{ text: originalText, policies: settings\.policies, timeoutMs: NANO_TIMEOUT_MS \}\)/);
   assert.match(content, /blockEvent\(event\);\s*inspectWithNano/);
   assert.match(content, /replaySubmission\(replay, input\)/);
   assert.match(content, /AISafetyProtectionPolicy\.DEFAULT_MODE/);
   assert.match(content, /Seu Browser não suporta modelo de IA do Chrome local|AISafetyNano\.UNSUPPORTED_MESSAGE/);
+});
+
+test("Gemini Nano em sites usa contexto offscreen da extensão", () => {
+  const root = path.join(__dirname, "..", "plugin", "src");
+  const html = fs.readFileSync(path.join(root, "offscreen.html"), "utf8");
+  const script = fs.readFileSync(path.join(root, "offscreen.js"), "utf8");
+  assert.match(html, /<script src="policies\.js"><\/script>[\s\S]*<script src="nano\.js"><\/script>[\s\S]*<script src="offscreen\.js"><\/script>/);
+  assert.match(script, /target !== "nano-offscreen"/);
+  assert.match(script, /AISafetyNano\.availability\(\)/);
+  assert.match(script, /AISafetyNano\.classify/);
+  assert.match(script, /classificationQueue/);
 });
 
 test("página de opções apresenta os quatro níveis e instalação do Gemini Nano", () => {
@@ -125,7 +136,7 @@ test("página de opções apresenta os quatro níveis e instalação do Gemini N
   assert.equal(manifest.options_ui.open_in_tab, true);
   assert.equal(manifest.action.default_popup, "src/popup.html");
   assert.ok(manifest.web_accessible_resources[0].resources.includes("icons/ai-safety-guard-32.png"));
-  for (const tab of ["protection", "local-ai", "rules", "policies", "audit", "server"]) {
+  for (const tab of ["protection", "local-ai", "rules", "policies", "audit", "mcp", "server"]) {
     assert.match(options, new RegExp(`data-tab="${tab}"`));
     assert.match(options, new RegExp(`data-panel="${tab}"`));
   }
@@ -137,21 +148,91 @@ test("página de opções apresenta os quatro níveis e instalação do Gemini N
   assert.match(options, /id="categories"/);
   assert.match(options, /id="policies-list"/);
   assert.match(options, /id="policy-form"/);
+  assert.match(options, /id="policy-form-title"/);
+  assert.match(options, /id="save-policy"/);
+  assert.match(options, /id="cancel-policy-edit"[^>]*hidden/);
+  assert.match(options, /id="restore-default-policies"[^>]*>Restaurar iniciais<\/button>/);
   assert.match(options, /id="obfuscate-sensitive-data"/);
   assert.match(options, /id="audit-status"/);
   assert.match(options, /id="audit-log-preview"[^>]*readonly/);
   assert.match(options, /id="download-audit"[^>]*>Baixar log<\/button>/);
   assert.match(options, /id="api-settings"/);
+  assert.match(options, /id="mcp-enabled"[^>]*role="switch"/);
+  assert.match(options, /id="download-mcp-server"[^>]*ai-safety-mcp\.cjs/);
+  assert.match(options, /id="download-mcp-config"/);
+  assert.match(options, /\.ai-safety-guard/);
+  assert.match(options, /data-mcp-platform="windows"/);
+  assert.match(options, /data-mcp-platform="wsl"/);
+  assert.match(options, /data-mcp-platform-panel="windows"/);
+  assert.match(options, /data-mcp-platform-panel="wsl"[^>]*hidden/);
+  assert.match(options, /data-copy-target="mcp-script-windows"/);
+  assert.match(options, /data-copy-target="mcp-script-wsl"/);
+  assert.match(options, /<code id="mcp-script-windows">[\s\S]*<code id="mcp-script-wsl">/);
+  assert.match(options, /Linux \(WSL\)/);
+  assert.match(options, /Instalação completa no Windows/);
+  assert.match(options, /Read-Host "Escolha uma ação \[1-2\]"/);
+  assert.match(options, /Read-Host "Escolha o cliente \[1-3\]"/);
+  assert.match(options, /Update-AiSafetyHook/);
+  assert.match(options, /function Set-CodexMcpConfig/);
+  assert.match(options, /\.codex\/config\.toml/);
+  assert.match(options, /elseif \(\$client -eq "codex"\) \{ Set-CodexMcpConfig/);
+  assert.match(options, /\.claude\/settings\.json/);
+  assert.match(options, /\.codex\/hooks\.json/);
+  assert.match(options, /ConvertTo-Json -InputObject \$settings -Depth 100/);
+  assert.match(options, /Get-Content -LiteralPath \$configDownload -Raw \| ConvertFrom-Json/);
+  assert.match(options, /\$operation -eq "remove" -and -not \(Test-Path \$settingsPath/);
+  assert.match(options, /Integração removida dos clientes selecionados/);
+  assert.match(options, /set -euo pipefail/);
+  assert.match(options, /WINDOWS_USER="\$\(cmd\.exe \/c "echo %USERNAME%" 2&gt;\/dev\/null \| tr -d '\\r\\n'\)"/);
+  assert.match(options, /WINDOWS_HOME="\/mnt\/c\/Users\/\$WINDOWS_USER"/);
+  assert.match(options, /\$WINDOWS_HOME\/Downloads\/ai-safety-mcp\.cjs/);
+  assert.match(options, /read -r -p "Escolha uma ação \[1-2\]: " ACTION_OPTION/);
+  assert.match(options, /1\) ACTION="install"/);
+  assert.match(options, /2\) ACTION="remove"/);
+  assert.match(options, /read -r -p "Escolha o cliente \[1-3\]: " CLIENT_OPTION/);
+  assert.match(options, /3\) CONFIGURE_CLAUDE=1; CONFIGURE_CODEX=1/);
+  assert.match(options, /\[1\/5\] Validando ambiente/);
+  assert.match(options, /\[5\/5\] Finalizando/);
+  assert.match(options, /node &lt;&lt;'NODE'/);
+  assert.match(options, /\.filter\(\(entry\) =&gt; !JSON\.stringify\(entry\)\.includes\("ai-safety-mcp\.cjs"\)\)/);
+  assert.match(options, /AI_SAFETY_ACTION/);
+  assert.match(options, /if \(next\.length\) config\.hooks\.UserPromptSubmit = next/);
+  assert.match(options, /else delete config\.hooks\.UserPromptSubmit/);
+  assert.match(options, /AI_SAFETY_CONFIGURE_CLAUDE/);
+  assert.match(options, /AI_SAFETY_CONFIGURE_CODEX/);
+  assert.match(options, /INSTALL_DIR="\$HOME\/\.ai-safety-guard"/);
+  assert.match(options, /SERVER="\$INSTALL_DIR\/ai-safety-mcp\.cjs"/);
+  assert.match(options, /claude mcp add --scope user ai-safety-guard/);
+  assert.match(options, /codex mcp add ai-safety-guard/);
+  assert.match(options, /claude mcp remove ai-safety-guard/);
+  assert.match(options, /codex mcp remove ai-safety-guard/);
+  assert.match(options, /\.claude\/settings\.json/);
+  assert.match(options, /\.codex\/hooks\.json/);
   assert.match(options, /<script src="policies\.js"><\/script>[\s\S]*<script src="nano\.js"><\/script>/);
   assert.match(optionsScript, /AISafetyNano\.install/);
+  assert.match(optionsScript, /initializeMcpPlatformTabs\(\)/);
+  assert.match(optionsScript, /navigator\.clipboard\.writeText\(target\.textContent\)/);
+  assert.match(optionsScript, /Script copiado\./);
+  assert.match(optionsScript, /activateMcpPlatform\(mcpPlatformTabs\[next\]\.dataset\.mcpPlatform, true\)/);
   assert.doesNotMatch(optionsScript, /state === "available"\) \{[\s\S]{0,120}AISafetyNano\.install/);
   assert.match(optionsScript, /AISafetyNano\.classify\(message, \{ policies: heuristicPolicies \}\)/);
   assert.match(optionsScript, /AISafetyPolicies\.addPolicy/);
+  assert.match(optionsScript, /AISafetyPolicies\.serializePolicies/);
+  assert.match(optionsScript, /deletedDefaultPolicyIds\.add\(item\.id\)/);
+  assert.match(optionsScript, /beginPolicyEdit\(item\)/);
+  assert.match(optionsScript, /editingPolicyId/);
+  assert.match(optionsScript, /Salvar alterações/);
+  assert.match(optionsScript, /item\.id === current\.id \? value : item/);
+  assert.doesNotMatch(optionsScript, /if \(!item\.builtIn\) \{\s*const remove/);
   assert.match(optionsScript, /enforceNanoAvailability/);
   assert.match(optionsScript, /obfuscateSensitiveData/);
   assert.match(optionsScript, /AISafetyAuditLog\.serialize\(entries\)/);
   assert.match(optionsScript, /AISafetyAuditLog\.download\(auditLog\)/);
   assert.match(optionsScript, /REFRESH_RULES/);
+  assert.match(optionsScript, /mcpEnabled/);
+  assert.match(optionsScript, /downloadJson\("config\.json"/);
+  assert.match(optionsScript, /obfuscateSensitiveData: syncSettings\.obfuscateSensitiveData === true/);
+  assert.doesNotMatch(options, /npm install|scripts\/install-hooks|CAMINHO\\AISafety|mcp\/server\.mjs/);
   assert.match(optionsScript, /ArrowRight/);
 });
 
@@ -168,18 +249,18 @@ test("popup permite selecionar nível por controle deslizante", () => {
   assert.match(popupScript, /chrome\.runtime\.openOptionsPage\(\)/);
 });
 
-test("identidade pública usa exclusivamente AI Safety Guard v2.0", () => {
+test("identidade pública usa exclusivamente AI Safety Guard v2.3", () => {
   const root = path.join(__dirname, "..");
   const manifest = JSON.parse(fs.readFileSync(path.join(root, "plugin", "manifest.json"), "utf8"));
   const packageManifest = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
   const packageLock = JSON.parse(fs.readFileSync(path.join(root, "package-lock.json"), "utf8"));
   const options = fs.readFileSync(path.join(root, "plugin", "src", "options.html"), "utf8");
   const readme = fs.readFileSync(path.join(root, "README.md"), "utf8");
-  assert.equal(manifest.version, "2.0.0");
+  assert.equal(manifest.version, "2.3.0");
   assert.equal(packageManifest.version, manifest.version);
   assert.equal(packageLock.version, manifest.version);
   assert.equal(packageLock.packages[""].version, manifest.version);
-  assert.equal(manifest.name, "AI Safety Guard v2.0");
-  assert.equal(manifest.action.default_title, "AI Safety Guard v2.0");
+  assert.equal(manifest.name, "AI Safety Guard v2.3");
+  assert.equal(manifest.action.default_title, "AI Safety Guard v2.3");
   assert.doesNotMatch(`${options}\n${readme}`, /AI Chat DLP Guard/i);
 });

@@ -4,6 +4,8 @@
   const DEFAULT_API_URL = "http://127.0.0.1:8000";
   const tabs = [...document.querySelectorAll("[role='tab'][data-tab]")];
   const panels = [...document.querySelectorAll("[role='tabpanel'][data-panel]")];
+  const mcpPlatformTabs = [...document.querySelectorAll("[role='tab'][data-mcp-platform]")];
+  const mcpPlatformPanels = [...document.querySelectorAll("[role='tabpanel'][data-mcp-platform-panel]")];
   const container = document.querySelector("#categories");
   const apiForm = document.querySelector("#api-settings");
   const apiUrl = document.querySelector("#api-url");
@@ -15,8 +17,12 @@
   const saveStatus = document.querySelector("#save-status");
   const rulesSaveStatus = document.querySelector("#rules-save-status");
   const policyStatus = document.querySelector("#policy-status");
+  const restoreDefaultPolicies = document.querySelector("#restore-default-policies");
   const policiesList = document.querySelector("#policies-list");
   const policyForm = document.querySelector("#policy-form");
+  const policyFormTitle = document.querySelector("#policy-form-title");
+  const savePolicy = document.querySelector("#save-policy");
+  const cancelPolicyEdit = document.querySelector("#cancel-policy-edit");
   const policyName = document.querySelector("#policy-name");
   const policyCategory = document.querySelector("#policy-category");
   const policySeverity = document.querySelector("#policy-severity");
@@ -35,12 +41,22 @@
   const nanoTestResult = document.querySelector("#nano-test-result");
   const heuristicInput = document.querySelector("input[value='heuristic']");
   const obfuscationInput = document.querySelector("#obfuscate-sensitive-data");
+  const mcpEnabledInput = document.querySelector("#mcp-enabled");
+  const mcpStatus = document.querySelector("#mcp-status");
+  const downloadMcpConfig = document.querySelector("#download-mcp-config");
+  const mcpDownloadStatus = document.querySelector("#mcp-download-status");
+  const copyScriptButtons = [...document.querySelectorAll(".copy-script[data-copy-target]")];
   const modeInputs = [...document.querySelectorAll("input[name='protection-mode']")];
   const categoryInputs = new Map();
   let nanoAvailable = false;
   let heuristicPolicies = AISafetyPolicies.normalizePolicies();
+  let deletedDefaultPolicyIds = new Set();
+  let editingPolicyId = null;
+  let defaultPoliciesChanged = false;
 
   initializeTabs();
+  initializeMcpPlatformTabs();
+  initializeScriptCopyButtons();
   initialize().catch((error) => {
     showSaveStatus(error.message, true);
     showRulesStatus(error.message, true);
@@ -75,6 +91,51 @@
     history.replaceState(null, "", `#${name}`);
   }
 
+  function initializeMcpPlatformTabs() {
+    activateMcpPlatform("windows");
+    for (const [index, tab] of mcpPlatformTabs.entries()) {
+      tab.addEventListener("click", () => activateMcpPlatform(tab.dataset.mcpPlatform, true));
+      tab.addEventListener("keydown", (event) => {
+        let next = index;
+        if (event.key === "ArrowRight") next = (index + 1) % mcpPlatformTabs.length;
+        else if (event.key === "ArrowLeft") next = (index - 1 + mcpPlatformTabs.length) % mcpPlatformTabs.length;
+        else if (event.key === "Home") next = 0;
+        else if (event.key === "End") next = mcpPlatformTabs.length - 1;
+        else return;
+        event.preventDefault();
+        activateMcpPlatform(mcpPlatformTabs[next].dataset.mcpPlatform, true);
+      });
+    }
+  }
+
+  function initializeScriptCopyButtons() {
+    for (const button of copyScriptButtons) {
+      button.addEventListener("click", async () => {
+        const target = document.getElementById(button.dataset.copyTarget);
+        const status = button.parentElement.querySelector(".script-copy-status");
+        if (!target || !status) return;
+        try {
+          await navigator.clipboard.writeText(target.textContent);
+          status.textContent = "Script copiado.";
+          status.classList.remove("error");
+        } catch {
+          status.textContent = "Não foi possível copiar. Selecione e copie o script manualmente.";
+          status.classList.add("error");
+        }
+      });
+    }
+  }
+
+  function activateMcpPlatform(name, focus = false) {
+    for (const tab of mcpPlatformTabs) {
+      const active = tab.dataset.mcpPlatform === name;
+      tab.setAttribute("aria-selected", String(active));
+      tab.tabIndex = active ? 0 : -1;
+      if (active && focus) tab.focus();
+    }
+    for (const panel of mcpPlatformPanels) panel.hidden = panel.dataset.mcpPlatformPanel !== name;
+  }
+
   async function initialize() {
     const remote = await chrome.storage.local.get({
       apiUrl: DEFAULT_API_URL,
@@ -90,13 +151,14 @@
     }
     renderCategories();
     renderPolicyCategories();
-    heuristicPolicies = AISafetyPolicies.normalizePolicies(remote.heuristicPolicies);
+    loadPolicyState(remote.heuristicPolicies);
     renderPolicies();
     const settings = await chrome.storage.sync.get({
       enabledCategories: Object.keys(AISafetyGuard.CATEGORIES),
       knownCategories: [],
       mode: AISafetyProtectionPolicy.DEFAULT_MODE,
-      obfuscateSensitiveData: false
+      obfuscateSensitiveData: false,
+      mcpEnabled: true
     });
     const currentCategories = Object.keys(AISafetyGuard.CATEGORIES);
     const knownCategories = settings.knownCategories.length ? settings.knownCategories : currentCategories.filter((category) => category !== "sensitiveFileNames");
@@ -104,10 +166,13 @@
     settings.enabledCategories = [...new Set([...(settings.enabledCategories || currentCategories), ...addedCategories])];
     settings.mode = AISafetyProtectionPolicy.normalizeMode(settings.mode);
     settings.obfuscateSensitiveData = settings.obfuscateSensitiveData === true;
-    await chrome.storage.sync.set({ enabledCategories: settings.enabledCategories, knownCategories: currentCategories, mode: settings.mode, obfuscateSensitiveData: settings.obfuscateSensitiveData });
+    settings.mcpEnabled = settings.mcpEnabled !== false;
+    await chrome.storage.sync.set({ enabledCategories: settings.enabledCategories, knownCategories: currentCategories, mode: settings.mode, obfuscateSensitiveData: settings.obfuscateSensitiveData, mcpEnabled: settings.mcpEnabled });
     for (const [key, input] of categoryInputs) input.checked = settings.enabledCategories.includes(key);
     (modeInputs.find((input) => input.value === settings.mode) || modeInputs.find((input) => input.value === AISafetyProtectionPolicy.DEFAULT_MODE)).checked = true;
     obfuscationInput.checked = settings.obfuscateSensitiveData;
+    mcpEnabledInput.checked = settings.mcpEnabled;
+    showMcpStatus(settings.mcpEnabled);
     updateObfuscationAvailability(settings.mode);
     apiUrl.value = remote.apiUrl;
     apiToken.value = remote.apiToken;
@@ -243,6 +308,51 @@
 
   for (const input of modeInputs) input.addEventListener("change", saveProtection);
   obfuscationInput.addEventListener("change", saveProtection);
+  mcpEnabledInput.addEventListener("change", async () => {
+    const enabled = mcpEnabledInput.checked;
+    mcpEnabledInput.disabled = true;
+    try {
+      await chrome.storage.sync.set({ mcpEnabled: enabled });
+      showMcpStatus(enabled);
+    } catch (error) {
+      mcpEnabledInput.checked = !enabled;
+      showMcpStatus(!enabled, `Falha: ${error.message}`);
+    } finally {
+      mcpEnabledInput.disabled = false;
+    }
+  });
+
+  function showMcpStatus(enabled, message = "") {
+    mcpStatus.textContent = message || (enabled ? "Habilitado" : "Desabilitado");
+    mcpStatus.style.background = message ? "#fef2f2" : enabled ? "#f0fdf4" : "#f1f5f9";
+    mcpStatus.style.color = message ? "#991b1b" : enabled ? "#166534" : "#475569";
+  }
+
+  downloadMcpConfig.addEventListener("click", async () => {
+    downloadMcpConfig.disabled = true;
+    try {
+      const [syncSettings, localSettings] = await Promise.all([
+        chrome.storage.sync.get({ enabledCategories: Object.keys(AISafetyGuard.CATEGORIES), obfuscateSensitiveData: false }),
+        chrome.storage.local.get({ heuristicPolicies: null })
+      ]);
+      const policies = localSettings.heuristicPolicies || AISafetyPolicies.serializePolicies(heuristicPolicies, [...deletedDefaultPolicyIds]);
+      downloadJson("config.json", { mode: "heuristic", enabledCategories: syncSettings.enabledCategories, obfuscateSensitiveData: syncSettings.obfuscateSensitiveData === true, policies });
+      mcpDownloadStatus.textContent = "Configuração baixada.";
+    } catch (error) {
+      mcpDownloadStatus.textContent = `Falha: ${error.message}`;
+    } finally {
+      downloadMcpConfig.disabled = false;
+    }
+  });
+
+  function downloadJson(name, value) {
+    const url = URL.createObjectURL(new Blob([`${JSON.stringify(value, null, 2)}\n`], { type: "application/json" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = name;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+  }
 
   async function saveProtection() {
     const selected = modeInputs.find((input) => input.checked)?.value;
@@ -287,7 +397,7 @@
     policiesList.replaceChildren();
     for (const item of heuristicPolicies) {
       const card = document.createElement("article");
-      card.className = "policy-item";
+      card.className = `policy-item${editingPolicyId === item.id ? " editing" : ""}`;
       const enabled = document.createElement("input");
       enabled.type = "checkbox";
       enabled.checked = item.enabled;
@@ -297,6 +407,16 @@
         await persistPolicies();
       });
       const body = document.createElement("div");
+      body.className = "policy-body";
+      body.tabIndex = 0;
+      body.setAttribute("role", "button");
+      body.setAttribute("aria-label", `Editar política ${item.name}`);
+      body.addEventListener("click", () => beginPolicyEdit(item));
+      body.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        beginPolicyEdit(item);
+      });
       const title = document.createElement("h3");
       title.textContent = item.name;
       const description = document.createElement("p");
@@ -316,18 +436,19 @@
       }
       body.append(title, description, indicators, nuance, meta);
       card.append(enabled, body);
-      if (!item.builtIn) {
-        const remove = document.createElement("button");
-        remove.type = "button";
-        remove.className = "remove-policy";
-        remove.textContent = "Remover";
-        remove.addEventListener("click", async () => {
-          heuristicPolicies = heuristicPolicies.filter((policy) => policy.id !== item.id);
-          await persistPolicies();
-          renderPolicies();
-        });
-        card.appendChild(remove);
-      }
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "remove-policy";
+      remove.textContent = "Excluir";
+      remove.setAttribute("aria-label", `Excluir política ${item.name}`);
+      remove.addEventListener("click", async () => {
+        if (item.builtIn) deletedDefaultPolicyIds.add(item.id);
+        heuristicPolicies = heuristicPolicies.filter((policy) => policy.id !== item.id);
+        if (editingPolicyId === item.id) resetPolicyForm();
+        await persistPolicies();
+        renderPolicies();
+      });
+      card.appendChild(remove);
       policiesList.appendChild(card);
     }
     showPolicyStatus();
@@ -337,8 +458,9 @@
     event.preventDefault();
     try {
       const slug = policyName.value.toLocaleLowerCase("pt-BR").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-      heuristicPolicies = AISafetyPolicies.addPolicy(heuristicPolicies, {
-        id: `custom-${slug}-${Date.now().toString(36)}`,
+      const current = editingPolicyId ? heuristicPolicies.find((item) => item.id === editingPolicyId) : null;
+      const value = {
+        id: current ? current.id : `custom-${slug}-${Date.now().toString(36)}`,
         name: policyName.value,
         category: policyCategory.value,
         severity: policySeverity.value,
@@ -346,11 +468,14 @@
         terms: policyTerms.value,
         contextTerms: policyContext.value,
         exceptions: policyExceptions.value,
-        enabled: true
-      });
+        enabled: current ? current.enabled : true,
+        builtIn: current ? current.builtIn : false
+      };
+      heuristicPolicies = current
+        ? heuristicPolicies.map((item) => item.id === current.id ? value : item)
+        : AISafetyPolicies.addPolicy(heuristicPolicies, value);
       await persistPolicies();
-      policyForm.reset();
-      policySeverity.value = "high";
+      resetPolicyForm();
       renderPolicies();
     } catch (error) {
       showPolicyStatus(error.message, true);
@@ -358,16 +483,65 @@
   });
 
   async function persistPolicies() {
-    heuristicPolicies = AISafetyPolicies.normalizePolicies(heuristicPolicies);
-    await chrome.storage.local.set({ heuristicPolicies });
+    const storedPolicies = AISafetyPolicies.serializePolicies(heuristicPolicies, [...deletedDefaultPolicyIds]);
+    heuristicPolicies = AISafetyPolicies.normalizePolicies(storedPolicies);
+    defaultPoliciesChanged = AISafetyPolicies.hasBuiltInPolicyChanges(storedPolicies);
+    await chrome.storage.local.set({ heuristicPolicies: storedPolicies });
     showPolicyStatus("Políticas salvas");
   }
+
+  restoreDefaultPolicies.addEventListener("click", async () => {
+    deletedDefaultPolicyIds.clear();
+    heuristicPolicies = AISafetyPolicies.normalizePolicies(heuristicPolicies.filter((item) => !item.builtIn));
+    resetPolicyForm();
+    await persistPolicies();
+    renderPolicies();
+    showPolicyStatus("Políticas iniciais restauradas");
+  });
+
+  function loadPolicyState(storedPolicies) {
+    deletedDefaultPolicyIds = new Set(AISafetyPolicies.getDeletedBuiltInPolicyIds(storedPolicies));
+    defaultPoliciesChanged = AISafetyPolicies.hasBuiltInPolicyChanges(storedPolicies);
+    heuristicPolicies = AISafetyPolicies.normalizePolicies(storedPolicies);
+    if (editingPolicyId && !heuristicPolicies.some((item) => item.id === editingPolicyId)) resetPolicyForm();
+  }
+
+  function beginPolicyEdit(item) {
+    editingPolicyId = item.id;
+    policyName.value = item.name;
+    policyCategory.value = item.category;
+    policySeverity.value = item.severity;
+    policyDescription.value = item.description;
+    policyTerms.value = item.terms.join(", ");
+    policyContext.value = item.contextTerms.join(", ");
+    policyExceptions.value = item.exceptions.join(", ");
+    policyFormTitle.textContent = `Editar política: ${item.name}`;
+    savePolicy.textContent = "Salvar alterações";
+    cancelPolicyEdit.hidden = false;
+    renderPolicies();
+    policyForm.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function resetPolicyForm() {
+    editingPolicyId = null;
+    policyForm.reset();
+    policySeverity.value = "high";
+    policyFormTitle.textContent = "Adicionar política";
+    savePolicy.textContent = "Adicionar política";
+    cancelPolicyEdit.hidden = true;
+  }
+
+  cancelPolicyEdit.addEventListener("click", () => {
+    resetPolicyForm();
+    renderPolicies();
+  });
 
   function showPolicyStatus(message, error = false) {
     const active = heuristicPolicies.filter((item) => item.enabled).length;
     policyStatus.textContent = message || `${active}/${heuristicPolicies.length} ativas`;
     policyStatus.style.background = error ? "#fef2f2" : "#f0fdf4";
     policyStatus.style.color = error ? "#991b1b" : "#166534";
+    restoreDefaultPolicies.disabled = !defaultPoliciesChanged && deletedDefaultPolicyIds.size === 0;
   }
 
   downloadAudit.addEventListener("click", async () => {
@@ -384,7 +558,7 @@
   chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName === "local" && changes.auditLog) showAuditStatus(changes.auditLog.newValue);
     if (areaName === "local" && changes.heuristicPolicies) {
-      heuristicPolicies = AISafetyPolicies.normalizePolicies(changes.heuristicPolicies.newValue);
+      loadPolicyState(changes.heuristicPolicies.newValue);
       renderPolicies();
     }
   });

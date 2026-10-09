@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "ai-safety-guard": {
+      "command": "node",
+      "args": ["C:/Users/SEU_USUARIO/.ai-safety-guard/ai-safety-mcp.cjs"]
+    }
+  }
+}

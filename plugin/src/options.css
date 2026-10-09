@@ -35,6 +35,7 @@ main { margin-top: 18px; }
 h2 { margin: 0 0 5px; font-size: 20px; }
 .card > p, .section-heading p { margin: 0 0 16px; color: #64748b; }
 .section-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
+.section-actions { display: flex; align-items: center; gap: 8px; }
 .pill { white-space: nowrap; border-radius: 999px; padding: 5px 10px; background: #eef2ff; color: #3730a3; font-size: 12px; font-weight: 800; }
 
 .modes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
@@ -59,6 +60,15 @@ progress { width: 100%; height: 12px; margin: 4px 0 14px; accent-color: #16a34a;
 
 button { border: 0; border-radius: 10px; padding: 11px 16px; background: #172033; color: #fff; font-weight: 800; cursor: pointer; }
 button:disabled { opacity: .5; cursor: not-allowed; }
+.secondary-button { padding: 7px 11px; border: 1px solid #cbd5e1; background: #fff; color: #334155; font-size: 12px; }
+.button-link { display: inline-flex; align-items: center; border-radius: 10px; padding: 10px 14px; background: #172033; color: #fff; font-weight: 800; text-decoration: none; }
+.mcp-downloads { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 18px 0 4px; }
+.mcp-downloads #mcp-download-status { color: #475569; font-size: 12px; }
+.platform-tabs { display: inline-flex; gap: 5px; margin-top: 18px; padding: 5px; border: 1px solid #cbd5e1; border-radius: 12px; background: #f1f5f9; }
+.platform-tabs button { padding: 8px 14px; background: transparent; color: #475569; }
+.platform-tabs button[aria-selected="true"] { background: #fff; color: #166534; box-shadow: 0 2px 8px rgba(15, 23, 42, .1); }
+.platform-tabs button:focus-visible { outline: 3px solid #86efac; outline-offset: 1px; }
+.mcp-platform-panel[hidden] { display: none; }
 .fine-print { margin: 10px 0; color: #64748b; font-size: 12px; }
 .stacked-form { display: grid; gap: 8px; margin-top: 24px; padding-top: 20px; border-top: 1px solid #e2e8f0; }
 .stacked-form button { justify-self: start; }
@@ -74,15 +84,29 @@ textarea:focus, input:focus { outline: 3px solid #bbf7d0; border-color: #16a34a;
 .policy-item input[type="checkbox"] { margin-top: 5px; accent-color: #16a34a; }
 .policy-item h3 { margin: 0; font-size: 15px; }
 .policy-item p { margin: 4px 0; color: #64748b; font-size: 13px; }
+.policy-body { border-radius: 8px; cursor: pointer; }
+.policy-body:focus-visible { outline: 3px solid #86efac; outline-offset: 4px; }
+.policy-item.editing { border-color: #16a34a; background: #f0fdf4; }
 .policy-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .policy-meta span { border-radius: 999px; padding: 3px 8px; background: #e2e8f0; color: #334155; font-size: 11px; }
 .policy-item .remove-policy { padding: 6px 9px; background: #991b1b; font-size: 12px; }
 .policy-form { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px; margin-top: 24px; padding-top: 20px; border-top: 1px solid #e2e8f0; }
 .policy-form h3, .policy-form .wide { grid-column: 1 / -1; }
+.policy-form-actions { display: flex; gap: 8px; align-items: center; }
 .policy-form h3 { margin: 0; }
 .policy-form label { font-weight: 700; font-size: 13px; }
 .policy-form input, .policy-form select, .policy-form textarea { display: block; width: 100%; margin-top: 5px; border: 1px solid #cbd5e1; border-radius: 9px; padding: 10px; background: #fff; }
 .policy-form button { justify-self: start; }
+.setup-guide { margin-top: 22px; padding-top: 20px; border-top: 1px solid #e2e8f0; }
+.setup-guide h3 { margin: 0 0 10px; }
+.setup-guide ol { margin: 10px 0 6px; padding-left: 22px; color: #475569; }
+.setup-guide pre { overflow-x: auto; margin: 8px 0 14px; padding: 14px; border-radius: 10px; background: #0f172a; color: #d1fae5; font: 12px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre; }
+.script-box { margin: 8px 0 14px; padding: 10px; border: 1px solid #cbd5e1; border-radius: 12px; background: #f8fafc; }
+.script-box-actions { display: flex; align-items: center; gap: 10px; min-height: 34px; }
+.script-box-actions .secondary-button { margin-left: auto; }
+.script-copy-status { color: #166534; font-size: 12px; }
+.script-copy-status.error { color: #991b1b; }
+.script-box pre { margin-bottom: 0; }
 
 @media (max-width: 720px) {
   .hero { align-items: flex-start; padding: 24px; }
@@ -93,5 +117,6 @@ textarea:focus, input:focus { outline: 3px solid #bbf7d0; border-color: #16a34a;
   .policy-item { grid-template-columns: auto 1fr; }
   .policy-item .remove-policy { grid-column: 2; justify-self: start; }
   .section-heading { align-items: stretch; flex-direction: column; }
+  .section-actions { justify-content: space-between; }
   .tabs button { flex-basis: auto; }
 }
