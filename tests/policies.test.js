@@ -42,3 +42,21 @@ test("gera contexto estruturado para o pré-prompt", () => {
   assert.ok(context.policies.every((item) => Array.isArray(item.exceptions)));
   assert.ok(JSON.stringify(context).length <= policies.MAX_PROMPT_CONTEXT_LENGTH);
 });
+
+test("exclui políticas iniciais com marcador persistente e permite restaurá-las", () => {
+  const removedId = "credentials-secrets";
+  const stored = policies.serializePolicies(policies.normalizePolicies(), [removedId]);
+  assert.deepEqual(policies.getDeletedBuiltInPolicyIds(stored), [removedId]);
+  assert.equal(policies.normalizePolicies(stored).some((item) => item.id === removedId), false);
+  assert.equal(policies.evaluate("password da conta de produção", stored).some((item) => item.id === removedId), false);
+
+  const restored = policies.serializePolicies(policies.normalizePolicies(stored), []);
+  assert.equal(policies.normalizePolicies(restored).some((item) => item.id === removedId), true);
+  assert.deepEqual(policies.getDeletedBuiltInPolicyIds(restored), []);
+});
+
+test("ignora marcadores de exclusão para políticas que não são iniciais", () => {
+  const stored = policies.serializePolicies([], ["custom-policy", "unknown"]);
+  assert.deepEqual(policies.getDeletedBuiltInPolicyIds(stored), []);
+  assert.equal(policies.normalizePolicies(stored).length, policies.DEFAULT_POLICIES.length);
+});

@@ -15,6 +15,7 @@
   const saveStatus = document.querySelector("#save-status");
   const rulesSaveStatus = document.querySelector("#rules-save-status");
   const policyStatus = document.querySelector("#policy-status");
+  const restoreDefaultPolicies = document.querySelector("#restore-default-policies");
   const policiesList = document.querySelector("#policies-list");
   const policyForm = document.querySelector("#policy-form");
   const policyName = document.querySelector("#policy-name");
@@ -41,6 +42,7 @@
   const categoryInputs = new Map();
   let nanoAvailable = false;
   let heuristicPolicies = AISafetyPolicies.normalizePolicies();
+  let deletedDefaultPolicyIds = new Set();
 
   initializeTabs();
   initialize().catch((error) => {
@@ -92,7 +94,7 @@
     }
     renderCategories();
     renderPolicyCategories();
-    heuristicPolicies = AISafetyPolicies.normalizePolicies(remote.heuristicPolicies);
+    loadPolicyState(remote.heuristicPolicies);
     renderPolicies();
     const settings = await chrome.storage.sync.get({
       enabledCategories: Object.keys(AISafetyGuard.CATEGORIES),
@@ -341,18 +343,18 @@
       }
       body.append(title, description, indicators, nuance, meta);
       card.append(enabled, body);
-      if (!item.builtIn) {
-        const remove = document.createElement("button");
-        remove.type = "button";
-        remove.className = "remove-policy";
-        remove.textContent = "Remover";
-        remove.addEventListener("click", async () => {
-          heuristicPolicies = heuristicPolicies.filter((policy) => policy.id !== item.id);
-          await persistPolicies();
-          renderPolicies();
-        });
-        card.appendChild(remove);
-      }
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "remove-policy";
+      remove.textContent = "Excluir";
+      remove.setAttribute("aria-label", `Excluir política ${item.name}`);
+      remove.addEventListener("click", async () => {
+        if (item.builtIn) deletedDefaultPolicyIds.add(item.id);
+        heuristicPolicies = heuristicPolicies.filter((policy) => policy.id !== item.id);
+        await persistPolicies();
+        renderPolicies();
+      });
+      card.appendChild(remove);
       policiesList.appendChild(card);
     }
     showPolicyStatus();
@@ -383,9 +385,23 @@
   });
 
   async function persistPolicies() {
-    heuristicPolicies = AISafetyPolicies.normalizePolicies(heuristicPolicies);
-    await chrome.storage.local.set({ heuristicPolicies });
+    const storedPolicies = AISafetyPolicies.serializePolicies(heuristicPolicies, [...deletedDefaultPolicyIds]);
+    heuristicPolicies = AISafetyPolicies.normalizePolicies(storedPolicies);
+    await chrome.storage.local.set({ heuristicPolicies: storedPolicies });
     showPolicyStatus("Políticas salvas");
+  }
+
+  restoreDefaultPolicies.addEventListener("click", async () => {
+    deletedDefaultPolicyIds.clear();
+    heuristicPolicies = AISafetyPolicies.normalizePolicies(heuristicPolicies);
+    await persistPolicies();
+    renderPolicies();
+    showPolicyStatus("Políticas iniciais restauradas");
+  });
+
+  function loadPolicyState(storedPolicies) {
+    deletedDefaultPolicyIds = new Set(AISafetyPolicies.getDeletedBuiltInPolicyIds(storedPolicies));
+    heuristicPolicies = AISafetyPolicies.normalizePolicies(storedPolicies);
   }
 
   function showPolicyStatus(message, error = false) {
@@ -393,6 +409,7 @@
     policyStatus.textContent = message || `${active}/${heuristicPolicies.length} ativas`;
     policyStatus.style.background = error ? "#fef2f2" : "#f0fdf4";
     policyStatus.style.color = error ? "#991b1b" : "#166534";
+    restoreDefaultPolicies.disabled = deletedDefaultPolicyIds.size === 0;
   }
 
   downloadAudit.addEventListener("click", async () => {
@@ -409,7 +426,7 @@
   chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName === "local" && changes.auditLog) showAuditStatus(changes.auditLog.newValue);
     if (areaName === "local" && changes.heuristicPolicies) {
-      heuristicPolicies = AISafetyPolicies.normalizePolicies(changes.heuristicPolicies.newValue);
+      loadPolicyState(changes.heuristicPolicies.newValue);
       renderPolicies();
     }
   });

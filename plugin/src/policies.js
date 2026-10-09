@@ -52,14 +52,29 @@
 
   function normalizePolicies(stored) {
     const values = Array.isArray(stored) ? stored : [];
-    const byId = new Map(values.filter((item) => item && item.id).map((item) => [String(item.id), item]));
-    const defaults = DEFAULT_POLICIES.map((item) => normalizePolicy({ ...item, enabled: byId.has(item.id) ? byId.get(item.id).enabled : true }, { builtIn: true }));
+    const deletedBuiltInIds = getDeletedBuiltInPolicyIds(values);
+    const byId = new Map(values.filter((item) => item && item.id && item.deleted !== true).map((item) => [String(item.id), item]));
+    const defaults = DEFAULT_POLICIES
+      .filter((item) => !deletedBuiltInIds.includes(item.id))
+      .map((item) => normalizePolicy({ ...item, enabled: byId.has(item.id) ? byId.get(item.id).enabled : true }, { builtIn: true }));
     const custom = [];
     for (const item of values) {
       if (!item || DEFAULT_POLICIES.some((entry) => entry.id === item.id)) continue;
       try { custom.push(normalizePolicy(item)); } catch { /* ignore invalid stored policy */ }
     }
     return [...defaults, ...custom].slice(0, MAX_POLICIES);
+  }
+
+  function getDeletedBuiltInPolicyIds(stored) {
+    const defaultIds = new Set(DEFAULT_POLICIES.map((item) => item.id));
+    const values = Array.isArray(stored) ? stored : [];
+    return [...new Set(values.filter((item) => item && item.deleted === true && defaultIds.has(String(item.id))).map((item) => String(item.id)))];
+  }
+
+  function serializePolicies(policies, deletedBuiltInIds = []) {
+    const defaultIds = new Set(DEFAULT_POLICIES.map((item) => item.id));
+    const markers = [...new Set(deletedBuiltInIds)].filter((id) => defaultIds.has(id)).map((id) => ({ id, deleted: true }));
+    return [...normalizePolicies([...(Array.isArray(policies) ? policies : []), ...markers]), ...markers];
   }
 
   function addPolicy(policies, value) {
@@ -96,5 +111,5 @@
     return JSON.stringify({ policies: selected, localMatches });
   }
 
-  return Object.freeze({ DEFAULT_POLICIES, CATEGORIES, SEVERITIES, MAX_POLICIES, MAX_PROMPT_CONTEXT_LENGTH, normalizePolicy, normalizePolicies, addPolicy, evaluate, toPromptContext });
+  return Object.freeze({ DEFAULT_POLICIES, CATEGORIES, SEVERITIES, MAX_POLICIES, MAX_PROMPT_CONTEXT_LENGTH, normalizePolicy, normalizePolicies, getDeletedBuiltInPolicyIds, serializePolicies, addPolicy, evaluate, toPromptContext });
 });

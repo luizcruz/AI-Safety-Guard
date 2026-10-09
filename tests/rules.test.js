@@ -148,6 +148,7 @@ test("página de opções apresenta os quatro níveis e instalação do Gemini N
   assert.match(options, /id="categories"/);
   assert.match(options, /id="policies-list"/);
   assert.match(options, /id="policy-form"/);
+  assert.match(options, /id="restore-default-policies"[^>]*>Restaurar iniciais<\/button>/);
   assert.match(options, /id="obfuscate-sensitive-data"/);
   assert.match(options, /id="audit-status"/);
   assert.match(options, /id="audit-log-preview"[^>]*readonly/);
@@ -167,6 +168,9 @@ test("página de opções apresenta os quatro níveis e instalação do Gemini N
   assert.doesNotMatch(optionsScript, /state === "available"\) \{[\s\S]{0,120}AISafetyNano\.install/);
   assert.match(optionsScript, /AISafetyNano\.classify\(message, \{ policies: heuristicPolicies \}\)/);
   assert.match(optionsScript, /AISafetyPolicies\.addPolicy/);
+  assert.match(optionsScript, /AISafetyPolicies\.serializePolicies/);
+  assert.match(optionsScript, /deletedDefaultPolicyIds\.add\(item\.id\)/);
+  assert.doesNotMatch(optionsScript, /if \(!item\.builtIn\) \{\s*const remove/);
   assert.match(optionsScript, /enforceNanoAvailability/);
   assert.match(optionsScript, /obfuscateSensitiveData/);
   assert.match(optionsScript, /AISafetyAuditLog\.serialize\(entries\)/);
