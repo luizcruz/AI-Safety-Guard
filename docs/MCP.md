@@ -2,7 +2,9 @@
 
 AI Safety Guard provides WebMCP in Chrome and a standalone local MCP server for Claude Code and Codex. End users do not need the repository or `npm install`.
 
-Open **AI Safety Guard > Open all settings > MCP**, download the server and current configuration, then follow the tab for your operating system. Download `config.json` again after changing categories, policies, or obfuscation.
+Open **AI Safety Guard > Open all settings > MCP**, download the server and current configuration, then follow the tab for your operating system. The exported `config.json` contains the active deterministic rules catalog, enabled categories, heuristic policies, and obfuscation setting. Download it again after changing any of these or updating rules.
+
+WebMCP and local MCP are separate transports. WebMCP registers a tool in supported Chrome pages for browser-resident agents. Codex Desktop and Claude Code use the local stdio MCP server; they do not invoke the Chrome page's WebMCP tool or read Chrome extension storage. The exported catalog snapshot keeps the local server aligned with the extension at the time of export.
 
 When obfuscation is enabled, a blocked Claude Code prompt is hidden from the block message and a `[REDACTED]` version is shown for review and manual resubmission. Claude Code `UserPromptSubmit` hooks cannot replace the submitted prompt automatically.
 

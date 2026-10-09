@@ -333,10 +333,11 @@
     try {
       const [syncSettings, localSettings] = await Promise.all([
         chrome.storage.sync.get({ enabledCategories: Object.keys(AISafetyGuard.CATEGORIES), obfuscateSensitiveData: false }),
-        chrome.storage.local.get({ heuristicPolicies: null })
+        chrome.storage.local.get({ heuristicPolicies: null, rulesCatalog: null })
       ]);
       const policies = localSettings.heuristicPolicies || AISafetyPolicies.serializePolicies(heuristicPolicies, [...deletedDefaultPolicyIds]);
-      downloadJson("config.json", { mode: "heuristic", enabledCategories: syncSettings.enabledCategories, obfuscateSensitiveData: syncSettings.obfuscateSensitiveData === true, policies });
+      const rulesCatalog = localSettings.rulesCatalog || AISafetyGuardRules;
+      downloadJson("config.json", { mode: "heuristic", enabledCategories: syncSettings.enabledCategories, obfuscateSensitiveData: syncSettings.obfuscateSensitiveData === true, rulesCatalog, policies });
       mcpDownloadStatus.textContent = "Configuração baixada.";
     } catch (error) {
       mcpDownloadStatus.textContent = `Falha: ${error.message}`;

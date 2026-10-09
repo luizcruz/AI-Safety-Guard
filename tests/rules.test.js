@@ -213,6 +213,8 @@ test("página de opções apresenta os quatro níveis e instalação do Gemini N
   assert.match(optionsScript, /initializeMcpPlatformTabs\(\)/);
   assert.match(optionsScript, /navigator\.clipboard\.writeText\(target\.textContent\)/);
   assert.match(optionsScript, /Script copiado\./);
+  assert.match(optionsScript, /rulesCatalog = localSettings\.rulesCatalog \|\| AISafetyGuardRules/);
+  assert.match(optionsScript, /rulesCatalog, policies/);
   assert.match(optionsScript, /activateMcpPlatform\(mcpPlatformTabs\[next\]\.dataset\.mcpPlatform, true\)/);
   assert.doesNotMatch(optionsScript, /state === "available"\) \{[\s\S]{0,120}AISafetyNano\.install/);
   assert.match(optionsScript, /AISafetyNano\.classify\(message, \{ policies: heuristicPolicies \}\)/);
@@ -249,18 +251,18 @@ test("popup permite selecionar nível por controle deslizante", () => {
   assert.match(popupScript, /chrome\.runtime\.openOptionsPage\(\)/);
 });
 
-test("identidade pública usa exclusivamente AI Safety Guard v2.3", () => {
+test("identidade pública usa exclusivamente AI Safety Guard v2.4", () => {
   const root = path.join(__dirname, "..");
   const manifest = JSON.parse(fs.readFileSync(path.join(root, "plugin", "manifest.json"), "utf8"));
   const packageManifest = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
   const packageLock = JSON.parse(fs.readFileSync(path.join(root, "package-lock.json"), "utf8"));
   const options = fs.readFileSync(path.join(root, "plugin", "src", "options.html"), "utf8");
   const readme = fs.readFileSync(path.join(root, "README.md"), "utf8");
-  assert.equal(manifest.version, "2.3.0");
+  assert.equal(manifest.version, "2.4.0");
   assert.equal(packageManifest.version, manifest.version);
   assert.equal(packageLock.version, manifest.version);
   assert.equal(packageLock.packages[""].version, manifest.version);
-  assert.equal(manifest.name, "AI Safety Guard v2.3");
-  assert.equal(manifest.action.default_title, "AI Safety Guard v2.3");
+  assert.equal(manifest.name, "AI Safety Guard v2.4");
+  assert.equal(manifest.action.default_title, "AI Safety Guard v2.4");
   assert.doesNotMatch(`${options}\n${readme}`, /AI Chat DLP Guard/i);
 });

@@ -15,12 +15,14 @@ function loadConfig(environment = process.env) {
     if (!stat.isFile() || stat.size > MAX_CONFIG_BYTES) throw new Error("Invalid AI Safety configuration file");
     stored = JSON.parse(fs.readFileSync(absolutePath, "utf8"));
   }
-  return {
+  const config = {
     mode: environment.AI_SAFETY_MODE || stored.mode || "heuristic",
     enabledCategories: Array.isArray(stored.enabledCategories) ? stored.enabledCategories : undefined,
     obfuscateSensitiveData: stored.obfuscateSensitiveData === true,
-    policies: Array.isArray(stored.policies) ? stored.policies : undefined
+    policies: Array.isArray(stored.policies) ? stored.policies : undefined,
+    rulesCatalog: stored.rulesCatalog && typeof stored.rulesCatalog === "object" ? stored.rulesCatalog : undefined
   };
+  return config;
 }
 
 module.exports = Object.freeze({ loadConfig, MAX_CONFIG_BYTES });
