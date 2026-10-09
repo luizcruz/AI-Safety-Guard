@@ -18,6 +18,9 @@
   const restoreDefaultPolicies = document.querySelector("#restore-default-policies");
   const policiesList = document.querySelector("#policies-list");
   const policyForm = document.querySelector("#policy-form");
+  const policyFormTitle = document.querySelector("#policy-form-title");
+  const savePolicy = document.querySelector("#save-policy");
+  const cancelPolicyEdit = document.querySelector("#cancel-policy-edit");
   const policyName = document.querySelector("#policy-name");
   const policyCategory = document.querySelector("#policy-category");
   const policySeverity = document.querySelector("#policy-severity");
@@ -43,6 +46,8 @@
   let nanoAvailable = false;
   let heuristicPolicies = AISafetyPolicies.normalizePolicies();
   let deletedDefaultPolicyIds = new Set();
+  let editingPolicyId = null;
+  let defaultPoliciesChanged = false;
 
   initializeTabs();
   initialize().catch((error) => {
@@ -314,7 +319,7 @@
     policiesList.replaceChildren();
     for (const item of heuristicPolicies) {
       const card = document.createElement("article");
-      card.className = "policy-item";
+      card.className = `policy-item${editingPolicyId === item.id ? " editing" : ""}`;
       const enabled = document.createElement("input");
       enabled.type = "checkbox";
       enabled.checked = item.enabled;
@@ -324,6 +329,16 @@
         await persistPolicies();
       });
       const body = document.createElement("div");
+      body.className = "policy-body";
+      body.tabIndex = 0;
+      body.setAttribute("role", "button");
+      body.setAttribute("aria-label", `Editar política ${item.name}`);
+      body.addEventListener("click", () => beginPolicyEdit(item));
+      body.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        beginPolicyEdit(item);
+      });
       const title = document.createElement("h3");
       title.textContent = item.name;
       const description = document.createElement("p");
@@ -351,6 +366,7 @@
       remove.addEventListener("click", async () => {
         if (item.builtIn) deletedDefaultPolicyIds.add(item.id);
         heuristicPolicies = heuristicPolicies.filter((policy) => policy.id !== item.id);
+        if (editingPolicyId === item.id) resetPolicyForm();
         await persistPolicies();
         renderPolicies();
       });
@@ -364,8 +380,9 @@
     event.preventDefault();
     try {
       const slug = policyName.value.toLocaleLowerCase("pt-BR").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-      heuristicPolicies = AISafetyPolicies.addPolicy(heuristicPolicies, {
-        id: `custom-${slug}-${Date.now().toString(36)}`,
+      const current = editingPolicyId ? heuristicPolicies.find((item) => item.id === editingPolicyId) : null;
+      const value = {
+        id: current ? current.id : `custom-${slug}-${Date.now().toString(36)}`,
         name: policyName.value,
         category: policyCategory.value,
         severity: policySeverity.value,
@@ -373,11 +390,14 @@
         terms: policyTerms.value,
         contextTerms: policyContext.value,
         exceptions: policyExceptions.value,
-        enabled: true
-      });
+        enabled: current ? current.enabled : true,
+        builtIn: current ? current.builtIn : false
+      };
+      heuristicPolicies = current
+        ? heuristicPolicies.map((item) => item.id === current.id ? value : item)
+        : AISafetyPolicies.addPolicy(heuristicPolicies, value);
       await persistPolicies();
-      policyForm.reset();
-      policySeverity.value = "high";
+      resetPolicyForm();
       renderPolicies();
     } catch (error) {
       showPolicyStatus(error.message, true);
@@ -387,13 +407,15 @@
   async function persistPolicies() {
     const storedPolicies = AISafetyPolicies.serializePolicies(heuristicPolicies, [...deletedDefaultPolicyIds]);
     heuristicPolicies = AISafetyPolicies.normalizePolicies(storedPolicies);
+    defaultPoliciesChanged = AISafetyPolicies.hasBuiltInPolicyChanges(storedPolicies);
     await chrome.storage.local.set({ heuristicPolicies: storedPolicies });
     showPolicyStatus("Políticas salvas");
   }
 
   restoreDefaultPolicies.addEventListener("click", async () => {
     deletedDefaultPolicyIds.clear();
-    heuristicPolicies = AISafetyPolicies.normalizePolicies(heuristicPolicies);
+    heuristicPolicies = AISafetyPolicies.normalizePolicies(heuristicPolicies.filter((item) => !item.builtIn));
+    resetPolicyForm();
     await persistPolicies();
     renderPolicies();
     showPolicyStatus("Políticas iniciais restauradas");
@@ -401,15 +423,47 @@
 
   function loadPolicyState(storedPolicies) {
     deletedDefaultPolicyIds = new Set(AISafetyPolicies.getDeletedBuiltInPolicyIds(storedPolicies));
+    defaultPoliciesChanged = AISafetyPolicies.hasBuiltInPolicyChanges(storedPolicies);
     heuristicPolicies = AISafetyPolicies.normalizePolicies(storedPolicies);
+    if (editingPolicyId && !heuristicPolicies.some((item) => item.id === editingPolicyId)) resetPolicyForm();
   }
+
+  function beginPolicyEdit(item) {
+    editingPolicyId = item.id;
+    policyName.value = item.name;
+    policyCategory.value = item.category;
+    policySeverity.value = item.severity;
+    policyDescription.value = item.description;
+    policyTerms.value = item.terms.join(", ");
+    policyContext.value = item.contextTerms.join(", ");
+    policyExceptions.value = item.exceptions.join(", ");
+    policyFormTitle.textContent = `Editar política: ${item.name}`;
+    savePolicy.textContent = "Salvar alterações";
+    cancelPolicyEdit.hidden = false;
+    renderPolicies();
+    policyForm.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function resetPolicyForm() {
+    editingPolicyId = null;
+    policyForm.reset();
+    policySeverity.value = "high";
+    policyFormTitle.textContent = "Adicionar política";
+    savePolicy.textContent = "Adicionar política";
+    cancelPolicyEdit.hidden = true;
+  }
+
+  cancelPolicyEdit.addEventListener("click", () => {
+    resetPolicyForm();
+    renderPolicies();
+  });
 
   function showPolicyStatus(message, error = false) {
     const active = heuristicPolicies.filter((item) => item.enabled).length;
     policyStatus.textContent = message || `${active}/${heuristicPolicies.length} ativas`;
     policyStatus.style.background = error ? "#fef2f2" : "#f0fdf4";
     policyStatus.style.color = error ? "#991b1b" : "#166534";
-    restoreDefaultPolicies.disabled = deletedDefaultPolicyIds.size === 0;
+    restoreDefaultPolicies.disabled = !defaultPoliciesChanged && deletedDefaultPolicyIds.size === 0;
   }
 
   downloadAudit.addEventListener("click", async () => {

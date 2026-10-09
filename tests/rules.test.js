@@ -148,6 +148,9 @@ test("página de opções apresenta os quatro níveis e instalação do Gemini N
   assert.match(options, /id="categories"/);
   assert.match(options, /id="policies-list"/);
   assert.match(options, /id="policy-form"/);
+  assert.match(options, /id="policy-form-title"/);
+  assert.match(options, /id="save-policy"/);
+  assert.match(options, /id="cancel-policy-edit"[^>]*hidden/);
   assert.match(options, /id="restore-default-policies"[^>]*>Restaurar iniciais<\/button>/);
   assert.match(options, /id="obfuscate-sensitive-data"/);
   assert.match(options, /id="audit-status"/);
@@ -170,6 +173,10 @@ test("página de opções apresenta os quatro níveis e instalação do Gemini N
   assert.match(optionsScript, /AISafetyPolicies\.addPolicy/);
   assert.match(optionsScript, /AISafetyPolicies\.serializePolicies/);
   assert.match(optionsScript, /deletedDefaultPolicyIds\.add\(item\.id\)/);
+  assert.match(optionsScript, /beginPolicyEdit\(item\)/);
+  assert.match(optionsScript, /editingPolicyId/);
+  assert.match(optionsScript, /Salvar alterações/);
+  assert.match(optionsScript, /item\.id === current\.id \? value : item/);
   assert.doesNotMatch(optionsScript, /if \(!item\.builtIn\) \{\s*const remove/);
   assert.match(optionsScript, /enforceNanoAvailability/);
   assert.match(optionsScript, /obfuscateSensitiveData/);

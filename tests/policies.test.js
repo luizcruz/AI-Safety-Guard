@@ -60,3 +60,25 @@ test("ignora marcadores de exclusão para políticas que não são iniciais", ()
   assert.deepEqual(policies.getDeletedBuiltInPolicyIds(stored), []);
   assert.equal(policies.normalizePolicies(stored).length, policies.DEFAULT_POLICIES.length);
 });
+
+test("preserva edições de políticas iniciais e detecta necessidade de restauração", () => {
+  const configured = policies.normalizePolicies();
+  const edited = configured.map((item) => item.id === "press-embargo" ? {
+    ...item,
+    name: "Embargo editorial",
+    description: "Política inicial editada.",
+    terms: ["informação reservada"],
+    contextTerms: ["redação"]
+  } : item);
+  const stored = policies.serializePolicies(edited);
+  const normalized = policies.normalizePolicies(stored);
+  const changed = normalized.find((item) => item.id === "press-embargo");
+  assert.equal(changed.name, "Embargo editorial");
+  assert.deepEqual(changed.terms, ["informação reservada"]);
+  assert.equal(policies.hasBuiltInPolicyChanges(stored), true);
+
+  const customOnly = normalized.filter((item) => !item.builtIn);
+  const restored = policies.serializePolicies(policies.normalizePolicies(customOnly));
+  assert.equal(policies.normalizePolicies(restored).find((item) => item.id === "press-embargo").name, "Embargo e fontes jornalísticas");
+  assert.equal(policies.hasBuiltInPolicyChanges(restored), false);
+});

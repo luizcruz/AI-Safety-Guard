@@ -77,7 +77,7 @@
           <div id="policies-list" class="policies-list"></div>
 
           <form id="policy-form" class="policy-form">
-            <h3>Adicionar política</h3>
+            <h3 id="policy-form-title">Adicionar política</h3>
             <label>Nome<input id="policy-name" maxlength="80" required></label>
             <label>Categoria<select id="policy-category" required></select></label>
             <label>Severidade<select id="policy-severity" required><option value="medium">Média</option><option value="high" selected>Alta</option><option value="critical">Crítica</option></select></label>
@@ -85,7 +85,7 @@
             <label class="wide">Indicadores separados por vírgula<input id="policy-terms" required placeholder="sob embargo, não publicar"></label>
             <label class="wide">Contexto obrigatório separado por vírgula<input id="policy-context" placeholder="projeto, diretoria"></label>
             <label class="wide">Exceções separadas por vírgula<input id="policy-exceptions" placeholder="já publicado, exemplo fictício"></label>
-            <button type="submit">Adicionar política</button>
+            <div class="policy-form-actions"><button id="save-policy" type="submit">Adicionar política</button><button id="cancel-policy-edit" class="secondary-button" type="button" hidden>Cancelar edição</button></div>
           </form>
         </section>
 
