@@ -58,62 +58,79 @@ Merge into `~/.codex/hooks.json` using the same hook structure and this command:
 
 ## Linux (WSL)
 
-Install Node.js 18 or newer inside WSL. Chrome downloads the files on Windows; copy them from the mounted Windows directory:
+Install Node.js 18 or newer inside WSL, download both files in Chrome, then paste this entire block into WSL:
 
 ```bash
-WINDOWS_USER="$(cmd.exe /c "echo %USERNAME%" 2>/dev/null | tr -d '\r')"
+set -euo pipefail
+
+WINDOWS_USER="$(cmd.exe /c "echo %USERNAME%" 2>/dev/null | tr -d '\r\n')"
 WINDOWS_HOME="/mnt/c/Users/$WINDOWS_USER"
-mkdir -p "$HOME/.ai-safety-guard"
-cp "$WINDOWS_HOME/Downloads/ai-safety-mcp.cjs" "$HOME/.ai-safety-guard/ai-safety-mcp.cjs"
-cp "$WINDOWS_HOME/Downloads/config.json" "$HOME/.ai-safety-guard/config.json"
-```
+INSTALL_DIR="$HOME/.ai-safety-guard"
+SERVER="$INSTALL_DIR/ai-safety-mcp.cjs"
 
-### Claude Code
+install -d -m 700 "$INSTALL_DIR"
+install -m 600 "$WINDOWS_HOME/Downloads/ai-safety-mcp.cjs" "$SERVER"
+install -m 600 "$WINDOWS_HOME/Downloads/config.json" "$INSTALL_DIR/config.json"
 
-```bash
-claude mcp add --scope user ai-safety-guard -- node "$HOME/.ai-safety-guard/ai-safety-mcp.cjs"
-claude mcp list
-```
+export AI_SAFETY_MCP_PATH="$SERVER"
+CONFIGURED_CLIENTS=0
 
-Merge into `~/.claude/settings.json`:
+if command -v claude >/dev/null 2>&1; then
+  claude mcp remove ai-safety-guard >/dev/null 2>&1 || true
+  claude mcp add --scope user ai-safety-guard -- node "$SERVER"
+  export AI_SAFETY_CONFIGURE_CLAUDE=1
+  CONFIGURED_CLIENTS=1
+fi
 
-```json
-{
-  "hooks": {
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$HOME/.ai-safety-guard/ai-safety-mcp.cjs\" --hook",
-            "timeout": 15
-          }
-        ]
-      }
+if command -v codex >/dev/null 2>&1; then
+  codex mcp remove ai-safety-guard >/dev/null 2>&1 || true
+  codex mcp add ai-safety-guard -- node "$SERVER"
+  export AI_SAFETY_CONFIGURE_CODEX=1
+  CONFIGURED_CLIENTS=1
+fi
+
+if [ "$CONFIGURED_CLIENTS" -eq 0 ]; then
+  echo "Claude Code or Codex was not found inside WSL." >&2
+  exit 1
+fi
+
+node <<'NODE'
+const fs = require("node:fs");
+const path = require("node:path");
+
+function installHook(relativePath) {
+  const file = path.join(process.env.HOME, relativePath);
+  const config = fs.existsSync(file)
+    ? JSON.parse(fs.readFileSync(file, "utf8"))
+    : {};
+  const hooks = config.hooks && typeof config.hooks === "object" ? config.hooks : {};
+  const current = Array.isArray(hooks.UserPromptSubmit) ? hooks.UserPromptSubmit : [];
+  const command = `node "${process.env.AI_SAFETY_MCP_PATH}" --hook`;
+  const aiSafetyHook = { hooks: [{ type: "command", command, timeout: 15 }] };
+  config.hooks = {
+    ...hooks,
+    UserPromptSubmit: [
+      ...current.filter((entry) => !JSON.stringify(entry).includes("ai-safety-mcp.cjs")),
+      aiSafetyHook
     ]
-  }
+  };
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+  const temporary = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(temporary, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
+  fs.renameSync(temporary, file);
 }
+
+if (process.env.AI_SAFETY_CONFIGURE_CLAUDE === "1") installHook(".claude/settings.json");
+if (process.env.AI_SAFETY_CONFIGURE_CODEX === "1") installHook(".codex/hooks.json");
+NODE
+
+if [ "${AI_SAFETY_CONFIGURE_CLAUDE:-0}" = "1" ]; then claude mcp list; fi
+if [ "${AI_SAFETY_CONFIGURE_CODEX:-0}" = "1" ]; then codex mcp list; fi
+
+echo "AI Safety Guard MCP installed successfully."
 ```
 
-### Codex
-
-```bash
-codex mcp add ai-safety-guard -- node "$HOME/.ai-safety-guard/ai-safety-mcp.cjs"
-codex mcp list
-```
-
-Merge into `~/.codex/hooks.json` using the same hook structure and this command:
-
-```json
-"command": "node \"$HOME/.ai-safety-guard/ai-safety-mcp.cjs\" --hook"
-```
-
-Restart the client and validate its MCP and hooks. To disable the integration, remove `UserPromptSubmit` and run the applicable command:
-
-```bash
-claude mcp remove ai-safety-guard
-codex mcp remove ai-safety-guard
-```
+The script configures whichever supported clients it finds and preserves unrelated hooks. Restart each configured client afterward.
 
 ## WebMCP
 

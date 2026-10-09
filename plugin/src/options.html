@@ -186,68 +186,87 @@ codex mcp list</code></pre>
 
           <div id="mcp-platform-panel-wsl" class="mcp-platform-panel" role="tabpanel" aria-labelledby="mcp-platform-tab-wsl" data-mcp-platform-panel="wsl" hidden>
             <div class="setup-guide">
-              <h3>Preparação no Linux (WSL)</h3>
+              <h3>Instalação completa no Linux (WSL)</h3>
               <ol>
                 <li>Instale o Node.js 18 ou superior dentro do WSL.</li>
                 <li>Baixe os dois arquivos pelo Chrome no Windows.</li>
-                <li>No terminal WSL, copie-os para uma pasta permanente:</li>
+                <li>Cole todo o bloco abaixo no WSL e pressione Enter:</li>
               </ol>
-              <pre><code>WINDOWS_USER="$(cmd.exe /c "echo %USERNAME%" 2>/dev/null | tr -d '\r')"
+              <pre><code>set -euo pipefail
+
+WINDOWS_USER="$(cmd.exe /c "echo %USERNAME%" 2>/dev/null | tr -d '\r\n')"
 WINDOWS_HOME="/mnt/c/Users/$WINDOWS_USER"
-mkdir -p "$HOME/.ai-safety-guard"
-cp "$WINDOWS_HOME/Downloads/ai-safety-mcp.cjs" "$HOME/.ai-safety-guard/ai-safety-mcp.cjs"
-cp "$WINDOWS_HOME/Downloads/config.json" "$HOME/.ai-safety-guard/config.json"</code></pre>
-              <p class="fine-print">O comando identifica automaticamente o usuário do Windows. Se o Chrome salvar em outra pasta, ajuste a origem.</p>
+INSTALL_DIR="$HOME/.ai-safety-guard"
+SERVER="$INSTALL_DIR/ai-safety-mcp.cjs"
+
+install -d -m 700 "$INSTALL_DIR"
+install -m 600 "$WINDOWS_HOME/Downloads/ai-safety-mcp.cjs" "$SERVER"
+install -m 600 "$WINDOWS_HOME/Downloads/config.json" "$INSTALL_DIR/config.json"
+
+export AI_SAFETY_MCP_PATH="$SERVER"
+CONFIGURED_CLIENTS=0
+
+if command -v claude &gt;/dev/null 2&gt;&amp;1; then
+  claude mcp remove ai-safety-guard &gt;/dev/null 2&gt;&amp;1 || true
+  claude mcp add --scope user ai-safety-guard -- node "$SERVER"
+  export AI_SAFETY_CONFIGURE_CLAUDE=1
+  CONFIGURED_CLIENTS=1
+fi
+
+if command -v codex &gt;/dev/null 2&gt;&amp;1; then
+  codex mcp remove ai-safety-guard &gt;/dev/null 2&gt;&amp;1 || true
+  codex mcp add ai-safety-guard -- node "$SERVER"
+  export AI_SAFETY_CONFIGURE_CODEX=1
+  CONFIGURED_CLIENTS=1
+fi
+
+if [ "$CONFIGURED_CLIENTS" -eq 0 ]; then
+  echo "Claude Code ou Codex não foi encontrado no WSL." &gt;&amp;2
+  exit 1
+fi
+
+node &lt;&lt;'NODE'
+const fs = require("node:fs");
+const path = require("node:path");
+
+function installHook(relativePath) {
+  const file = path.join(process.env.HOME, relativePath);
+  const config = fs.existsSync(file)
+    ? JSON.parse(fs.readFileSync(file, "utf8"))
+    : {};
+  const hooks = config.hooks &amp;&amp; typeof config.hooks === "object" ? config.hooks : {};
+  const current = Array.isArray(hooks.UserPromptSubmit) ? hooks.UserPromptSubmit : [];
+  const command = `node "${process.env.AI_SAFETY_MCP_PATH}" --hook`;
+  const aiSafetyHook = { hooks: [{ type: "command", command, timeout: 15 }] };
+  config.hooks = {
+    ...hooks,
+    UserPromptSubmit: [
+      ...current.filter((entry) =&gt; !JSON.stringify(entry).includes("ai-safety-mcp.cjs")),
+      aiSafetyHook
+    ]
+  };
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+  const temporary = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(temporary, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
+  fs.renameSync(temporary, file);
+}
+
+if (process.env.AI_SAFETY_CONFIGURE_CLAUDE === "1") installHook(".claude/settings.json");
+if (process.env.AI_SAFETY_CONFIGURE_CODEX === "1") installHook(".codex/hooks.json");
+NODE
+
+if [ "${AI_SAFETY_CONFIGURE_CLAUDE:-0}" = "1" ]; then claude mcp list; fi
+if [ "${AI_SAFETY_CONFIGURE_CODEX:-0}" = "1" ]; then codex mcp list; fi
+
+echo "AI Safety Guard MCP instalado com sucesso."</code></pre>
+              <p class="fine-print">O script configura automaticamente os clientes encontrados e preserva os demais hooks. Se o Chrome salvar em outra pasta, ajuste <code>WINDOWS_HOME</code>.</p>
             </div>
 
             <article class="setup-guide">
-              <h3>Claude Code no WSL</h3>
-              <ol><li>Adicione e valide o servidor:</li></ol>
-              <pre><code>claude mcp add --scope user ai-safety-guard -- node "$HOME/.ai-safety-guard/ai-safety-mcp.cjs"
-claude mcp list</code></pre>
-              <ol start="2"><li>Mescle em <code>~/.claude/settings.json</code>:</li></ol>
-              <pre><code>{
-  "hooks": {
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$HOME/.ai-safety-guard/ai-safety-mcp.cjs\" --hook",
-            "timeout": 15
-          }
-        ]
-      }
-    ]
-  }
-}</code></pre>
-              <ol start="3"><li>Reinicie o Claude Code e execute <code>/hooks</code> e <code>/mcp</code>. Para desabilitar, remova o bloco <code>UserPromptSubmit</code> e execute:</li></ol>
-              <pre><code>claude mcp remove ai-safety-guard</code></pre>
-            </article>
-
-            <article class="setup-guide">
-              <h3>ChatGPT Codex no WSL</h3>
-              <ol><li>Adicione e valide o servidor:</li></ol>
-              <pre><code>codex mcp add ai-safety-guard -- node "$HOME/.ai-safety-guard/ai-safety-mcp.cjs"
-codex mcp list</code></pre>
-              <ol start="2"><li>Mescle em <code>~/.codex/hooks.json</code>:</li></ol>
-              <pre><code>{
-  "hooks": {
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$HOME/.ai-safety-guard/ai-safety-mcp.cjs\" --hook",
-            "timeout": 15
-          }
-        ]
-      }
-    ]
-  }
-}</code></pre>
-              <ol start="3"><li>Reinicie o Codex, execute <code>/hooks</code>, revise e confie no hook. Para desabilitar, remova o bloco <code>UserPromptSubmit</code> e execute:</li></ol>
-              <pre><code>codex mcp remove ai-safety-guard</code></pre>
+              <h3>Desinstalação</h3>
+              <pre><code>claude mcp remove ai-safety-guard 2&gt;/dev/null || true
+codex mcp remove ai-safety-guard 2&gt;/dev/null || true</code></pre>
+              <p class="fine-print">Remova também a entrada do AI Safety Guard em <code>UserPromptSubmit</code> se quiser desativar o hook.</p>
             </article>
           </div>
         </section>
