@@ -73,7 +73,34 @@
     } catch {
       result.engines.semantic = "unavailable";
     }
+    if (result.decision === "block") recordBlockedEvaluation(result, localSettings.heuristicPolicies);
     return JSON.stringify(compact(result));
+  }
+
+  function recordBlockedEvaluation(result, configuredPolicies) {
+    const policies = AISafetyPolicies.normalizePolicies(configuredPolicies);
+    const policyNames = new Map(policies.map((policy) => [policy.id, policy.name]));
+    const entry = {
+      timestamp: new Date().toISOString(),
+      ai: "MCP (WebMCP)",
+      mode: "heuristic",
+      confidence: result.confidence,
+      decision: "block",
+      policyIds: result.policyIds,
+      policies: result.policyIds.map((id) => policyNames.get(id)).filter(Boolean),
+      findings: result.findings.slice(0, 10).map((finding) => ({
+        category: AISafetyGuard.CATEGORIES[finding.category] || finding.category,
+        label: String(finding.label).slice(0, 180),
+        sample: "",
+        source: "MCP / WebMCP"
+      }))
+    };
+    try {
+      const pending = chrome.runtime.sendMessage({ type: "RECORD_DETECTION", entry });
+      if (pending && typeof pending.catch === "function") pending.catch(() => {});
+    } catch {
+      // Audit persistence must never prevent MCP evaluation or block reporting.
+    }
   }
 
   function compact(result) {

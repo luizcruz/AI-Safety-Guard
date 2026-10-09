@@ -241,18 +241,18 @@ test("popup permite selecionar nível por controle deslizante", () => {
   assert.match(popupScript, /chrome\.runtime\.openOptionsPage\(\)/);
 });
 
-test("identidade pública usa exclusivamente AI Safety Guard v2.0", () => {
+test("identidade pública usa exclusivamente AI Safety Guard v2.1", () => {
   const root = path.join(__dirname, "..");
   const manifest = JSON.parse(fs.readFileSync(path.join(root, "plugin", "manifest.json"), "utf8"));
   const packageManifest = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
   const packageLock = JSON.parse(fs.readFileSync(path.join(root, "package-lock.json"), "utf8"));
   const options = fs.readFileSync(path.join(root, "plugin", "src", "options.html"), "utf8");
   const readme = fs.readFileSync(path.join(root, "README.md"), "utf8");
-  assert.equal(manifest.version, "2.0.0");
+  assert.equal(manifest.version, "2.1.0");
   assert.equal(packageManifest.version, manifest.version);
   assert.equal(packageLock.version, manifest.version);
   assert.equal(packageLock.packages[""].version, manifest.version);
-  assert.equal(manifest.name, "AI Safety Guard v2.0");
-  assert.equal(manifest.action.default_title, "AI Safety Guard v2.0");
+  assert.equal(manifest.name, "AI Safety Guard v2.1");
+  assert.equal(manifest.action.default_title, "AI Safety Guard v2.1");
   assert.doesNotMatch(`${options}\n${readme}`, /AI Chat DLP Guard/i);
 });

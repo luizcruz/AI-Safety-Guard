@@ -10,6 +10,7 @@ const source = fs.readFileSync(path.join(__dirname, "..", "plugin", "src", "webm
 
 function load(mode, mcpEnabled = true) {
   let registration;
+  const messages = [];
   const listeners = [];
   const controller = new AbortController();
   const context = {
@@ -26,7 +27,7 @@ function load(mode, mcpEnabled = true) {
         local: { async get(defaults) { return defaults; } },
         onChanged: { addListener(listener) { listeners.push(listener); } }
       },
-      runtime: { async sendMessage() { return { ok: false }; } }
+      runtime: { async sendMessage(message) { messages.push(message); return { ok: false }; } }
     },
     AISafetyProtectionPolicy: { DEFAULT_MODE: "detect", normalizeMode(value) { return value; } },
     AISafetyGuard: { CATEGORIES: { personal: {} } },
@@ -41,7 +42,7 @@ function load(mode, mcpEnabled = true) {
     __controller: controller
   };
   vm.runInNewContext(source, context);
-  return new Promise((resolve) => setImmediate(() => resolve({ registration, listeners })));
+  return new Promise((resolve) => setImmediate(() => resolve({ registration, listeners, messages })));
 }
 
 test("registers WebMCP only in heuristic mode with safe annotations", async () => {
@@ -53,6 +54,12 @@ test("registers WebMCP only in heuristic mode with safe annotations", async () =
   const output = JSON.parse(await enabled.registration.tool.execute({ text: "CPF" }));
   assert.equal(output.decision, "block");
   assert.doesNotMatch(JSON.stringify(output), /111\.222/);
+  const audit = enabled.messages.find((message) => message.type === "RECORD_DETECTION");
+  assert.ok(audit);
+  assert.equal(audit.entry.ai, "MCP (WebMCP)");
+  assert.equal(audit.entry.decision, "block");
+  assert.equal(audit.entry.findings[0].source, "MCP / WebMCP");
+  assert.equal(audit.entry.findings[0].sample, "");
 
   const disabled = await load("detect");
   assert.equal(disabled.registration, undefined);

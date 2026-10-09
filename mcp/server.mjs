@@ -10,7 +10,7 @@ import configModule from "./config.cjs";
 
 export function createServer(environment = process.env) {
   const server = new McpServer(
-    { name: "ai-safety-guard", version: "2.0.0" },
+    { name: "ai-safety-guard", version: "2.1.0" },
     { instructions: "Call evaluate_prompt before submitting user text to an AI. If decision is block, do not submit it; ask the user to remove or anonymize the identified categories." }
   );
 

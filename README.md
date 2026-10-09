@@ -17,7 +17,8 @@ Prompts, attachments, and audit events are processed locally. The rules API neve
 - Provides optional semantic analysis with Gemini Nano.
 - Includes configurable heuristic policies with context and exceptions.
 - Exposes heuristic evaluation through WebMCP and a local stdio MCP server.
-- Provides an MCP settings tab with a browser toggle and manual Claude Code/Codex setup commands.
+- Records blocked WebMCP evaluations in the local audit log as `MCP (WebMCP)` without storing submitted text.
+- Provides an MCP settings tab with a browser toggle and guided Windows/WSL setup for Claude Code and Codex.
 - Bundles a downloadable standalone MCP server; end users do not need the source repository or npm dependencies.
 - Limits live scanning, oversized prompts, and local-model execution to protect browser responsiveness.
 
@@ -52,7 +53,16 @@ Click the extension icon to select the protection level. Use **Open all settings
 - enable categories;
 - manage built-in and custom heuristic policies;
 - inspect and download the local audit log;
+- enable WebMCP and follow the platform-specific MCP setup instructions;
 - configure and refresh the rules API.
+
+## MCP integrations
+
+WebMCP is registered in supported Chrome pages only when MCP and **Heuristic** mode are enabled. Its `evaluate_ai_prompt` tool returns risk metadata, never the submitted prompt. Blocked evaluations appear in the extension audit log as `MCP (WebMCP)`; prompt text is not included.
+
+For Claude Code or Codex hooks, use the **MCP** settings tab to download the standalone server and run the guided Windows or WSL setup. The generated setup uses the installed extension’s bundled server; the repository and npm dependencies are not required. Hook blocks include a reason and, when obfuscation is enabled, a `[REDACTED]` copy for review. Hooks cannot replace the original prompt automatically: review and resubmit the redacted text yourself.
+
+The standalone MCP process runs outside Chrome and cannot write to the extension’s browser audit storage. Its hook decision is returned to the coding client; the extension audit log entry described above applies to WebMCP calls made in supported browser pages.
 
 ## Attachments
 
@@ -93,7 +103,7 @@ npm run build:vendor
 npm run build:mcp
 ```
 
-MCP and hook setup: [docs/MCP.md](docs/MCP.md).
+MCP and hook setup: [docs/MCP.md](docs/MCP.md). Increment the plugin’s minor version for each feature or fix release.
 
 API tests:
 
