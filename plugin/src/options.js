@@ -4,6 +4,8 @@
   const DEFAULT_API_URL = "http://127.0.0.1:8000";
   const tabs = [...document.querySelectorAll("[role='tab'][data-tab]")];
   const panels = [...document.querySelectorAll("[role='tabpanel'][data-panel]")];
+  const mcpPlatformTabs = [...document.querySelectorAll("[role='tab'][data-mcp-platform]")];
+  const mcpPlatformPanels = [...document.querySelectorAll("[role='tabpanel'][data-mcp-platform-panel]")];
   const container = document.querySelector("#categories");
   const apiForm = document.querySelector("#api-settings");
   const apiUrl = document.querySelector("#api-url");
@@ -52,6 +54,7 @@
   let defaultPoliciesChanged = false;
 
   initializeTabs();
+  initializeMcpPlatformTabs();
   initialize().catch((error) => {
     showSaveStatus(error.message, true);
     showRulesStatus(error.message, true);
@@ -84,6 +87,33 @@
     }
     for (const panel of panels) panel.hidden = panel.dataset.panel !== name;
     history.replaceState(null, "", `#${name}`);
+  }
+
+  function initializeMcpPlatformTabs() {
+    activateMcpPlatform("windows");
+    for (const [index, tab] of mcpPlatformTabs.entries()) {
+      tab.addEventListener("click", () => activateMcpPlatform(tab.dataset.mcpPlatform, true));
+      tab.addEventListener("keydown", (event) => {
+        let next = index;
+        if (event.key === "ArrowRight") next = (index + 1) % mcpPlatformTabs.length;
+        else if (event.key === "ArrowLeft") next = (index - 1 + mcpPlatformTabs.length) % mcpPlatformTabs.length;
+        else if (event.key === "Home") next = 0;
+        else if (event.key === "End") next = mcpPlatformTabs.length - 1;
+        else return;
+        event.preventDefault();
+        activateMcpPlatform(mcpPlatformTabs[next].dataset.mcpPlatform, true);
+      });
+    }
+  }
+
+  function activateMcpPlatform(name, focus = false) {
+    for (const tab of mcpPlatformTabs) {
+      const active = tab.dataset.mcpPlatform === name;
+      tab.setAttribute("aria-selected", String(active));
+      tab.tabIndex = active ? 0 : -1;
+      if (active && focus) tab.focus();
+    }
+    for (const panel of mcpPlatformPanels) panel.hidden = panel.dataset.mcpPlatformPanel !== name;
   }
 
   async function initialize() {

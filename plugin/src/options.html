@@ -114,21 +114,27 @@
             <span id="mcp-download-status" role="status"></span>
           </div>
           <p class="fine-print">A configuração exporta as categorias e políticas atuais. Baixe-a novamente após alterá-las.</p>
-          <div class="setup-guide">
-            <h3>Preparação comum</h3>
-            <ol>
-              <li>Instale o Node.js 18 ou superior.</li>
-              <li>Baixe os dois arquivos acima.</li>
-              <li>No PowerShell, mova-os para uma pasta permanente:</li>
-            </ol>
-            <pre><code>New-Item -ItemType Directory -Force "$HOME\.ai-safety-guard"
-Move-Item "$HOME\Downloads\ai-safety-mcp.cjs" "$HOME\.ai-safety-guard\ai-safety-mcp.cjs" -Force
-Move-Item "$HOME\Downloads\config.json" "$HOME\.ai-safety-guard\config.json" -Force</code></pre>
-            <p class="fine-print">Se o navegador salvar em outra pasta, ajuste a origem. Nos comandos abaixo, substitua <code>SEU_USUARIO</code> pelo seu usuário do Windows.</p>
+          <div class="platform-tabs" role="tablist" aria-label="Sistema operacional para instalação MCP">
+            <button id="mcp-platform-tab-windows" role="tab" aria-selected="true" aria-controls="mcp-platform-panel-windows" data-mcp-platform="windows" type="button">Windows</button>
+            <button id="mcp-platform-tab-wsl" role="tab" aria-selected="false" aria-controls="mcp-platform-panel-wsl" data-mcp-platform="wsl" tabindex="-1" type="button">Linux (WSL)</button>
           </div>
 
-          <article class="setup-guide">
-            <h3>Claude Code</h3>
+          <div id="mcp-platform-panel-windows" class="mcp-platform-panel" role="tabpanel" aria-labelledby="mcp-platform-tab-windows" data-mcp-platform-panel="windows">
+            <div class="setup-guide">
+              <h3>Preparação no Windows</h3>
+              <ol>
+                <li>Instale o Node.js 18 ou superior no Windows.</li>
+                <li>Baixe os dois arquivos acima.</li>
+                <li>No PowerShell, mova-os para uma pasta permanente:</li>
+              </ol>
+              <pre><code>New-Item -ItemType Directory -Force "$HOME\.ai-safety-guard"
+Move-Item "$HOME\Downloads\ai-safety-mcp.cjs" "$HOME\.ai-safety-guard\ai-safety-mcp.cjs" -Force
+Move-Item "$HOME\Downloads\config.json" "$HOME\.ai-safety-guard\config.json" -Force</code></pre>
+              <p class="fine-print">Se o navegador salvar em outra pasta, ajuste a origem. Substitua <code>SEU_USUARIO</code> pelo seu usuário do Windows.</p>
+            </div>
+
+            <article class="setup-guide">
+              <h3>Claude Code</h3>
             <ol><li>Adicione e valide o servidor:</li></ol>
             <pre><code>claude mcp add --scope user ai-safety-guard -- node "C:/Users/SEU_USUARIO/.ai-safety-guard/ai-safety-mcp.cjs"
 claude mcp list</code></pre>
@@ -150,10 +156,10 @@ claude mcp list</code></pre>
 }</code></pre>
             <ol start="3"><li>Reinicie o Claude Code e execute <code>/hooks</code> e <code>/mcp</code>. Para desabilitar, remova o bloco <code>UserPromptSubmit</code> e execute:</li></ol>
             <pre><code>claude mcp remove ai-safety-guard</code></pre>
-          </article>
+            </article>
 
-          <article class="setup-guide">
-            <h3>ChatGPT Codex</h3>
+            <article class="setup-guide">
+              <h3>ChatGPT Codex</h3>
             <ol><li>Adicione e valide o servidor:</li></ol>
             <pre><code>codex mcp add ai-safety-guard -- node "C:/Users/SEU_USUARIO/.ai-safety-guard/ai-safety-mcp.cjs"
 codex mcp list</code></pre>
@@ -175,7 +181,73 @@ codex mcp list</code></pre>
 }</code></pre>
             <ol start="3"><li>Reinicie o Codex, execute <code>/hooks</code>, revise e confie no hook. Para desabilitar, remova o bloco <code>UserPromptSubmit</code> e execute:</li></ol>
             <pre><code>codex mcp remove ai-safety-guard</code></pre>
-          </article>
+            </article>
+          </div>
+
+          <div id="mcp-platform-panel-wsl" class="mcp-platform-panel" role="tabpanel" aria-labelledby="mcp-platform-tab-wsl" data-mcp-platform-panel="wsl" hidden>
+            <div class="setup-guide">
+              <h3>Preparação no Linux (WSL)</h3>
+              <ol>
+                <li>Instale o Node.js 18 ou superior dentro do WSL.</li>
+                <li>Baixe os dois arquivos pelo Chrome no Windows.</li>
+                <li>No terminal WSL, copie-os para uma pasta permanente:</li>
+              </ol>
+              <pre><code>mkdir -p "$HOME/.ai-safety-guard"
+cp "/mnt/c/Users/SEU_USUARIO/Downloads/ai-safety-mcp.cjs" "$HOME/.ai-safety-guard/ai-safety-mcp.cjs"
+cp "/mnt/c/Users/SEU_USUARIO/Downloads/config.json" "$HOME/.ai-safety-guard/config.json"</code></pre>
+              <p class="fine-print">Substitua <code>SEU_USUARIO</code> pelo usuário do Windows. Se o Chrome salvar em outra pasta, ajuste a origem.</p>
+            </div>
+
+            <article class="setup-guide">
+              <h3>Claude Code no WSL</h3>
+              <ol><li>Adicione e valide o servidor:</li></ol>
+              <pre><code>claude mcp add --scope user ai-safety-guard -- node "$HOME/.ai-safety-guard/ai-safety-mcp.cjs"
+claude mcp list</code></pre>
+              <ol start="2"><li>Mescle em <code>~/.claude/settings.json</code>:</li></ol>
+              <pre><code>{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$HOME/.ai-safety-guard/ai-safety-mcp.cjs\" --hook",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}</code></pre>
+              <ol start="3"><li>Reinicie o Claude Code e execute <code>/hooks</code> e <code>/mcp</code>. Para desabilitar, remova o bloco <code>UserPromptSubmit</code> e execute:</li></ol>
+              <pre><code>claude mcp remove ai-safety-guard</code></pre>
+            </article>
+
+            <article class="setup-guide">
+              <h3>ChatGPT Codex no WSL</h3>
+              <ol><li>Adicione e valide o servidor:</li></ol>
+              <pre><code>codex mcp add ai-safety-guard -- node "$HOME/.ai-safety-guard/ai-safety-mcp.cjs"
+codex mcp list</code></pre>
+              <ol start="2"><li>Mescle em <code>~/.codex/hooks.json</code>:</li></ol>
+              <pre><code>{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$HOME/.ai-safety-guard/ai-safety-mcp.cjs\" --hook",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}</code></pre>
+              <ol start="3"><li>Reinicie o Codex, execute <code>/hooks</code>, revise e confie no hook. Para desabilitar, remova o bloco <code>UserPromptSubmit</code> e execute:</li></ol>
+              <pre><code>codex mcp remove ai-safety-guard</code></pre>
+            </article>
+          </div>
         </section>
 
         <section id="panel-server" class="card tab-panel" role="tabpanel" aria-labelledby="tab-server" data-panel="server" hidden>

@@ -161,6 +161,13 @@ test("página de opções apresenta os quatro níveis e instalação do Gemini N
   assert.match(options, /id="download-mcp-server"[^>]*ai-safety-mcp\.cjs/);
   assert.match(options, /id="download-mcp-config"/);
   assert.match(options, /\.ai-safety-guard/);
+  assert.match(options, /data-mcp-platform="windows"/);
+  assert.match(options, /data-mcp-platform="wsl"/);
+  assert.match(options, /data-mcp-platform-panel="windows"/);
+  assert.match(options, /data-mcp-platform-panel="wsl"[^>]*hidden/);
+  assert.match(options, /Linux \(WSL\)/);
+  assert.match(options, /\/mnt\/c\/Users\/SEU_USUARIO\/Downloads\/ai-safety-mcp\.cjs/);
+  assert.match(options, /\$HOME\/\.ai-safety-guard\/ai-safety-mcp\.cjs/);
   assert.match(options, /claude mcp add --scope user ai-safety-guard/);
   assert.match(options, /codex mcp add ai-safety-guard/);
   assert.match(options, /claude mcp remove ai-safety-guard/);
@@ -169,6 +176,8 @@ test("página de opções apresenta os quatro níveis e instalação do Gemini N
   assert.match(options, /~\/\.codex\/hooks\.json/);
   assert.match(options, /<script src="policies\.js"><\/script>[\s\S]*<script src="nano\.js"><\/script>/);
   assert.match(optionsScript, /AISafetyNano\.install/);
+  assert.match(optionsScript, /initializeMcpPlatformTabs\(\)/);
+  assert.match(optionsScript, /activateMcpPlatform\(mcpPlatformTabs\[next\]\.dataset\.mcpPlatform, true\)/);
   assert.doesNotMatch(optionsScript, /state === "available"\) \{[\s\S]{0,120}AISafetyNano\.install/);
   assert.match(optionsScript, /AISafetyNano\.classify\(message, \{ policies: heuristicPolicies \}\)/);
   assert.match(optionsScript, /AISafetyPolicies\.addPolicy/);
