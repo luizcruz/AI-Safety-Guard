@@ -2,9 +2,13 @@
   "hooks": {
     "UserPromptSubmit": [
       {
-        "type": "command",
-        "command": "node ~/.claude/hooks/evaluator-bridge.js",
-        "timeout": 15
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ~/.claude/hooks/evaluator-bridge.js",
+            "timeout": 15
+          }
+        ]
       }
     ]
   }

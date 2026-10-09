@@ -12,7 +12,7 @@
       <div>
         <p class="eyebrow">AI Safety Guard v2.0</p>
         <h1>Proteção local para conversas com IA</h1>
-        <p>Configure níveis, IA local, regras, auditoria e servidor sem enviar prompts para serviços externos.</p>
+        <p>Configure níveis, IA local, regras, auditoria, MCP e servidor sem enviar prompts para serviços externos.</p>
       </div>
     </header>
 
@@ -23,6 +23,7 @@
         <button id="tab-rules" role="tab" aria-selected="false" aria-controls="panel-rules" data-tab="rules" tabindex="-1" type="button">Regras</button>
         <button id="tab-policies" role="tab" aria-selected="false" aria-controls="panel-policies" data-tab="policies" tabindex="-1" type="button">Políticas</button>
         <button id="tab-audit" role="tab" aria-selected="false" aria-controls="panel-audit" data-tab="audit" tabindex="-1" type="button">Auditoria</button>
+        <button id="tab-mcp" role="tab" aria-selected="false" aria-controls="panel-mcp" data-tab="mcp" tabindex="-1" type="button">MCP</button>
         <button id="tab-server" role="tab" aria-selected="false" aria-controls="panel-server" data-tab="server" tabindex="-1" type="button">Servidor</button>
       </nav>
 
@@ -96,6 +97,76 @@
           <p id="audit-status" class="notice" role="status">Carregando auditoria…</p>
           <label for="audit-log-preview">Conteúdo do log</label>
           <textarea id="audit-log-preview" class="log-preview" rows="18" readonly spellcheck="false" placeholder="Nenhum registro disponível."></textarea>
+        </section>
+
+        <section id="panel-mcp" class="card tab-panel" role="tabpanel" aria-labelledby="tab-mcp" data-panel="mcp" hidden>
+          <div class="section-heading">
+            <div><h2>Model Context Protocol</h2><p>Exponha a avaliação local para WebMCP, Claude Code e Codex.</p></div>
+            <span id="mcp-status" class="pill" role="status">Carregando…</span>
+          </div>
+
+          <label class="privacy-option"><input id="mcp-enabled" type="checkbox" role="switch"><span><strong>Habilitar WebMCP no navegador</strong><small>Registra <code>evaluate_ai_prompt</code> nos sites compatíveis somente quando o nível Heurística estiver ativo.</small></span></label>
+          <p class="notice">Esta chave controla o WebMCP do Chrome. As integrações locais abaixo são habilitadas ou removidas diretamente no Claude Code e no Codex.</p>
+
+          <article class="setup-guide">
+            <h3>Claude Code</h3>
+            <ol>
+              <li>Abra um terminal na raiz do projeto e instale o bridge:</li>
+            </ol>
+            <pre><code>npm install
+node scripts/install-hooks.mjs --target=claude</code></pre>
+            <ol start="2"><li>Adicione o servidor MCP, substituindo o caminho pelo caminho absoluto desta pasta:</li></ol>
+            <pre><code>claude mcp add --scope user ai-safety-guard --env AI_SAFETY_MODE=heuristic -- node "C:\CAMINHO\AISafety\mcp\server.mjs"
+claude mcp list</code></pre>
+            <ol start="3"><li>Mescle em <code>~/.claude/settings.json</code>:</li></ol>
+            <pre><code>{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ~/.claude/hooks/evaluator-bridge.js",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}</code></pre>
+            <ol start="4"><li>Reinicie o Claude Code e execute <code>/hooks</code> e <code>/mcp</code> para validar. Para desabilitar, remova o bloco <code>UserPromptSubmit</code> e execute:</li></ol>
+            <pre><code>claude mcp remove ai-safety-guard</code></pre>
+          </article>
+
+          <article class="setup-guide">
+            <h3>ChatGPT Codex</h3>
+            <ol>
+              <li>Abra um terminal na raiz do projeto e instale o bridge:</li>
+            </ol>
+            <pre><code>npm install
+node scripts/install-hooks.mjs --target=codex</code></pre>
+            <ol start="2"><li>Adicione e valide o servidor MCP:</li></ol>
+            <pre><code>codex mcp add ai-safety-guard --env AI_SAFETY_MODE=heuristic -- node "C:\CAMINHO\AISafety\mcp\server.mjs"
+codex mcp list</code></pre>
+            <ol start="3"><li>Mescle em <code>~/.codex/hooks.json</code>:</li></ol>
+            <pre><code>{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ~/.codex/hooks/evaluator-bridge.js",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}</code></pre>
+            <ol start="4"><li>Reinicie o Codex, execute <code>/hooks</code>, revise e confie no hook. Para desabilitar, remova o bloco <code>UserPromptSubmit</code> e execute:</li></ol>
+            <pre><code>codex mcp remove ai-safety-guard</code></pre>
+          </article>
         </section>
 
         <section id="panel-server" class="card tab-panel" role="tabpanel" aria-labelledby="tab-server" data-panel="server" hidden>

@@ -83,6 +83,10 @@ textarea:focus, input:focus { outline: 3px solid #bbf7d0; border-color: #16a34a;
 .policy-form label { font-weight: 700; font-size: 13px; }
 .policy-form input, .policy-form select, .policy-form textarea { display: block; width: 100%; margin-top: 5px; border: 1px solid #cbd5e1; border-radius: 9px; padding: 10px; background: #fff; }
 .policy-form button { justify-self: start; }
+.setup-guide { margin-top: 22px; padding-top: 20px; border-top: 1px solid #e2e8f0; }
+.setup-guide h3 { margin: 0 0 10px; }
+.setup-guide ol { margin: 10px 0 6px; padding-left: 22px; color: #475569; }
+.setup-guide pre { overflow-x: auto; margin: 8px 0 14px; padding: 14px; border-radius: 10px; background: #0f172a; color: #d1fae5; font: 12px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre; }
 
 @media (max-width: 720px) {
   .hero { align-items: flex-start; padding: 24px; }

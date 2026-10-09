@@ -7,7 +7,7 @@
   scheduleRefresh();
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", scheduleRefresh, { once: true });
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === "sync" && changes.mode) scheduleRefresh();
+    if (area === "sync" && (changes.mode || changes.mcpEnabled)) scheduleRefresh();
   });
 
   function scheduleRefresh() {
@@ -16,8 +16,8 @@
 
   async function refreshRegistration() {
     if (!document.modelContext || typeof document.modelContext.registerTool !== "function") return;
-    const { mode } = await chrome.storage.sync.get({ mode: AISafetyProtectionPolicy.DEFAULT_MODE });
-    const enabled = AISafetyProtectionPolicy.normalizeMode(mode) === "heuristic";
+    const { mode, mcpEnabled } = await chrome.storage.sync.get({ mode: AISafetyProtectionPolicy.DEFAULT_MODE, mcpEnabled: true });
+    const enabled = mcpEnabled !== false && AISafetyProtectionPolicy.normalizeMode(mode) === "heuristic";
     if (!enabled) {
       if (registrationController) registrationController.abort();
       registrationController = undefined;

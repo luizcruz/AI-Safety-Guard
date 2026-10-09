@@ -8,7 +8,7 @@ const vm = require("node:vm");
 
 const source = fs.readFileSync(path.join(__dirname, "..", "plugin", "src", "webmcp.js"), "utf8");
 
-function load(mode) {
+function load(mode, mcpEnabled = true) {
   let registration;
   const listeners = [];
   const controller = new AbortController();
@@ -22,7 +22,7 @@ function load(mode) {
     },
     chrome: {
       storage: {
-        sync: { async get(defaults) { return { ...defaults, mode }; } },
+        sync: { async get(defaults) { return { ...defaults, mode, mcpEnabled }; } },
         local: { async get(defaults) { return defaults; } },
         onChanged: { addListener(listener) { listeners.push(listener); } }
       },
@@ -56,4 +56,7 @@ test("registers WebMCP only in heuristic mode with safe annotations", async () =
 
   const disabled = await load("detect");
   assert.equal(disabled.registration, undefined);
+
+  const explicitlyDisabled = await load("heuristic", false);
+  assert.equal(explicitlyDisabled.registration, undefined);
 });

@@ -35,6 +35,8 @@
   const nanoTestResult = document.querySelector("#nano-test-result");
   const heuristicInput = document.querySelector("input[value='heuristic']");
   const obfuscationInput = document.querySelector("#obfuscate-sensitive-data");
+  const mcpEnabledInput = document.querySelector("#mcp-enabled");
+  const mcpStatus = document.querySelector("#mcp-status");
   const modeInputs = [...document.querySelectorAll("input[name='protection-mode']")];
   const categoryInputs = new Map();
   let nanoAvailable = false;
@@ -96,7 +98,8 @@
       enabledCategories: Object.keys(AISafetyGuard.CATEGORIES),
       knownCategories: [],
       mode: AISafetyProtectionPolicy.DEFAULT_MODE,
-      obfuscateSensitiveData: false
+      obfuscateSensitiveData: false,
+      mcpEnabled: true
     });
     const currentCategories = Object.keys(AISafetyGuard.CATEGORIES);
     const knownCategories = settings.knownCategories.length ? settings.knownCategories : currentCategories.filter((category) => category !== "sensitiveFileNames");
@@ -104,10 +107,13 @@
     settings.enabledCategories = [...new Set([...(settings.enabledCategories || currentCategories), ...addedCategories])];
     settings.mode = AISafetyProtectionPolicy.normalizeMode(settings.mode);
     settings.obfuscateSensitiveData = settings.obfuscateSensitiveData === true;
-    await chrome.storage.sync.set({ enabledCategories: settings.enabledCategories, knownCategories: currentCategories, mode: settings.mode, obfuscateSensitiveData: settings.obfuscateSensitiveData });
+    settings.mcpEnabled = settings.mcpEnabled !== false;
+    await chrome.storage.sync.set({ enabledCategories: settings.enabledCategories, knownCategories: currentCategories, mode: settings.mode, obfuscateSensitiveData: settings.obfuscateSensitiveData, mcpEnabled: settings.mcpEnabled });
     for (const [key, input] of categoryInputs) input.checked = settings.enabledCategories.includes(key);
     (modeInputs.find((input) => input.value === settings.mode) || modeInputs.find((input) => input.value === AISafetyProtectionPolicy.DEFAULT_MODE)).checked = true;
     obfuscationInput.checked = settings.obfuscateSensitiveData;
+    mcpEnabledInput.checked = settings.mcpEnabled;
+    showMcpStatus(settings.mcpEnabled);
     updateObfuscationAvailability(settings.mode);
     apiUrl.value = remote.apiUrl;
     apiToken.value = remote.apiToken;
@@ -243,6 +249,25 @@
 
   for (const input of modeInputs) input.addEventListener("change", saveProtection);
   obfuscationInput.addEventListener("change", saveProtection);
+  mcpEnabledInput.addEventListener("change", async () => {
+    const enabled = mcpEnabledInput.checked;
+    mcpEnabledInput.disabled = true;
+    try {
+      await chrome.storage.sync.set({ mcpEnabled: enabled });
+      showMcpStatus(enabled);
+    } catch (error) {
+      mcpEnabledInput.checked = !enabled;
+      showMcpStatus(!enabled, `Falha: ${error.message}`);
+    } finally {
+      mcpEnabledInput.disabled = false;
+    }
+  });
+
+  function showMcpStatus(enabled, message = "") {
+    mcpStatus.textContent = message || (enabled ? "Habilitado" : "Desabilitado");
+    mcpStatus.style.background = message ? "#fef2f2" : enabled ? "#f0fdf4" : "#f1f5f9";
+    mcpStatus.style.color = message ? "#991b1b" : enabled ? "#166534" : "#475569";
+  }
 
   async function saveProtection() {
     const selected = modeInputs.find((input) => input.checked)?.value;

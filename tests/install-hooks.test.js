@@ -9,6 +9,7 @@ const { spawnSync } = require("node:child_process");
 
 const installer = path.join(__dirname, "..", "scripts", "install-hooks.mjs");
 const codexHookExample = path.join(__dirname, "..", "integrations", "codex", "hooks.example.json");
+const claudeHookExample = path.join(__dirname, "..", "integrations", "claude", "settings.example.json");
 
 test("Codex hook example follows the matcher-group schema", () => {
   const config = JSON.parse(fs.readFileSync(codexHookExample, "utf8"));
@@ -17,6 +18,17 @@ test("Codex hook example follows the matcher-group schema", () => {
   assert.deepEqual(group.hooks[0], {
     type: "command",
     command: "node ~/.codex/hooks/evaluator-bridge.js",
+    timeout: 15
+  });
+});
+
+test("Claude hook example follows the matcher-group schema", () => {
+  const config = JSON.parse(fs.readFileSync(claudeHookExample, "utf8"));
+  const group = config.hooks.UserPromptSubmit[0];
+  assert.ok(Array.isArray(group.hooks));
+  assert.deepEqual(group.hooks[0], {
+    type: "command",
+    command: "node ~/.claude/hooks/evaluator-bridge.js",
     timeout: 15
   });
 });

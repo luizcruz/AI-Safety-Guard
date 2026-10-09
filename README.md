@@ -17,6 +17,7 @@ Prompts, attachments, and audit events are processed locally. The rules API neve
 - Provides optional semantic analysis with Gemini Nano.
 - Includes configurable heuristic policies with context and exceptions.
 - Exposes heuristic evaluation through WebMCP and a local stdio MCP server.
+- Provides an MCP settings tab with a browser toggle and manual Claude Code/Codex setup commands.
 - Limits live scanning, oversized prompts, and local-model execution to protect browser responsiveness.
 
 ## Protection levels

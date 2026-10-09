@@ -136,7 +136,7 @@ test("página de opções apresenta os quatro níveis e instalação do Gemini N
   assert.equal(manifest.options_ui.open_in_tab, true);
   assert.equal(manifest.action.default_popup, "src/popup.html");
   assert.ok(manifest.web_accessible_resources[0].resources.includes("icons/ai-safety-guard-32.png"));
-  for (const tab of ["protection", "local-ai", "rules", "policies", "audit", "server"]) {
+  for (const tab of ["protection", "local-ai", "rules", "policies", "audit", "mcp", "server"]) {
     assert.match(options, new RegExp(`data-tab="${tab}"`));
     assert.match(options, new RegExp(`data-panel="${tab}"`));
   }
@@ -153,6 +153,15 @@ test("página de opções apresenta os quatro níveis e instalação do Gemini N
   assert.match(options, /id="audit-log-preview"[^>]*readonly/);
   assert.match(options, /id="download-audit"[^>]*>Baixar log<\/button>/);
   assert.match(options, /id="api-settings"/);
+  assert.match(options, /id="mcp-enabled"[^>]*role="switch"/);
+  assert.match(options, /node scripts\/install-hooks\.mjs --target=claude/);
+  assert.match(options, /node scripts\/install-hooks\.mjs --target=codex/);
+  assert.match(options, /claude mcp add --scope user ai-safety-guard/);
+  assert.match(options, /codex mcp add ai-safety-guard/);
+  assert.match(options, /claude mcp remove ai-safety-guard/);
+  assert.match(options, /codex mcp remove ai-safety-guard/);
+  assert.match(options, /~\/\.claude\/settings\.json/);
+  assert.match(options, /~\/\.codex\/hooks\.json/);
   assert.match(options, /<script src="policies\.js"><\/script>[\s\S]*<script src="nano\.js"><\/script>/);
   assert.match(optionsScript, /AISafetyNano\.install/);
   assert.doesNotMatch(optionsScript, /state === "available"\) \{[\s\S]{0,120}AISafetyNano\.install/);
@@ -163,6 +172,7 @@ test("página de opções apresenta os quatro níveis e instalação do Gemini N
   assert.match(optionsScript, /AISafetyAuditLog\.serialize\(entries\)/);
   assert.match(optionsScript, /AISafetyAuditLog\.download\(auditLog\)/);
   assert.match(optionsScript, /REFRESH_RULES/);
+  assert.match(optionsScript, /mcpEnabled/);
   assert.match(optionsScript, /ArrowRight/);
 });
 

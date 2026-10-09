@@ -16,6 +16,7 @@ Both run deterministic rules and every enabled nuanced policy locally. Outputs c
 ## Install prompt hooks
 
 ```bash
+npm install
 node scripts/install-hooks.mjs --target=all
 ```
 
@@ -28,9 +29,13 @@ Claude Code settings:
   "hooks": {
     "UserPromptSubmit": [
       {
-        "type": "command",
-        "command": "node ~/.claude/hooks/evaluator-bridge.js",
-        "timeout": 15
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ~/.claude/hooks/evaluator-bridge.js",
+            "timeout": 15
+          }
+        ]
       }
     ]
   }
@@ -67,11 +72,21 @@ Claude Code:
 
 ```bash
 claude mcp add --scope user ai-safety-guard --env AI_SAFETY_MODE=heuristic -- node /absolute/path/to/AISafety/mcp/server.mjs
+claude mcp list
 ```
 
 Alternatively, merge [`integrations/claude/mcp.example.json`](../integrations/claude/mcp.example.json) into the relevant MCP configuration.
 
+Disable Claude Code integration by removing the `UserPromptSubmit` group and running `claude mcp remove ai-safety-guard`.
+
 Codex `config.toml`:
+
+```bash
+codex mcp add ai-safety-guard --env AI_SAFETY_MODE=heuristic -- node /absolute/path/to/AISafety/mcp/server.mjs
+codex mcp list
+```
+
+Or configure `~/.codex/config.toml` manually:
 
 ```toml
 [mcp_servers.ai-safety-guard]
@@ -82,8 +97,10 @@ env = { AI_SAFETY_MODE = "heuristic" }
 
 An equivalent file is available at [`integrations/codex/config.toml.example`](../integrations/codex/config.toml.example).
 
+Disable Codex integration by removing the `UserPromptSubmit` group and running `codex mcp remove ai-safety-guard`.
+
 ## Configuration
 
 Set `AI_SAFETY_MODE=heuristic`. To customize categories or policies, copy [`mcp/config.example.json`](../mcp/config.example.json) and set `AI_SAFETY_CONFIG` to its absolute path. Installed hooks use `ai-safety-runtime/config.json` by default.
 
-WebMCP follows the extension's protection level, categories, and policies automatically. Disabling Heuristic mode unregisters its tool.
+WebMCP follows the extension's MCP toggle, protection level, categories, and policies automatically. Disabling MCP or Heuristic mode unregisters its tool.
