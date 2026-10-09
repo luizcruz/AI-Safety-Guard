@@ -10,7 +10,7 @@
     <header class="hero">
       <img src="../icons/ai-safety-guard-128.png" alt="" width="72" height="72">
       <div>
-        <p class="eyebrow">AI Safety Guard v2.3</p>
+        <p class="eyebrow">AI Safety Guard v2.4</p>
         <h1>Proteção local para conversas com IA</h1>
         <p>Configure níveis, IA local, regras, auditoria, MCP e servidor sem enviar prompts para serviços externos.</p>
       </div>
@@ -106,14 +106,14 @@
           </div>
 
           <label class="privacy-option"><input id="mcp-enabled" type="checkbox" role="switch"><span><strong>Habilitar WebMCP no navegador</strong><small>Registra <code>evaluate_ai_prompt</code> nos sites compatíveis somente quando o nível Heurística estiver ativo.</small></span></label>
-          <p class="notice">Esta chave controla o WebMCP do Chrome. As integrações locais abaixo são habilitadas ou removidas diretamente no Claude Code e no Codex.</p>
+          <p class="notice">WebMCP atende agentes que operam dentro do Chrome. Codex Desktop e Claude Code usam o servidor MCP local abaixo; o arquivo de configuração exportado inclui o catálogo ativo, categorias, políticas e ofuscação da extensão. Baixe-o novamente após alterar essas opções ou atualizar regras.</p>
 
           <div class="mcp-downloads">
             <a id="download-mcp-server" class="button-link" href="../mcp/ai-safety-mcp.cjs" download="ai-safety-mcp.cjs">Baixar servidor MCP</a>
             <button id="download-mcp-config" class="secondary-button" type="button">Baixar configuração atual</button>
             <span id="mcp-download-status" role="status"></span>
           </div>
-          <p class="fine-print">A configuração exporta categorias, políticas e a preferência de ofuscação atuais. Baixe-a novamente após alterá-las.</p>
+          <p class="fine-print">A configuração exporta o catálogo de regras ativo, categorias, políticas e ofuscação. Baixe-a novamente após editar regras ou atualizar o catálogo.</p>
           <div class="platform-tabs" role="tablist" aria-label="Sistema operacional para instalação MCP">
             <button id="mcp-platform-tab-windows" role="tab" aria-selected="true" aria-controls="mcp-platform-panel-windows" data-mcp-platform="windows" type="button">Windows</button>
             <button id="mcp-platform-tab-wsl" role="tab" aria-selected="false" aria-controls="mcp-platform-panel-wsl" data-mcp-platform="wsl" tabindex="-1" type="button">Linux (WSL)</button>

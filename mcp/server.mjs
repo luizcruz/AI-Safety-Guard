@@ -8,9 +8,9 @@ import { fileURLToPath } from "node:url";
 import evaluator from "../plugin/src/heuristic-evaluator.js";
 import configModule from "./config.cjs";
 
-export function createServer(environment = process.env) {
+export function createServer(_serverContext = {}) {
   const server = new McpServer(
-    { name: "ai-safety-guard", version: "2.3.0" },
+    { name: "ai-safety-guard", version: "2.4.0" },
     { instructions: "Call evaluate_prompt before submitting user text to an AI. If decision is block, do not submit it; ask the user to remove or anonymize the identified categories." }
   );
 
@@ -23,7 +23,9 @@ export function createServer(environment = process.env) {
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
     },
     async ({ text }) => {
-      const result = evaluator.evaluatePrompt(text, configModule.loadConfig(environment));
+      const config = configModule.loadConfig(process.env);
+      if (config.rulesCatalog) evaluator.updateCatalog(config.rulesCatalog);
+      const result = evaluator.evaluatePrompt(text, config);
       const compact = compactResult(result);
       return {
         content: [{ type: "text", text: JSON.stringify(compact) }],

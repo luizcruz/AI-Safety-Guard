@@ -784,7 +784,7 @@ const __modules = {
     return { version: 1, enabled: false, mode, decision: "allow", blocked: false, confidence: 0, categories: [], policyIds: [], findings: [], engines: { deterministic: "not-run", policies: "not-run", semantic: "not-run" } };
   }
 
-  return Object.freeze({ evaluatePrompt, mergeSemantic, obfuscatePrompt, MAX_TEXT_LENGTH, MAX_FINDINGS });
+  return Object.freeze({ evaluatePrompt, mergeSemantic, obfuscatePrompt, updateCatalog: detector.updateCatalog, MAX_TEXT_LENGTH, MAX_FINDINGS });
 });
 
 },
@@ -825,7 +825,7 @@ async function handleRequest(request) {
     return {
       protocolVersion: request.params && request.params.protocolVersion || "2025-06-18",
       capabilities: { tools: { listChanged: false } },
-      serverInfo: { name: "ai-safety-guard", version: "2.3.0" },
+      serverInfo: { name: "ai-safety-guard", version: "2.4.0" },
       instructions: "Call evaluate_prompt before submitting user text to an AI. Do not submit prompts whose decision is block."
     };
   }
@@ -890,12 +890,14 @@ function loadConfig() {
     if (!stat.isFile() || stat.size > MAX_CONFIG_BYTES) throw new Error("Invalid AI Safety configuration file");
     stored = JSON.parse(fs.readFileSync(configuredPath, "utf8"));
   }
-  return {
+  const config = {
     mode: process.env.AI_SAFETY_MODE || stored.mode || "heuristic",
     enabledCategories: Array.isArray(stored.enabledCategories) ? stored.enabledCategories : undefined,
     obfuscateSensitiveData: stored.obfuscateSensitiveData === true,
     policies: Array.isArray(stored.policies) ? stored.policies : undefined
   };
+  if (stored.rulesCatalog) detector.updateCatalog(stored.rulesCatalog);
+  return config;
 }
 
 function formatBlockReason(prompt, result, config) {
