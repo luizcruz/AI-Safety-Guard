@@ -45,6 +45,7 @@
   const mcpStatus = document.querySelector("#mcp-status");
   const downloadMcpConfig = document.querySelector("#download-mcp-config");
   const mcpDownloadStatus = document.querySelector("#mcp-download-status");
+  const copyScriptButtons = [...document.querySelectorAll(".copy-script[data-copy-target]")];
   const modeInputs = [...document.querySelectorAll("input[name='protection-mode']")];
   const categoryInputs = new Map();
   let nanoAvailable = false;
@@ -55,6 +56,7 @@
 
   initializeTabs();
   initializeMcpPlatformTabs();
+  initializeScriptCopyButtons();
   initialize().catch((error) => {
     showSaveStatus(error.message, true);
     showRulesStatus(error.message, true);
@@ -102,6 +104,24 @@
         else return;
         event.preventDefault();
         activateMcpPlatform(mcpPlatformTabs[next].dataset.mcpPlatform, true);
+      });
+    }
+  }
+
+  function initializeScriptCopyButtons() {
+    for (const button of copyScriptButtons) {
+      button.addEventListener("click", async () => {
+        const target = document.getElementById(button.dataset.copyTarget);
+        const status = button.parentElement.querySelector(".script-copy-status");
+        if (!target || !status) return;
+        try {
+          await navigator.clipboard.writeText(target.textContent);
+          status.textContent = "Script copiado.";
+          status.classList.remove("error");
+        } catch {
+          status.textContent = "Não foi possível copiar. Selecione e copie o script manualmente.";
+          status.classList.add("error");
+        }
       });
     }
   }

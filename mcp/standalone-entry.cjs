@@ -34,7 +34,7 @@ async function handleRequest(request) {
     return {
       protocolVersion: request.params && request.params.protocolVersion || "2025-06-18",
       capabilities: { tools: { listChanged: false } },
-      serverInfo: { name: "ai-safety-guard", version: "2.2.0" },
+      serverInfo: { name: "ai-safety-guard", version: "2.3.0" },
       instructions: "Call evaluate_prompt before submitting user text to an AI. Do not submit prompts whose decision is block."
     };
   }

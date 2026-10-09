@@ -10,7 +10,7 @@
     <header class="hero">
       <img src="../icons/ai-safety-guard-128.png" alt="" width="72" height="72">
       <div>
-        <p class="eyebrow">AI Safety Guard v2.2</p>
+        <p class="eyebrow">AI Safety Guard v2.3</p>
         <h1>Proteção local para conversas com IA</h1>
         <p>Configure níveis, IA local, regras, auditoria, MCP e servidor sem enviar prompts para serviços externos.</p>
       </div>
@@ -127,7 +127,9 @@
                 <li>Baixe o servidor e o <code>config.json</code> pelos botões acima.</li>
                 <li>Cole todo o bloco abaixo no PowerShell e responda às perguntas:</li>
               </ol>
-              <pre><code>$ErrorActionPreference = "Stop"
+              <div class="script-box">
+                <div class="script-box-actions"><button class="secondary-button copy-script" type="button" data-copy-target="mcp-script-windows">Copiar script</button><span class="script-copy-status" role="status" aria-live="polite"></span></div>
+              <pre><code id="mcp-script-windows">$ErrorActionPreference = "Stop"
 
 Write-Host "`nAI Safety Guard MCP`n1) Instalar ou atualizar`n2) Remover"
 $actionOption = Read-Host "Escolha uma ação [1-2]"
@@ -266,6 +268,7 @@ if ($action -eq "install") {
 } else {
   Write-Host "Integração removida dos clientes selecionados. Os arquivos locais foram mantidos."
 }</code></pre>
+              </div>
               <p class="fine-print">O script mescla os hooks e mantém as demais configurações. Na remoção, preserva os arquivos locais e altera apenas os clientes escolhidos.</p>
             </div>
           </div>
@@ -278,7 +281,9 @@ if ($action -eq "install") {
                 <li>Baixe os dois arquivos pelo Chrome no Windows.</li>
                 <li>Cole todo o bloco abaixo no WSL e pressione Enter:</li>
               </ol>
-              <pre><code>set -euo pipefail
+              <div class="script-box">
+                <div class="script-box-actions"><button class="secondary-button copy-script" type="button" data-copy-target="mcp-script-wsl">Copiar script</button><span class="script-copy-status" role="status" aria-live="polite"></span></div>
+              <pre><code id="mcp-script-wsl">set -euo pipefail
 
 printf '\nAI Safety Guard MCP\n1) Instalar ou atualizar\n2) Remover\n'
 read -r -p "Escolha uma ação [1-2]: " ACTION_OPTION
@@ -390,6 +395,7 @@ else
   fi
   echo "Remoção concluída para o cliente selecionado."
 fi</code></pre>
+              </div>
               <p class="fine-print">O script pergunta a ação e o cliente, mostra cada etapa e preserva hooks não relacionados. Para instalar, deixe os dois downloads na pasta padrão do Chrome.</p>
             </div>
           </div>
