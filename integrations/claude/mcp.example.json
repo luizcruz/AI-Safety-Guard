@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "ai-safety-guard": {
+      "command": "node",
+      "args": ["<ABSOLUTE_REPOSITORY_PATH>/mcp/server.mjs"],
+      "env": {
+        "AI_SAFETY_MODE": "heuristic"
+      }
+    }
+  }
+}

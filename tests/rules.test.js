@@ -20,7 +20,7 @@ test("todas as regras apontam para categorias existentes", () => {
 
 test("manifest carrega catálogo antes do detector", () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "plugin", "manifest.json"), "utf8"));
-  assert.deepEqual(manifest.content_scripts[0].js, ["src/platforms.js", "src/protection-policy.js", "src/rules.js", "src/detector.js", "src/attachments.js", "src/policies.js", "src/nano.js", "src/content.js"]);
+  assert.deepEqual(manifest.content_scripts[0].js, ["src/platforms.js", "src/protection-policy.js", "src/rules.js", "src/detector.js", "src/attachments.js", "src/policies.js", "src/heuristic-evaluator.js", "src/nano.js", "src/webmcp.js", "src/content.js"]);
   assert.equal(manifest.background.service_worker, "src/background.js");
   assert.deepEqual(manifest.permissions, ["storage", "offscreen"]);
 });

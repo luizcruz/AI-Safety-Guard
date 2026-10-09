@@ -16,6 +16,7 @@ Prompts, attachments, and audit events are processed locally. The rules API neve
 - Records Heuristic-mode blocks with matched policy IDs.
 - Provides optional semantic analysis with Gemini Nano.
 - Includes configurable heuristic policies with context and exceptions.
+- Exposes heuristic evaluation through WebMCP and a local stdio MCP server.
 - Limits live scanning, oversized prompts, and local-model execution to protect browser responsiveness.
 
 ## Protection levels
@@ -89,6 +90,8 @@ npm run check
 npm run build:vendor
 ```
 
+MCP and hook setup: [docs/MCP.md](docs/MCP.md).
+
 API tests:
 
 ```bash
@@ -104,7 +107,11 @@ api/.venv/bin/python -m pytest api/tests
 - `plugin/src/nano.js`: Gemini Nano integration.
 - `plugin/src/offscreen.js`: extension-context inference bridge.
 - `plugin/src/policies.js`: nuanced heuristic policy catalog.
+- `plugin/src/heuristic-evaluator.js`: shared heuristic evaluation engine.
+- `plugin/src/webmcp.js`: WebMCP tool registered in supported Chrome pages.
 - `plugin/src/content.js`: interception and risk indicator.
+- `mcp/`: local MCP server for coding agents.
+- `integrations/`: Claude Code and Codex hook examples.
 - `plugin/src/options.html`: extension settings.
 - `api/`: FastAPI rules API.
 - `admin-ui/`: administration interface.

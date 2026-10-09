@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "command": "node ~/.codex/hooks/evaluator-bridge.js",
+        "timeout": 15
+      }
+    ]
+  }
+}

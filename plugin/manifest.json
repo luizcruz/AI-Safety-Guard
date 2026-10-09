@@ -44,7 +44,7 @@
         "https://kimi.com/*",
         "https://www.kimi.com/*"
       ],
-      "js": ["src/platforms.js", "src/protection-policy.js", "src/rules.js", "src/detector.js", "src/attachments.js", "src/policies.js", "src/nano.js", "src/content.js"],
+      "js": ["src/platforms.js", "src/protection-policy.js", "src/rules.js", "src/detector.js", "src/attachments.js", "src/policies.js", "src/heuristic-evaluator.js", "src/nano.js", "src/webmcp.js", "src/content.js"],
       "run_at": "document_start"
     }
   ],
