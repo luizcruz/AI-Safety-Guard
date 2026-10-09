@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const readline = require("node:readline");
 const evaluator = require("./heuristic-evaluator.js");
+const detector = require("./detector.js");
 
 const TOOL_NAME = "evaluate_prompt";
 const MAX_CONFIG_BYTES = 256_000;
@@ -74,9 +75,19 @@ async function runHook() {
   try { payload = JSON.parse(raw); } catch { payload = raw; }
   const prompt = extractPrompt(payload);
   if (!prompt) return;
-  const result = evaluator.evaluatePrompt(prompt, loadConfig());
+  const config = loadConfig();
+  const result = evaluator.evaluatePrompt(prompt, config);
   if (!result.blocked) return;
-  process.stderr.write(`AI Safety Guard blocked the prompt: ${JSON.stringify({ decision: result.decision, confidence: result.confidence, categories: result.categories, policyIds: result.policyIds })}\n`);
+  const reason = formatBlockReason(prompt, result, config);
+  if (payload && payload.hook_event_name === "UserPromptSubmit") {
+    process.stdout.write(`${JSON.stringify({
+      decision: "block",
+      reason,
+      hookSpecificOutput: { hookEventName: "UserPromptSubmit", suppressOriginalPrompt: true }
+    })}\n`);
+    return;
+  }
+  process.stderr.write(`${reason}\n`);
   process.exitCode = 2;
 }
 
@@ -91,8 +102,35 @@ function loadConfig() {
   return {
     mode: process.env.AI_SAFETY_MODE || stored.mode || "heuristic",
     enabledCategories: Array.isArray(stored.enabledCategories) ? stored.enabledCategories : undefined,
+    obfuscateSensitiveData: stored.obfuscateSensitiveData === true,
     policies: Array.isArray(stored.policies) ? stored.policies : undefined
   };
+}
+
+function formatBlockReason(prompt, result, config) {
+  const categoryLabels = result.categories.map((category) => detector.CATEGORIES[category] || category);
+  const findingLabels = [...new Set(result.findings.map((finding) => finding.label).filter(Boolean))];
+  const lines = [
+    "🛡️ AI Safety Guard bloqueou o envio para proteger dados sensíveis.",
+    `Confiança: ${Math.round(result.confidence)}%`,
+    `Categorias: ${categoryLabels.join(", ") || "Risco não classificado"}`,
+    `Detecções: ${findingLabels.join(", ") || "Política heurística"}`,
+    "O prompt original não foi enviado ao modelo."
+  ];
+  if (result.policyIds.length) lines.splice(4, 0, `Políticas: ${result.policyIds.join(", ")}`);
+  if (config.obfuscateSensitiveData === true) {
+    const obfuscated = evaluator.obfuscatePrompt(prompt, result, config);
+    if (obfuscated) lines.push("", "Versão ofuscada para revisar e reenviar:", sanitizePreview(obfuscated));
+    else lines.push("", "A ofuscação automática não encontrou um trecho substituível. Revise o conteúdo antes de reenviar.");
+  } else {
+    lines.push("Ative a ofuscação no plugin e baixe novamente o config.json para receber uma versão com [REDACTED].");
+  }
+  return lines.join("\n");
+}
+
+function sanitizePreview(value) {
+  const clean = String(value).replace(/\x1B(?:\[[0-?]*[ -\/]*[@-~]|\][^\x07]*(?:\x07|\x1B\\))/g, "").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "");
+  return clean.length > 4_000 ? `${clean.slice(0, 4_000)}\n[… conteúdo ofuscado truncado …]` : clean;
 }
 
 function compactResult(result) {

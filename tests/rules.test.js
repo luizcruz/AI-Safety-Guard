@@ -166,6 +166,16 @@ test("página de opções apresenta os quatro níveis e instalação do Gemini N
   assert.match(options, /data-mcp-platform-panel="windows"/);
   assert.match(options, /data-mcp-platform-panel="wsl"[^>]*hidden/);
   assert.match(options, /Linux \(WSL\)/);
+  assert.match(options, /Instalação completa no Windows/);
+  assert.match(options, /Read-Host "Escolha uma ação \[1-2\]"/);
+  assert.match(options, /Read-Host "Escolha o cliente \[1-3\]"/);
+  assert.match(options, /Update-AiSafetyHook/);
+  assert.match(options, /\.claude\/settings\.json/);
+  assert.match(options, /\.codex\/hooks\.json/);
+  assert.match(options, /ConvertTo-Json -InputObject \$settings -Depth 100/);
+  assert.match(options, /Get-Content -LiteralPath \$configDownload -Raw \| ConvertFrom-Json/);
+  assert.match(options, /\$operation -eq "remove" -and -not \(Test-Path \$settingsPath/);
+  assert.match(options, /Integração removida dos clientes selecionados/);
   assert.match(options, /set -euo pipefail/);
   assert.match(options, /WINDOWS_USER="\$\(cmd\.exe \/c "echo %USERNAME%" 2&gt;\/dev\/null \| tr -d '\\r\\n'\)"/);
   assert.match(options, /WINDOWS_HOME="\/mnt\/c\/Users\/\$WINDOWS_USER"/);
@@ -190,8 +200,8 @@ test("página de opções apresenta os quatro níveis e instalação do Gemini N
   assert.match(options, /codex mcp add ai-safety-guard/);
   assert.match(options, /claude mcp remove ai-safety-guard/);
   assert.match(options, /codex mcp remove ai-safety-guard/);
-  assert.match(options, /~\/\.claude\/settings\.json/);
-  assert.match(options, /~\/\.codex\/hooks\.json/);
+  assert.match(options, /\.claude\/settings\.json/);
+  assert.match(options, /\.codex\/hooks\.json/);
   assert.match(options, /<script src="policies\.js"><\/script>[\s\S]*<script src="nano\.js"><\/script>/);
   assert.match(optionsScript, /AISafetyNano\.install/);
   assert.match(optionsScript, /initializeMcpPlatformTabs\(\)/);
@@ -213,6 +223,7 @@ test("página de opções apresenta os quatro níveis e instalação do Gemini N
   assert.match(optionsScript, /REFRESH_RULES/);
   assert.match(optionsScript, /mcpEnabled/);
   assert.match(optionsScript, /downloadJson\("config\.json"/);
+  assert.match(optionsScript, /obfuscateSensitiveData: syncSettings\.obfuscateSensitiveData === true/);
   assert.doesNotMatch(options, /npm install|scripts\/install-hooks|CAMINHO\\AISafety|mcp\/server\.mjs/);
   assert.match(optionsScript, /ArrowRight/);
 });

@@ -312,11 +312,11 @@
     downloadMcpConfig.disabled = true;
     try {
       const [syncSettings, localSettings] = await Promise.all([
-        chrome.storage.sync.get({ enabledCategories: Object.keys(AISafetyGuard.CATEGORIES) }),
+        chrome.storage.sync.get({ enabledCategories: Object.keys(AISafetyGuard.CATEGORIES), obfuscateSensitiveData: false }),
         chrome.storage.local.get({ heuristicPolicies: null })
       ]);
       const policies = localSettings.heuristicPolicies || AISafetyPolicies.serializePolicies(heuristicPolicies, [...deletedDefaultPolicyIds]);
-      downloadJson("config.json", { mode: "heuristic", enabledCategories: syncSettings.enabledCategories, policies });
+      downloadJson("config.json", { mode: "heuristic", enabledCategories: syncSettings.enabledCategories, obfuscateSensitiveData: syncSettings.obfuscateSensitiveData === true, policies });
       mcpDownloadStatus.textContent = "Configuração baixada.";
     } catch (error) {
       mcpDownloadStatus.textContent = `Falha: ${error.message}`;

@@ -18,6 +18,7 @@ function loadConfig(environment = process.env) {
   return {
     mode: environment.AI_SAFETY_MODE || stored.mode || "heuristic",
     enabledCategories: Array.isArray(stored.enabledCategories) ? stored.enabledCategories : undefined,
+    obfuscateSensitiveData: stored.obfuscateSensitiveData === true,
     policies: Array.isArray(stored.policies) ? stored.policies : undefined
   };
 }

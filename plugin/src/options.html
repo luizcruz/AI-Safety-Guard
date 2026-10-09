@@ -113,7 +113,7 @@
             <button id="download-mcp-config" class="secondary-button" type="button">Baixar configuração atual</button>
             <span id="mcp-download-status" role="status"></span>
           </div>
-          <p class="fine-print">A configuração exporta as categorias e políticas atuais. Baixe-a novamente após alterá-las.</p>
+          <p class="fine-print">A configuração exporta categorias, políticas e a preferência de ofuscação atuais. Baixe-a novamente após alterá-las.</p>
           <div class="platform-tabs" role="tablist" aria-label="Sistema operacional para instalação MCP">
             <button id="mcp-platform-tab-windows" role="tab" aria-selected="true" aria-controls="mcp-platform-panel-windows" data-mcp-platform="windows" type="button">Windows</button>
             <button id="mcp-platform-tab-wsl" role="tab" aria-selected="false" aria-controls="mcp-platform-panel-wsl" data-mcp-platform="wsl" tabindex="-1" type="button">Linux (WSL)</button>
@@ -121,67 +121,124 @@
 
           <div id="mcp-platform-panel-windows" class="mcp-platform-panel" role="tabpanel" aria-labelledby="mcp-platform-tab-windows" data-mcp-platform-panel="windows">
             <div class="setup-guide">
-              <h3>Preparação no Windows</h3>
+              <h3>Instalação completa no Windows</h3>
               <ol>
-                <li>Instale o Node.js 18 ou superior no Windows.</li>
-                <li>Baixe os dois arquivos acima.</li>
-                <li>No PowerShell, mova-os para uma pasta permanente:</li>
+                <li>Instale Node.js 18 ou superior e Claude Code e/ou Codex.</li>
+                <li>Baixe o servidor e o <code>config.json</code> pelos botões acima.</li>
+                <li>Cole todo o bloco abaixo no PowerShell e responda às perguntas:</li>
               </ol>
-              <pre><code>New-Item -ItemType Directory -Force "$HOME\.ai-safety-guard"
-Move-Item "$HOME\Downloads\ai-safety-mcp.cjs" "$HOME\.ai-safety-guard\ai-safety-mcp.cjs" -Force
-Move-Item "$HOME\Downloads\config.json" "$HOME\.ai-safety-guard\config.json" -Force</code></pre>
-              <p class="fine-print">Se o navegador salvar em outra pasta, ajuste a origem. Substitua <code>SEU_USUARIO</code> pelo seu usuário do Windows.</p>
+              <pre><code>$ErrorActionPreference = "Stop"
+
+Write-Host "`nAI Safety Guard MCP`n1) Instalar ou atualizar`n2) Remover"
+$actionOption = Read-Host "Escolha uma ação [1-2]"
+if ($actionOption -notin @("1", "2")) { throw "Opção inválida." }
+$action = if ($actionOption -eq "1") { "install" } else { "remove" }
+
+Write-Host "`n1) Claude Code`n2) ChatGPT Codex`n3) Ambos"
+$clientOption = Read-Host "Escolha o cliente [1-3]"
+if ($clientOption -notin @("1", "2", "3")) { throw "Opção inválida." }
+$clients = switch ($clientOption) {
+  "1" { @("claude") }
+  "2" { @("codex") }
+  "3" { @("claude", "codex") }
+}
+
+$installDir = Join-Path $HOME ".ai-safety-guard"
+$server = Join-Path $installDir "ai-safety-mcp.cjs"
+$configFile = Join-Path $installDir "config.json"
+
+Write-Host "[1/5] Validando ambiente..."
+if ($action -eq "install") {
+  $nodeCommand = Get-Command node -ErrorAction SilentlyContinue
+  if (-not $nodeCommand) { throw "Instale Node.js 18 ou superior no Windows." }
+  $nodeVersion = [version]((&amp; node -p "process.versions.node").Trim())
+  if ($nodeVersion.Major -lt 18) { throw "Node.js 18 ou superior é obrigatório." }
+  foreach ($client in $clients) {
+    if (-not (Get-Command $client -ErrorAction SilentlyContinue)) { throw "$client não foi encontrado no PATH." }
+  }
+}
+
+if ($action -eq "install") {
+  Write-Host "[2/5] Instalando arquivos locais..."
+  $downloads = Join-Path $HOME "Downloads"
+  $serverDownload = Join-Path $downloads "ai-safety-mcp.cjs"
+  $configDownload = Join-Path $downloads "config.json"
+  if (-not (Test-Path $serverDownload -PathType Leaf)) { $serverDownload = Read-Host "Caminho completo do ai-safety-mcp.cjs" }
+  if (-not (Test-Path $configDownload -PathType Leaf)) { $configDownload = Read-Host "Caminho completo do config.json" }
+  if (-not (Test-Path $serverDownload -PathType Leaf)) { throw "Servidor MCP não encontrado: $serverDownload" }
+  if (-not (Test-Path $configDownload -PathType Leaf)) { throw "config.json não encontrado: $configDownload" }
+  Get-Content -LiteralPath $configDownload -Raw | ConvertFrom-Json | Out-Null
+  New-Item -ItemType Directory -Path $installDir -Force | Out-Null
+  Copy-Item -LiteralPath $serverDownload -Destination $server -Force
+  Copy-Item -LiteralPath $configDownload -Destination $configFile -Force
+} else {
+  Write-Host "[2/5] Preparando remoção..."
+}
+
+function Update-AiSafetyHook([string]$client, [string]$operation, [string]$serverPath) {
+  $relativePath = if ($client -eq "claude") { ".claude/settings.json" } else { ".codex/hooks.json" }
+  $settingsPath = Join-Path $HOME $relativePath
+  $settingsDirectory = Split-Path -Parent $settingsPath
+  if ($operation -eq "remove" -and -not (Test-Path $settingsPath -PathType Leaf)) { return }
+  if (Test-Path $settingsPath -PathType Leaf) {
+    $settings = Get-Content -LiteralPath $settingsPath -Raw | ConvertFrom-Json
+  } else {
+    $settings = ConvertFrom-Json "{}"
+  }
+  if (-not $settings.PSObject.Properties["hooks"]) {
+    $settings | Add-Member -MemberType NoteProperty -Name hooks -Value ([pscustomobject]@{})
+  }
+  $hooks = $settings.hooks
+  $current = @()
+  if ($hooks.PSObject.Properties["UserPromptSubmit"]) { $current = @($hooks.UserPromptSubmit) }
+  $next = @($current | Where-Object {
+    $entryJson = ConvertTo-Json -InputObject $_ -Depth 50 -Compress
+    $entryJson -notmatch [regex]::Escape("ai-safety-mcp.cjs")
+  })
+  if ($operation -eq "install") {
+    $hookCommand = "node `"$serverPath`" --hook"
+    $handler = [pscustomobject]@{ type = "command"; command = $hookCommand; timeout = 15 }
+    $next += [pscustomobject]@{ hooks = @($handler) }
+  }
+  if ($next.Count -gt 0) {
+    $hooks | Add-Member -MemberType NoteProperty -Name UserPromptSubmit -Value @($next) -Force
+  } else {
+    $hooks.PSObject.Properties.Remove("UserPromptSubmit")
+  }
+  New-Item -ItemType Directory -Path $settingsDirectory -Force | Out-Null
+  $temporaryPath = "$settingsPath.$PID.tmp"
+  ConvertTo-Json -InputObject $settings -Depth 100 | Set-Content -LiteralPath $temporaryPath -Encoding UTF8
+  Move-Item -LiteralPath $temporaryPath -Destination $settingsPath -Force
+}
+
+Write-Host "[3/5] Configurando MCP..."
+foreach ($client in $clients) {
+  $available = Get-Command $client -ErrorAction SilentlyContinue
+  if ($action -eq "remove") {
+    if ($available) { &amp; $client mcp remove ai-safety-guard 2&gt;$null; $global:LASTEXITCODE = 0 }
+  } elseif ($client -eq "claude") {
+    &amp; claude mcp remove ai-safety-guard 2&gt;$null; $global:LASTEXITCODE = 0
+    &amp; claude mcp add --scope user ai-safety-guard -- node $server
+    if ($LASTEXITCODE -ne 0) { throw "Falha ao cadastrar MCP no Claude Code." }
+  } else {
+    &amp; codex mcp remove ai-safety-guard 2&gt;$null; $global:LASTEXITCODE = 0
+    &amp; codex mcp add ai-safety-guard -- node $server
+    if ($LASTEXITCODE -ne 0) { throw "Falha ao cadastrar MCP no Codex." }
+  }
+}
+
+Write-Host "[4/5] Atualizando hooks selecionados..."
+foreach ($client in $clients) { Update-AiSafetyHook -client $client -operation $action -serverPath $server }
+
+Write-Host "[5/5] Finalizando..."
+if ($action -eq "install") {
+  foreach ($client in $clients) { &amp; $client mcp list }
+  Write-Host "Instalação concluída. Reinicie os clientes selecionados."
+} else {
+  Write-Host "Integração removida dos clientes selecionados. Os arquivos locais foram mantidos."
+}</code></pre>
+              <p class="fine-print">O script mescla os hooks e mantém as demais configurações. Na remoção, preserva os arquivos locais e altera apenas os clientes escolhidos.</p>
             </div>
-
-            <article class="setup-guide">
-              <h3>Claude Code</h3>
-            <ol><li>Adicione e valide o servidor:</li></ol>
-            <pre><code>claude mcp add --scope user ai-safety-guard -- node "C:/Users/SEU_USUARIO/.ai-safety-guard/ai-safety-mcp.cjs"
-claude mcp list</code></pre>
-            <ol start="2"><li>Mescle em <code>~/.claude/settings.json</code>:</li></ol>
-            <pre><code>{
-  "hooks": {
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"C:/Users/SEU_USUARIO/.ai-safety-guard/ai-safety-mcp.cjs\" --hook",
-            "timeout": 15
-          }
-        ]
-      }
-    ]
-  }
-}</code></pre>
-            <ol start="3"><li>Reinicie o Claude Code e execute <code>/hooks</code> e <code>/mcp</code>. Para desabilitar, remova o bloco <code>UserPromptSubmit</code> e execute:</li></ol>
-            <pre><code>claude mcp remove ai-safety-guard</code></pre>
-            </article>
-
-            <article class="setup-guide">
-              <h3>ChatGPT Codex</h3>
-            <ol><li>Adicione e valide o servidor:</li></ol>
-            <pre><code>codex mcp add ai-safety-guard -- node "C:/Users/SEU_USUARIO/.ai-safety-guard/ai-safety-mcp.cjs"
-codex mcp list</code></pre>
-            <ol start="2"><li>Mescle em <code>~/.codex/hooks.json</code>:</li></ol>
-            <pre><code>{
-  "hooks": {
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"C:/Users/SEU_USUARIO/.ai-safety-guard/ai-safety-mcp.cjs\" --hook",
-            "timeout": 15
-          }
-        ]
-      }
-    ]
-  }
-}</code></pre>
-            <ol start="3"><li>Reinicie o Codex, execute <code>/hooks</code>, revise e confie no hook. Para desabilitar, remova o bloco <code>UserPromptSubmit</code> e execute:</li></ol>
-            <pre><code>codex mcp remove ai-safety-guard</code></pre>
-            </article>
           </div>
 
           <div id="mcp-platform-panel-wsl" class="mcp-platform-panel" role="tabpanel" aria-labelledby="mcp-platform-tab-wsl" data-mcp-platform-panel="wsl" hidden>

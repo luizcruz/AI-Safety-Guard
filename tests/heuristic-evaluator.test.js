@@ -45,6 +45,13 @@ test("merges a local semantic classification without returning prompt text", () 
   assert.doesNotMatch(JSON.stringify(result), /ordinary words/);
 });
 
+test("obfuscates blocked prompt only when explicitly enabled", () => {
+  const prompt = "Este é um teste CPF 111.222.111-12";
+  const result = evaluator.evaluatePrompt(prompt, { mode: "heuristic" });
+  assert.equal(evaluator.obfuscatePrompt(prompt, result, { obfuscateSensitiveData: true }), "Este é um teste CPF [REDACTED]");
+  assert.equal(evaluator.obfuscatePrompt(prompt, result, { obfuscateSensitiveData: false }), "");
+});
+
 test("rejects empty and oversized prompts", () => {
   assert.throws(() => evaluator.evaluatePrompt("", { mode: "heuristic" }), /Prompt vazio/);
   assert.throws(() => evaluator.evaluatePrompt("a".repeat(evaluator.MAX_TEXT_LENGTH + 1), { mode: "heuristic" }), /excede/);

@@ -80,6 +80,19 @@
     return finalize(next);
   }
 
+  function obfuscatePrompt(text, result, config = {}) {
+    if (!result || !result.blocked || config.obfuscateSensitiveData !== true) return "";
+    const matchedPolicyIds = new Set(Array.isArray(result.policyIds) ? result.policyIds : []);
+    const sensitiveTerms = policyApi.normalizePolicies(config.policies)
+      .filter((policy) => matchedPolicyIds.has(policy.id))
+      .flatMap((policy) => policy.terms);
+    const obfuscated = detector.obfuscate(String(text || ""), {
+      enabledCategories: Array.isArray(config.enabledCategories) ? config.enabledCategories : undefined,
+      sensitiveTerms
+    });
+    return obfuscated !== String(text || "") ? obfuscated : "";
+  }
+
   function finalize(value) {
     const findings = value.findings.slice(0, MAX_FINDINGS);
     const categories = [...new Set(findings.map((finding) => finding.category))];
@@ -102,5 +115,5 @@
     return { version: 1, enabled: false, mode, decision: "allow", blocked: false, confidence: 0, categories: [], policyIds: [], findings: [], engines: { deterministic: "not-run", policies: "not-run", semantic: "not-run" } };
   }
 
-  return Object.freeze({ evaluatePrompt, mergeSemantic, MAX_TEXT_LENGTH, MAX_FINDINGS });
+  return Object.freeze({ evaluatePrompt, mergeSemantic, obfuscatePrompt, MAX_TEXT_LENGTH, MAX_FINDINGS });
 });

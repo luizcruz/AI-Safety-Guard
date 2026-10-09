@@ -10,16 +10,16 @@ async function main() {
   const input = await readStdin();
   const prompt = extractPrompt(input);
   if (!prompt) return;
-  const { evaluator, loadConfig } = loadRuntime();
-  const result = evaluator.evaluatePrompt(prompt, loadConfig(process.env));
+  const { evaluator, detector, loadConfig } = loadRuntime();
+  const config = loadConfig(process.env);
+  const result = evaluator.evaluatePrompt(prompt, config);
   if (!result.blocked) return;
-  const summary = {
-    decision: result.decision,
-    confidence: result.confidence,
-    categories: result.categories,
-    policyIds: result.policyIds
-  };
-  process.stderr.write(`AI Safety Guard blocked the prompt: ${JSON.stringify(summary)}\n`);
+  const reason = formatBlockReason(prompt, result, config, evaluator, detector);
+  if (input && input.hook_event_name === "UserPromptSubmit") {
+    process.stdout.write(`${JSON.stringify({ decision: "block", reason, hookSpecificOutput: { hookEventName: "UserPromptSubmit", suppressOriginalPrompt: true } })}\n`);
+    return;
+  }
+  process.stderr.write(`${reason}\n`);
   process.exitCode = 2;
 }
 
@@ -28,7 +28,26 @@ function loadRuntime() {
   const repository = path.resolve(__dirname, "..", "..");
   const root = fs.existsSync(path.join(installed, "heuristic-evaluator.js")) ? installed : path.join(repository, "plugin", "src");
   const configPath = fs.existsSync(path.join(installed, "config.cjs")) ? path.join(installed, "config.cjs") : path.join(repository, "mcp", "config.cjs");
-  return { evaluator: require(path.join(root, "heuristic-evaluator.js")), loadConfig: require(configPath).loadConfig };
+  return { evaluator: require(path.join(root, "heuristic-evaluator.js")), detector: require(path.join(root, "detector.js")), loadConfig: require(configPath).loadConfig };
+}
+
+function formatBlockReason(prompt, result, config, evaluator, detector) {
+  const categories = result.categories.map((category) => detector.CATEGORIES[category] || category);
+  const detections = [...new Set(result.findings.map((finding) => finding.label).filter(Boolean))];
+  const lines = [
+    "🛡️ AI Safety Guard bloqueou o envio para proteger dados sensíveis.",
+    `Confiança: ${Math.round(result.confidence)}%`,
+    `Categorias: ${categories.join(", ") || "Risco não classificado"}`,
+    `Detecções: ${detections.join(", ") || "Política heurística"}`,
+    "O prompt original não foi enviado ao modelo."
+  ];
+  if (result.policyIds.length) lines.splice(4, 0, `Políticas: ${result.policyIds.join(", ")}`);
+  if (config.obfuscateSensitiveData === true) {
+    const obfuscated = evaluator.obfuscatePrompt(prompt, result, config);
+    if (obfuscated) lines.push("", "Versão ofuscada para revisar e reenviar:", obfuscated.slice(0, 4_000));
+    else lines.push("", "A ofuscação automática não encontrou um trecho substituível. Revise o conteúdo antes de reenviar.");
+  } else lines.push("Ative a ofuscação no plugin e atualize o config.json para receber uma versão com [REDACTED].");
+  return lines.join("\n");
 }
 
 function extractPrompt(input) {
