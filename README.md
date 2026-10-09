@@ -18,6 +18,7 @@ Prompts, attachments, and audit events are processed locally. The rules API neve
 - Includes configurable heuristic policies with context and exceptions.
 - Exposes heuristic evaluation through WebMCP and a local stdio MCP server.
 - Provides an MCP settings tab with a browser toggle and manual Claude Code/Codex setup commands.
+- Bundles a downloadable standalone MCP server; end users do not need the source repository or npm dependencies.
 - Limits live scanning, oversized prompts, and local-model execution to protect browser responsiveness.
 
 ## Protection levels
@@ -89,6 +90,7 @@ API details: [api/README.md](api/README.md).
 npm test
 npm run check
 npm run build:vendor
+npm run build:mcp
 ```
 
 MCP and hook setup: [docs/MCP.md](docs/MCP.md).
@@ -112,6 +114,7 @@ api/.venv/bin/python -m pytest api/tests
 - `plugin/src/webmcp.js`: WebMCP tool registered in supported Chrome pages.
 - `plugin/src/content.js`: interception and risk indicator.
 - `mcp/`: local MCP server for coding agents.
+- `plugin/mcp/ai-safety-mcp.cjs`: dependency-free MCP download bundled with the extension.
 - `integrations/`: Claude Code and Codex hook examples.
 - `plugin/src/options.html`: extension settings.
 - `api/`: FastAPI rules API.

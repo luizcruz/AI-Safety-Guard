@@ -108,17 +108,31 @@
           <label class="privacy-option"><input id="mcp-enabled" type="checkbox" role="switch"><span><strong>Habilitar WebMCP no navegador</strong><small>Registra <code>evaluate_ai_prompt</code> nos sites compatíveis somente quando o nível Heurística estiver ativo.</small></span></label>
           <p class="notice">Esta chave controla o WebMCP do Chrome. As integrações locais abaixo são habilitadas ou removidas diretamente no Claude Code e no Codex.</p>
 
+          <div class="mcp-downloads">
+            <a id="download-mcp-server" class="button-link" href="../mcp/ai-safety-mcp.cjs" download="ai-safety-mcp.cjs">Baixar servidor MCP</a>
+            <button id="download-mcp-config" class="secondary-button" type="button">Baixar configuração atual</button>
+            <span id="mcp-download-status" role="status"></span>
+          </div>
+          <p class="fine-print">A configuração exporta as categorias e políticas atuais. Baixe-a novamente após alterá-las.</p>
+          <div class="setup-guide">
+            <h3>Preparação comum</h3>
+            <ol>
+              <li>Instale o Node.js 18 ou superior.</li>
+              <li>Baixe os dois arquivos acima.</li>
+              <li>No PowerShell, mova-os para uma pasta permanente:</li>
+            </ol>
+            <pre><code>New-Item -ItemType Directory -Force "$HOME\.ai-safety-guard"
+Move-Item "$HOME\Downloads\ai-safety-mcp.cjs" "$HOME\.ai-safety-guard\ai-safety-mcp.cjs" -Force
+Move-Item "$HOME\Downloads\config.json" "$HOME\.ai-safety-guard\config.json" -Force</code></pre>
+            <p class="fine-print">Se o navegador salvar em outra pasta, ajuste a origem. Nos comandos abaixo, substitua <code>SEU_USUARIO</code> pelo seu usuário do Windows.</p>
+          </div>
+
           <article class="setup-guide">
             <h3>Claude Code</h3>
-            <ol>
-              <li>Abra um terminal na raiz do projeto e instale o bridge:</li>
-            </ol>
-            <pre><code>npm install
-node scripts/install-hooks.mjs --target=claude</code></pre>
-            <ol start="2"><li>Adicione o servidor MCP, substituindo o caminho pelo caminho absoluto desta pasta:</li></ol>
-            <pre><code>claude mcp add --scope user ai-safety-guard --env AI_SAFETY_MODE=heuristic -- node "C:\CAMINHO\AISafety\mcp\server.mjs"
+            <ol><li>Adicione e valide o servidor:</li></ol>
+            <pre><code>claude mcp add --scope user ai-safety-guard -- node "C:/Users/SEU_USUARIO/.ai-safety-guard/ai-safety-mcp.cjs"
 claude mcp list</code></pre>
-            <ol start="3"><li>Mescle em <code>~/.claude/settings.json</code>:</li></ol>
+            <ol start="2"><li>Mescle em <code>~/.claude/settings.json</code>:</li></ol>
             <pre><code>{
   "hooks": {
     "UserPromptSubmit": [
@@ -126,7 +140,7 @@ claude mcp list</code></pre>
         "hooks": [
           {
             "type": "command",
-            "command": "node ~/.claude/hooks/evaluator-bridge.js",
+            "command": "node \"C:/Users/SEU_USUARIO/.ai-safety-guard/ai-safety-mcp.cjs\" --hook",
             "timeout": 15
           }
         ]
@@ -134,21 +148,16 @@ claude mcp list</code></pre>
     ]
   }
 }</code></pre>
-            <ol start="4"><li>Reinicie o Claude Code e execute <code>/hooks</code> e <code>/mcp</code> para validar. Para desabilitar, remova o bloco <code>UserPromptSubmit</code> e execute:</li></ol>
+            <ol start="3"><li>Reinicie o Claude Code e execute <code>/hooks</code> e <code>/mcp</code>. Para desabilitar, remova o bloco <code>UserPromptSubmit</code> e execute:</li></ol>
             <pre><code>claude mcp remove ai-safety-guard</code></pre>
           </article>
 
           <article class="setup-guide">
             <h3>ChatGPT Codex</h3>
-            <ol>
-              <li>Abra um terminal na raiz do projeto e instale o bridge:</li>
-            </ol>
-            <pre><code>npm install
-node scripts/install-hooks.mjs --target=codex</code></pre>
-            <ol start="2"><li>Adicione e valide o servidor MCP:</li></ol>
-            <pre><code>codex mcp add ai-safety-guard --env AI_SAFETY_MODE=heuristic -- node "C:\CAMINHO\AISafety\mcp\server.mjs"
+            <ol><li>Adicione e valide o servidor:</li></ol>
+            <pre><code>codex mcp add ai-safety-guard -- node "C:/Users/SEU_USUARIO/.ai-safety-guard/ai-safety-mcp.cjs"
 codex mcp list</code></pre>
-            <ol start="3"><li>Mescle em <code>~/.codex/hooks.json</code>:</li></ol>
+            <ol start="2"><li>Mescle em <code>~/.codex/hooks.json</code>:</li></ol>
             <pre><code>{
   "hooks": {
     "UserPromptSubmit": [
@@ -156,7 +165,7 @@ codex mcp list</code></pre>
         "hooks": [
           {
             "type": "command",
-            "command": "node ~/.codex/hooks/evaluator-bridge.js",
+            "command": "node \"C:/Users/SEU_USUARIO/.ai-safety-guard/ai-safety-mcp.cjs\" --hook",
             "timeout": 15
           }
         ]
@@ -164,7 +173,7 @@ codex mcp list</code></pre>
     ]
   }
 }</code></pre>
-            <ol start="4"><li>Reinicie o Codex, execute <code>/hooks</code>, revise e confie no hook. Para desabilitar, remova o bloco <code>UserPromptSubmit</code> e execute:</li></ol>
+            <ol start="3"><li>Reinicie o Codex, execute <code>/hooks</code>, revise e confie no hook. Para desabilitar, remova o bloco <code>UserPromptSubmit</code> e execute:</li></ol>
             <pre><code>codex mcp remove ai-safety-guard</code></pre>
           </article>
         </section>

@@ -158,8 +158,9 @@ test("página de opções apresenta os quatro níveis e instalação do Gemini N
   assert.match(options, /id="download-audit"[^>]*>Baixar log<\/button>/);
   assert.match(options, /id="api-settings"/);
   assert.match(options, /id="mcp-enabled"[^>]*role="switch"/);
-  assert.match(options, /node scripts\/install-hooks\.mjs --target=claude/);
-  assert.match(options, /node scripts\/install-hooks\.mjs --target=codex/);
+  assert.match(options, /id="download-mcp-server"[^>]*ai-safety-mcp\.cjs/);
+  assert.match(options, /id="download-mcp-config"/);
+  assert.match(options, /\.ai-safety-guard/);
   assert.match(options, /claude mcp add --scope user ai-safety-guard/);
   assert.match(options, /codex mcp add ai-safety-guard/);
   assert.match(options, /claude mcp remove ai-safety-guard/);
@@ -184,6 +185,8 @@ test("página de opções apresenta os quatro níveis e instalação do Gemini N
   assert.match(optionsScript, /AISafetyAuditLog\.download\(auditLog\)/);
   assert.match(optionsScript, /REFRESH_RULES/);
   assert.match(optionsScript, /mcpEnabled/);
+  assert.match(optionsScript, /downloadJson\("config\.json"/);
+  assert.doesNotMatch(options, /npm install|scripts\/install-hooks|CAMINHO\\AISafety|mcp\/server\.mjs/);
   assert.match(optionsScript, /ArrowRight/);
 });
 

@@ -41,6 +41,8 @@
   const obfuscationInput = document.querySelector("#obfuscate-sensitive-data");
   const mcpEnabledInput = document.querySelector("#mcp-enabled");
   const mcpStatus = document.querySelector("#mcp-status");
+  const downloadMcpConfig = document.querySelector("#download-mcp-config");
+  const mcpDownloadStatus = document.querySelector("#mcp-download-status");
   const modeInputs = [...document.querySelectorAll("input[name='protection-mode']")];
   const categoryInputs = new Map();
   let nanoAvailable = false;
@@ -274,6 +276,32 @@
     mcpStatus.textContent = message || (enabled ? "Habilitado" : "Desabilitado");
     mcpStatus.style.background = message ? "#fef2f2" : enabled ? "#f0fdf4" : "#f1f5f9";
     mcpStatus.style.color = message ? "#991b1b" : enabled ? "#166534" : "#475569";
+  }
+
+  downloadMcpConfig.addEventListener("click", async () => {
+    downloadMcpConfig.disabled = true;
+    try {
+      const [syncSettings, localSettings] = await Promise.all([
+        chrome.storage.sync.get({ enabledCategories: Object.keys(AISafetyGuard.CATEGORIES) }),
+        chrome.storage.local.get({ heuristicPolicies: null })
+      ]);
+      const policies = localSettings.heuristicPolicies || AISafetyPolicies.serializePolicies(heuristicPolicies, [...deletedDefaultPolicyIds]);
+      downloadJson("config.json", { mode: "heuristic", enabledCategories: syncSettings.enabledCategories, policies });
+      mcpDownloadStatus.textContent = "Configuração baixada.";
+    } catch (error) {
+      mcpDownloadStatus.textContent = `Falha: ${error.message}`;
+    } finally {
+      downloadMcpConfig.disabled = false;
+    }
+  });
+
+  function downloadJson(name, value) {
+    const url = URL.createObjectURL(new Blob([`${JSON.stringify(value, null, 2)}\n`], { type: "application/json" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = name;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 
   async function saveProtection() {

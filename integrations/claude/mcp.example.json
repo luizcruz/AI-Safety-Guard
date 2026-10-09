@@ -2,10 +2,7 @@
   "mcpServers": {
     "ai-safety-guard": {
       "command": "node",
-      "args": ["<ABSOLUTE_REPOSITORY_PATH>/mcp/server.mjs"],
-      "env": {
-        "AI_SAFETY_MODE": "heuristic"
-      }
+      "args": ["C:/Users/SEU_USUARIO/.ai-safety-guard/ai-safety-mcp.cjs"]
     }
   }
 }

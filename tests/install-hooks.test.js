@@ -17,7 +17,7 @@ test("Codex hook example follows the matcher-group schema", () => {
   assert.ok(Array.isArray(group.hooks));
   assert.deepEqual(group.hooks[0], {
     type: "command",
-    command: "node ~/.codex/hooks/evaluator-bridge.js",
+    command: "node \"C:/Users/SEU_USUARIO/.ai-safety-guard/ai-safety-mcp.cjs\" --hook",
     timeout: 15
   });
 });
@@ -28,7 +28,7 @@ test("Claude hook example follows the matcher-group schema", () => {
   assert.ok(Array.isArray(group.hooks));
   assert.deepEqual(group.hooks[0], {
     type: "command",
-    command: "node ~/.claude/hooks/evaluator-bridge.js",
+    command: "node \"C:/Users/SEU_USUARIO/.ai-safety-guard/ai-safety-mcp.cjs\" --hook",
     timeout: 15
   });
 });

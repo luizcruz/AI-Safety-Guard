@@ -1,106 +1,100 @@
 # MCP integration
 
-AI Safety Guard provides two local integrations:
+AI Safety Guard provides WebMCP in Chrome and a standalone local MCP server for Claude Code and Codex. No repository checkout or `npm install` is required for end users.
 
-- **WebMCP** registers `evaluate_ai_prompt` on supported Chrome pages only while **Heuristic** mode is enabled.
-- **MCP stdio** registers `evaluate_prompt` for Claude Code and Codex.
+## Download from the extension
 
-Both run deterministic rules and every enabled nuanced policy locally. Outputs contain risk metadata, never the submitted prompt. Browser WebMCP also requests Gemini Nano semantic analysis.
+1. Open **AI Safety Guard > Open all settings > MCP**.
+2. Select **Download MCP server** and **Download current configuration**.
+3. Install Node.js 18 or newer.
+4. Move both downloads to a permanent directory.
 
-## Requirements
+PowerShell:
 
-- Node.js 18 or newer.
-- `npm install` in the repository.
-- For WebMCP, a compatible Chrome build. During the preview, enable `chrome://flags/#enable-webmcp-testing` or use the applicable origin trial.
-
-## Install prompt hooks
-
-```bash
-npm install
-node scripts/install-hooks.mjs --target=all
+```powershell
+New-Item -ItemType Directory -Force "$HOME\.ai-safety-guard"
+Move-Item "$HOME\Downloads\ai-safety-mcp.cjs" "$HOME\.ai-safety-guard\ai-safety-mcp.cjs" -Force
+Move-Item "$HOME\Downloads\config.json" "$HOME\.ai-safety-guard\config.json" -Force
 ```
 
-This copies the bridge and its rule runtime to `~/.claude/hooks` and `~/.codex/hooks`. Existing runtime configuration is preserved.
+The downloaded `config.json` contains the extension's currently enabled categories and heuristic policies. Download it again after changing those settings.
 
-Claude Code settings:
+## Claude Code
 
-```json
-{
-  "hooks": {
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ~/.claude/hooks/evaluator-bridge.js",
-            "timeout": 15
-          }
-        ]
-      }
-    ]
-  }
-}
-```
+Replace `SEU_USUARIO` with the Windows user name:
 
-Codex settings:
-
-```json
-{
-  "hooks": {
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ~/.codex/hooks/evaluator-bridge.js",
-            "timeout": 15
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-Save or merge this object into `~/.codex/hooks.json`, then open `/hooks` in Codex to review and trust it. The extra `hooks` nesting is required by Codex's matcher-group schema.
-
-The hook exits with code `2` when a prompt is blocked. It stays inactive when its configured mode is not `heuristic`.
-
-## Add the MCP server
-
-Claude Code:
-
-```bash
-claude mcp add --scope user ai-safety-guard --env AI_SAFETY_MODE=heuristic -- node /absolute/path/to/AISafety/mcp/server.mjs
+```powershell
+claude mcp add --scope user ai-safety-guard -- node "C:/Users/SEU_USUARIO/.ai-safety-guard/ai-safety-mcp.cjs"
 claude mcp list
 ```
 
-Alternatively, merge [`integrations/claude/mcp.example.json`](../integrations/claude/mcp.example.json) into the relevant MCP configuration.
+Merge this into `~/.claude/settings.json`:
 
-Disable Claude Code integration by removing the `UserPromptSubmit` group and running `claude mcp remove ai-safety-guard`.
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"C:/Users/SEU_USUARIO/.ai-safety-guard/ai-safety-mcp.cjs\" --hook",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}
+```
 
-Codex `config.toml`:
+Restart Claude Code. Use `/hooks` and `/mcp` to validate. To disable it, remove the `UserPromptSubmit` group and run:
 
-```bash
-codex mcp add ai-safety-guard --env AI_SAFETY_MODE=heuristic -- node /absolute/path/to/AISafety/mcp/server.mjs
+```powershell
+claude mcp remove ai-safety-guard
+```
+
+## Codex
+
+```powershell
+codex mcp add ai-safety-guard -- node "C:/Users/SEU_USUARIO/.ai-safety-guard/ai-safety-mcp.cjs"
 codex mcp list
 ```
 
-Or configure `~/.codex/config.toml` manually:
+Merge this into `~/.codex/hooks.json`:
 
-```toml
-[mcp_servers.ai-safety-guard]
-command = "node"
-args = ["/absolute/path/to/AISafety/mcp/server.mjs"]
-env = { AI_SAFETY_MODE = "heuristic" }
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"C:/Users/SEU_USUARIO/.ai-safety-guard/ai-safety-mcp.cjs\" --hook",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}
 ```
 
-An equivalent file is available at [`integrations/codex/config.toml.example`](../integrations/codex/config.toml.example).
+Restart Codex, run `/hooks`, and trust the hook. To disable it, remove the `UserPromptSubmit` group and run:
 
-Disable Codex integration by removing the `UserPromptSubmit` group and running `codex mcp remove ai-safety-guard`.
+```powershell
+codex mcp remove ai-safety-guard
+```
 
-## Configuration
+## WebMCP
 
-Set `AI_SAFETY_MODE=heuristic`. To customize categories or policies, copy [`mcp/config.example.json`](../mcp/config.example.json) and set `AI_SAFETY_CONFIG` to its absolute path. Installed hooks use `ai-safety-runtime/config.json` by default.
+The MCP tab controls browser WebMCP independently. Its `evaluate_ai_prompt` tool is registered only when both MCP and Heuristic mode are enabled. During the Chrome preview, enable `chrome://flags/#enable-webmcp-testing` or use the applicable origin trial.
 
-WebMCP follows the extension's MCP toggle, protection level, categories, and policies automatically. Disabling MCP or Heuristic mode unregisters its tool.
+## Development
+
+Regenerate the standalone artifact after changing rules, policies, or the evaluator:
+
+```bash
+npm run build:mcp
+```
