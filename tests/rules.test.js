@@ -170,6 +170,9 @@ test("página de opções apresenta os quatro níveis e instalação do Gemini N
   assert.match(options, /Read-Host "Escolha uma ação \[1-2\]"/);
   assert.match(options, /Read-Host "Escolha o cliente \[1-3\]"/);
   assert.match(options, /Update-AiSafetyHook/);
+  assert.match(options, /function Set-CodexMcpConfig/);
+  assert.match(options, /\.codex\/config\.toml/);
+  assert.match(options, /elseif \(\$client -eq "codex"\) \{ Set-CodexMcpConfig/);
   assert.match(options, /\.claude\/settings\.json/);
   assert.match(options, /\.codex\/hooks\.json/);
   assert.match(options, /ConvertTo-Json -InputObject \$settings -Depth 100/);
@@ -241,18 +244,18 @@ test("popup permite selecionar nível por controle deslizante", () => {
   assert.match(popupScript, /chrome\.runtime\.openOptionsPage\(\)/);
 });
 
-test("identidade pública usa exclusivamente AI Safety Guard v2.1", () => {
+test("identidade pública usa exclusivamente AI Safety Guard v2.2", () => {
   const root = path.join(__dirname, "..");
   const manifest = JSON.parse(fs.readFileSync(path.join(root, "plugin", "manifest.json"), "utf8"));
   const packageManifest = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
   const packageLock = JSON.parse(fs.readFileSync(path.join(root, "package-lock.json"), "utf8"));
   const options = fs.readFileSync(path.join(root, "plugin", "src", "options.html"), "utf8");
   const readme = fs.readFileSync(path.join(root, "README.md"), "utf8");
-  assert.equal(manifest.version, "2.1.0");
+  assert.equal(manifest.version, "2.2.0");
   assert.equal(packageManifest.version, manifest.version);
   assert.equal(packageLock.version, manifest.version);
   assert.equal(packageLock.packages[""].version, manifest.version);
-  assert.equal(manifest.name, "AI Safety Guard v2.1");
-  assert.equal(manifest.action.default_title, "AI Safety Guard v2.1");
+  assert.equal(manifest.name, "AI Safety Guard v2.2");
+  assert.equal(manifest.action.default_title, "AI Safety Guard v2.2");
   assert.doesNotMatch(`${options}\n${readme}`, /AI Chat DLP Guard/i);
 });

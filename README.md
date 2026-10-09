@@ -60,7 +60,7 @@ Click the extension icon to select the protection level. Use **Open all settings
 
 WebMCP is registered in supported Chrome pages only when MCP and **Heuristic** mode are enabled. Its `evaluate_ai_prompt` tool returns risk metadata, never the submitted prompt. Blocked evaluations appear in the extension audit log as `MCP (WebMCP)`; prompt text is not included.
 
-For Claude Code or Codex hooks, use the **MCP** settings tab to download the standalone server and run the guided Windows or WSL setup. The generated setup uses the installed extension’s bundled server; the repository and npm dependencies are not required. Hook blocks include a reason and, when obfuscation is enabled, a `[REDACTED]` copy for review. Hooks cannot replace the original prompt automatically: review and resubmit the redacted text yourself.
+For Claude Code or Codex hooks, use the **MCP** settings tab to download the standalone server and run the guided Windows or WSL setup. On Windows, Codex desktop does not require `codex.exe` on `PATH`: the installer writes its MCP entry to `%USERPROFILE%\.codex\config.toml` when the CLI is unavailable. The generated setup uses the installed extension’s bundled server; the repository and npm dependencies are not required. Hook blocks include a reason and, when obfuscation is enabled, a `[REDACTED]` copy for review. Hooks cannot replace the original prompt automatically: review and resubmit the redacted text yourself.
 
 The standalone MCP process runs outside Chrome and cannot write to the extension’s browser audit storage. Its hook decision is returned to the coding client; the extension audit log entry described above applies to WebMCP calls made in supported browser pages.
 

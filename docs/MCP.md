@@ -8,7 +8,7 @@ When obfuscation is enabled, a blocked Claude Code prompt is hidden from the blo
 
 ## Windows
 
-Install Node.js 18 or newer and Claude Code and/or Codex. Download the server and `config.json` from the extension, then paste this complete script into PowerShell:
+Install Node.js 18 or newer and Claude Code and/or the ChatGPT Codex desktop app. Download the server and `config.json` from the extension, then paste this complete script into PowerShell. Codex does not need its CLI on `PATH`: when `codex.exe` is unavailable, the script writes the MCP entry to `%USERPROFILE%\.codex\config.toml`, which the desktop app reads.
 
 ```powershell
 $ErrorActionPreference = "Stop"
@@ -37,9 +37,7 @@ if ($action -eq "install") {
   $nodeVersionText = & node -p "process.versions.node"
   $nodeVersion = [version]($nodeVersionText.Trim())
   if ($nodeVersion.Major -lt 18) { throw "Node.js 18 or newer is required." }
-  foreach ($client in $clients) {
-    if (-not (Get-Command $client -ErrorAction SilentlyContinue)) { throw "$client was not found in PATH." }
-  }
+  if ($clients -contains "claude" -and -not (Get-Command claude -ErrorAction SilentlyContinue)) { throw "Claude Code was not found in PATH." }
 }
 
 if ($action -eq "install") {
@@ -86,19 +84,47 @@ function Update-AiSafetyHook([string]$client, [string]$operation, [string]$serve
   Move-Item -LiteralPath $temporaryPath -Destination $settingsPath -Force
 }
 
+function Set-CodexMcpConfig([string]$operation, [string]$serverPath) {
+  $settingsPath = Join-Path $HOME ".codex/config.toml"
+  if ($operation -eq "remove" -and -not (Test-Path $settingsPath -PathType Leaf)) { return }
+  $lines = if (Test-Path $settingsPath -PathType Leaf) { [System.IO.File]::ReadAllLines($settingsPath) } else { @() }
+  $kept = [System.Collections.Generic.List[string]]::new()
+  $skip = $false
+  foreach ($line in $lines) {
+    if ($line -match '^\s*\[mcp_servers\.ai-safety-guard\]\s*(?:#.*)?$') { $skip = $true; continue }
+    if ($skip -and $line -match '^\s*\[') { $skip = $false }
+    if (-not $skip) { $kept.Add($line) }
+  }
+  if ($operation -eq "install") {
+    $quotedServer = $serverPath.Replace('\', '\\').Replace('"', '\"')
+    if ($kept.Count -gt 0 -and $kept[$kept.Count - 1] -ne "") { $kept.Add("") }
+    $kept.Add("[mcp_servers.ai-safety-guard]")
+    $kept.Add('command = "node"')
+    $kept.Add("args = [`"$quotedServer`"]")
+  }
+  $settingsDirectory = Split-Path -Parent $settingsPath
+  New-Item -ItemType Directory -Path $settingsDirectory -Force | Out-Null
+  $temporaryPath = "$settingsPath.$PID.tmp"
+  [System.IO.File]::WriteAllLines($temporaryPath, $kept, [System.Text.UTF8Encoding]::new($false))
+  Move-Item -LiteralPath $temporaryPath -Destination $settingsPath -Force
+}
+
 Write-Host "[3/5] Configuring MCP..."
 foreach ($client in $clients) {
   $available = Get-Command $client -ErrorAction SilentlyContinue
   if ($action -eq "remove") {
     if ($available) { & $client mcp remove ai-safety-guard 2>$null; $global:LASTEXITCODE = 0 }
+    elseif ($client -eq "codex") { Set-CodexMcpConfig -operation $action -serverPath $server }
   } elseif ($client -eq "claude") {
     & claude mcp remove ai-safety-guard 2>$null; $global:LASTEXITCODE = 0
     & claude mcp add --scope user ai-safety-guard -- node $server
     if ($LASTEXITCODE -ne 0) { throw "Could not register MCP in Claude Code." }
   } else {
-    & codex mcp remove ai-safety-guard 2>$null; $global:LASTEXITCODE = 0
-    & codex mcp add ai-safety-guard -- node $server
-    if ($LASTEXITCODE -ne 0) { throw "Could not register MCP in Codex." }
+    if ($available) {
+      & codex mcp remove ai-safety-guard 2>$null; $global:LASTEXITCODE = 0
+      & codex mcp add ai-safety-guard -- node $server
+      if ($LASTEXITCODE -ne 0) { throw "Could not register MCP in Codex." }
+    } else { Set-CodexMcpConfig -operation $action -serverPath $server }
   }
 }
 
@@ -107,14 +133,17 @@ foreach ($client in $clients) { Update-AiSafetyHook -client $client -operation $
 
 Write-Host "[5/5] Finishing..."
 if ($action -eq "install") {
-  foreach ($client in $clients) { & $client mcp list }
+  foreach ($client in $clients) {
+    if (Get-Command $client -ErrorAction SilentlyContinue) { & $client mcp list }
+    elseif ($client -eq "codex") { Write-Host "Codex MCP configured in $HOME\.codex\config.toml. Restart the Codex desktop app." }
+  }
   Write-Host "Installation complete. Restart the selected clients."
 } else {
   Write-Host "Integration removed from the selected clients. Local files were kept."
 }
 ```
 
-The script asks whether to install or remove and which client to configure. It merges hooks and keeps unrelated settings. Removal leaves the local files in place.
+The script asks whether to install or remove and which client to configure. It merges hooks and keeps unrelated settings. If Codex CLI is not on `PATH`, it safely adds or removes only `[mcp_servers.ai-safety-guard]` in `%USERPROFILE%\.codex\config.toml`, then asks you to restart Codex. Removal leaves the downloaded local files in place.
 
 ## Linux (WSL)
 
