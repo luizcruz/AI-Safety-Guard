@@ -8,6 +8,18 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
 const installer = path.join(__dirname, "..", "scripts", "install-hooks.mjs");
+const codexHookExample = path.join(__dirname, "..", "integrations", "codex", "hooks.example.json");
+
+test("Codex hook example follows the matcher-group schema", () => {
+  const config = JSON.parse(fs.readFileSync(codexHookExample, "utf8"));
+  const group = config.hooks.UserPromptSubmit[0];
+  assert.ok(Array.isArray(group.hooks));
+  assert.deepEqual(group.hooks[0], {
+    type: "command",
+    command: "node ~/.codex/hooks/evaluator-bridge.js",
+    timeout: 15
+  });
+});
 
 test("installer creates isolated Claude and Codex hook runtimes and preserves configuration", () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "ai-safety-hooks-"));

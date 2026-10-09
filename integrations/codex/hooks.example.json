@@ -2,8 +2,13 @@
   "hooks": {
     "UserPromptSubmit": [
       {
-        "command": "node ~/.codex/hooks/evaluator-bridge.js",
-        "timeout": 15
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ~/.codex/hooks/evaluator-bridge.js",
+            "timeout": 15
+          }
+        ]
       }
     ]
   }

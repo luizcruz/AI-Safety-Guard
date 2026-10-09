@@ -44,13 +44,20 @@ Codex settings:
   "hooks": {
     "UserPromptSubmit": [
       {
-        "command": "node ~/.codex/hooks/evaluator-bridge.js",
-        "timeout": 15
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ~/.codex/hooks/evaluator-bridge.js",
+            "timeout": 15
+          }
+        ]
       }
     ]
   }
 }
 ```
+
+Save or merge this object into `~/.codex/hooks.json`, then open `/hooks` in Codex to review and trust it. The extra `hooks` nesting is required by Codex's matcher-group schema.
 
 The hook exits with code `2` when a prompt is blocked. It stays inactive when its configured mode is not `heuristic`.
 
