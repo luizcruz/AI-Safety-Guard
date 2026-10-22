@@ -4,7 +4,7 @@ AI Safety Guard provides WebMCP in Chrome and a standalone local MCP server for 
 
 Open **AI Safety Guard > Open all settings > MCP**, download the server and current configuration, then follow the tab for your operating system. The exported `config.json` contains the active deterministic rules catalog, enabled categories, heuristic policies, and obfuscation setting. Download it again after changing any of these or updating rules.
 
-WebMCP and local MCP are separate transports. WebMCP registers a tool in supported Chrome pages for browser-resident agents. Codex Desktop and Claude Code use the local stdio MCP server; they do not invoke the Chrome page's WebMCP tool or read Chrome extension storage. The exported catalog snapshot keeps the local server aligned with the extension at the time of export.
+WebMCP and local MCP are separate transports. WebMCP registers a tool in supported Chrome pages for web tools and is removed by disabling its switch. Codex Desktop and Claude Code use the separately installed local stdio MCP server; they do not invoke the Chrome page's WebMCP tool or read Chrome extension storage. The install scripts can also remove client registrations and local files.
 
 When obfuscation is enabled, a blocked Claude Code prompt is hidden from the block message and a `[REDACTED]` version is shown for review and manual resubmission. Claude Code `UserPromptSubmit` hooks cannot replace the submitted prompt automatically.
 
@@ -27,6 +27,11 @@ $clients = switch ($clientOption) {
   "1" { @("claude") }
   "2" { @("codex") }
   "3" { @("claude", "codex") }
+}
+$removeFiles = $false
+if ($action -eq "remove") {
+  $removeFiles = (Read-Host "Also delete the local server and configuration? [y/N]") -match '^[yY]$'
+  if ($removeFiles -and $clients.Count -ne 2) { throw "Select Both before deleting shared local files." }
 }
 
 $installDir = Join-Path $HOME ".ai-safety-guard"
@@ -141,11 +146,16 @@ if ($action -eq "install") {
   }
   Write-Host "Installation complete. Restart the selected clients."
 } else {
-  Write-Host "Integration removed from the selected clients. Local files were kept."
+  if ($removeFiles) {
+    Remove-Item -LiteralPath $server -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $configFile -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $installDir -Force -ErrorAction SilentlyContinue
+    Write-Host "Integrations and local files removed."
+  } else { Write-Host "Integration removed from the selected clients. Local files were kept." }
 }
 ```
 
-The script asks whether to install or remove and which client to configure. It merges hooks and keeps unrelated settings. If Codex CLI is not on `PATH`, it safely adds or removes only `[mcp_servers.ai-safety-guard]` in `%USERPROFILE%\.codex\config.toml`, then asks you to restart Codex. Removal leaves the downloaded local files in place.
+The script asks whether to install or remove and which client to configure. It merges hooks and keeps unrelated settings. If Codex CLI is not on `PATH`, it safely adds or removes only `[mcp_servers.ai-safety-guard]` in `%USERPROFILE%\.codex\config.toml`. During removal, selecting both clients also allows deletion of the shared local files.
 
 ## Linux (WSL)
 
@@ -172,6 +182,12 @@ case "$CLIENT_OPTION" in
   3) CONFIGURE_CLAUDE=1; CONFIGURE_CODEX=1 ;;
   *) echo "Invalid option." >&2; exit 1 ;;
 esac
+REMOVE_FILES=0
+if [ "$ACTION" = "remove" ]; then
+  read -r -p "Also delete the local server and configuration? [y/N]: " REMOVE_OPTION
+  case "$REMOVE_OPTION" in y|Y) REMOVE_FILES=1 ;; esac
+  [ "$REMOVE_FILES" -eq 0 ] || [ "$CLIENT_OPTION" = "3" ] || { echo "Select Both before deleting shared local files." >&2; exit 1; }
+fi
 
 INSTALL_DIR="$HOME/.ai-safety-guard"
 SERVER="$INSTALL_DIR/ai-safety-mcp.cjs"
@@ -258,7 +274,7 @@ if [ "$ACTION" = "install" ]; then
   [ "$CONFIGURE_CODEX" -eq 0 ] || codex mcp list
   echo "Installation complete. Restart the selected client."
 else
-  if [ "$CONFIGURE_CLAUDE" -eq 1 ] && [ "$CONFIGURE_CODEX" -eq 1 ]; then
+  if [ "$REMOVE_FILES" -eq 1 ]; then
     rm -f "$SERVER" "$CONFIG_FILE"
     rmdir "$INSTALL_DIR" 2>/dev/null || true
   fi
@@ -266,11 +282,13 @@ else
 fi
 ```
 
-The script asks whether to install or remove the integration and whether to configure Claude Code, ChatGPT Codex, or both. It preserves unrelated hooks.
+The script asks whether to install or remove the integration and whether to configure Claude Code, ChatGPT Codex, or both. It preserves unrelated hooks and can delete the shared local files when both integrations are removed.
 
 ## WebMCP
 
-The MCP tab controls browser WebMCP independently. Its `evaluate_ai_prompt` tool is registered only when MCP and Heuristic mode are enabled. During the Chrome preview, enable `chrome://flags/#enable-webmcp-testing` or use the applicable origin trial.
+The MCP tab controls browser WebMCP independently. Its `evaluate_ai_prompt` tool is registered only when MCP and Hybrid mode are enabled. During the Chrome preview, enable `chrome://flags/#enable-webmcp-testing` or use the applicable origin trial.
+
+Claude Code Desktop creates isolated sessions in `<project-root>/.claude/worktrees/`. The local hook ignores these ephemeral test worktrees by default. Set `AI_SAFETY_SCAN_EPHEMERAL=1` to scan them, or add explicit absolute paths to `ignoredWorkingDirectories` in `config.json`.
 
 ## Development
 

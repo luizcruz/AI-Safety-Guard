@@ -54,3 +54,17 @@ test("installer creates isolated Claude and Codex hook runtimes and preserves co
     fs.rmSync(home, { recursive: true, force: true });
   }
 });
+
+test("installer removes only the selected hook runtime", () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "ai-safety-hooks-remove-"));
+  try {
+    assert.equal(spawnSync(process.execPath, [installer, "--target=all"], { encoding: "utf8", env: { ...process.env, AI_SAFETY_INSTALL_HOME: home } }).status, 0);
+    const removed = spawnSync(process.execPath, [installer, "--target=claude", "--remove"], { encoding: "utf8", env: { ...process.env, AI_SAFETY_INSTALL_HOME: home } });
+    assert.equal(removed.status, 0, removed.stderr);
+    assert.equal(fs.existsSync(path.join(home, ".claude", "hooks", "ai-safety-runtime")), false);
+    assert.equal(fs.existsSync(path.join(home, ".claude", "hooks", "evaluator-bridge.js")), false);
+    assert.equal(fs.existsSync(path.join(home, ".codex", "hooks", "ai-safety-runtime")), true);
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+});

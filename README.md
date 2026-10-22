@@ -13,7 +13,7 @@ Prompts, attachments, and audit events are processed locally. The rules API neve
 - Keeps the status banner above the page in the bottom-right corner.
 - Optionally replaces detected prompt values with `[REDACTED]` before review.
 - Stores a local audit trail with masked samples.
-- Records Heuristic-mode blocks with matched policy IDs.
+- Records Hybrid-mode blocks with matched policy IDs.
 - Provides optional semantic analysis with Gemini Nano.
 - Includes configurable heuristic policies with context and exceptions.
 - Exposes heuristic evaluation through WebMCP and a local stdio MCP server.
@@ -29,9 +29,9 @@ Prompts, attachments, and audit events are processed locally. The rules API neve
 | **Log** | Allows submission and records the event locally. |
 | **Warn** | Displays a warning and allows submission. |
 | **Detection** | Blocks risks found by deterministic rules. |
-| **Heuristic** | Adds local Gemini Nano analysis and blocks risks. |
+| **Hybrid** | Applies deterministic rules and adds local Gemini Nano analysis when available. |
 
-If Gemini Nano is unavailable, **Heuristic** is disabled and **Detection** is selected automatically.
+If Gemini Nano is unavailable or does not answer in time, **Hybrid** remains selected and continues with deterministic protection. Chrome downloads the model only after an explicit user action; other Chromium browsers may not expose the Prompt API.
 
 ## Local installation
 
@@ -48,7 +48,7 @@ Chrome may require a click to start the download. See the [built-in AI requireme
 Click the extension icon to select the protection level. Use **Open all settings** for the complete configuration page, where you can:
 
 - select the protection level;
-- enable prompt obfuscation for Detection and Heuristic modes;
+- enable prompt obfuscation for Detection and Hybrid modes;
 - install or validate Gemini Nano and run a local risk test;
 - enable categories;
 - manage built-in and custom heuristic policies;
@@ -58,7 +58,7 @@ Click the extension icon to select the protection level. Use **Open all settings
 
 ## MCP integrations
 
-WebMCP is registered in supported Chrome pages only when MCP and **Heuristic** mode are enabled. It is for browser-resident agents; Codex Desktop does not call the page's WebMCP tool. Its `evaluate_ai_prompt` tool returns risk metadata, never the submitted prompt. Blocked evaluations appear in the extension audit log as `MCP (WebMCP)`; prompt text is not included.
+WebMCP is registered in supported Chrome pages only when MCP and **Hybrid** mode are enabled. It is a browser integration for web-resident tools. Codex Desktop and Claude Code instead use the separate local stdio MCP server. Disable the WebMCP switch to remove its browser registration. The `evaluate_ai_prompt` tool returns risk metadata, never the submitted prompt.
 
 For Claude Code or Codex hooks, use the **MCP** settings tab to download the standalone server and run the guided Windows or WSL setup. The exported config includes a snapshot of the active rules catalog, categories, policies, and obfuscation setting; re-download it after changing rules or policies. On Windows, Codex desktop does not require `codex.exe` on `PATH`: the installer writes its MCP entry to `%USERPROFILE%\.codex\config.toml` when the CLI is unavailable. The generated setup uses the installed extension’s bundled server; the repository and npm dependencies are not required. Hook blocks include a reason and, when obfuscation is enabled, a `[REDACTED]` copy for review. Hooks cannot replace the original prompt automatically: review and resubmit the redacted text yourself.
 

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AI Safety Guard v2.4",
-  "version": "2.4.0",
+  "version": "2.4.1",
   "description": "Proteção local contra o envio de dados sensíveis para chats de IA.",
   "icons": {
     "16": "icons/ai-safety-guard-16.png",

@@ -14,6 +14,11 @@ test("detecta indisponibilidade e estados suportados do Gemini Nano", async () =
   assert.equal(await nano.availability({ availability: async () => "unknown", create: async () => ({}) }), "unavailable");
 });
 
+test("consulta de disponibilidade nunca deixa a interface aguardando indefinidamente", async () => {
+  const hanging = { availability: () => new Promise(() => undefined), create: async () => ({}) };
+  assert.equal(await nano.availability(hanging, 5), "unavailable");
+});
+
 test("declara idiomas suportados na disponibilidade e na criação", async () => {
   let availabilityOptions;
   let creationOptions;
@@ -48,6 +53,19 @@ test("instala o modelo com progresso e encerra a sessão de preparação", async
   assert.deepEqual(await nano.install({ languageModel: model, onProgress: (value) => progress.push(value) }), { state: "available", downloaded: true });
   assert.deepEqual(progress, [0.4, 1]);
   assert.equal(destroyed, true);
+});
+
+test("instalação travada expira e aborta a criação do modelo", async () => {
+  let aborted = false;
+  const model = {
+    availability: async () => "downloadable",
+    create: ({ signal }) => {
+      signal.addEventListener("abort", () => { aborted = true; });
+      return new Promise(() => undefined);
+    }
+  };
+  await assert.rejects(() => nano.install({ languageModel: model, timeoutMs: 5 }), /Tempo limite ao instalar/);
+  assert.equal(aborted, true);
 });
 
 test("classifica com saída estruturada e converte risco em detecção", async () => {

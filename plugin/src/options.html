@@ -37,9 +37,9 @@
             <label class="mode"><input type="radio" name="protection-mode" value="log"><span><strong>Registrar</strong><small>Registra ocorrências localmente sem interromper o envio.</small></span></label>
             <label class="mode"><input type="radio" name="protection-mode" value="warn"><span><strong>Avisar</strong><small>Alerta em cada tentativa e permite o envio.</small></span></label>
             <label class="mode"><input type="radio" name="protection-mode" value="detect"><span><strong>Detecção</strong><small>Bloqueia riscos encontrados pelas regras e anexos.</small></span></label>
-            <label class="mode" id="heuristic-card"><input type="radio" name="protection-mode" value="heuristic"><span><strong>Heurística</strong><small>Adiciona análise semântica local com Gemini Nano.</small></span><em id="nano-mode-label">Verificando modelo…</em></label>
+            <label class="mode" id="heuristic-card"><input type="radio" name="protection-mode" value="heuristic"><span><strong>Híbrido</strong><small>Combina regras locais com Gemini Nano quando disponível. Sem o modelo, a proteção determinística continua ativa.</small></span><em id="nano-mode-label">Verificando modelo…</em></label>
           </div>
-          <label class="privacy-option"><input id="obfuscate-sensitive-data" type="checkbox"><span><strong>Ofuscar dados detectados</strong><small>Em Detecção e Heurística, substitui valores localizáveis por <code>[REDACTED]</code> quando o envio é bloqueado.</small></span></label>
+          <label class="privacy-option"><input id="obfuscate-sensitive-data" type="checkbox"><span><strong>Ofuscar dados detectados</strong><small>Em Detecção e Híbrido, substitui valores localizáveis por <code>[REDACTED]</code> quando o envio é bloqueado.</small></span></label>
         </section>
 
         <section id="panel-local-ai" class="card tab-panel" role="tabpanel" aria-labelledby="tab-local-ai" data-panel="local-ai" hidden>
@@ -101,12 +101,16 @@
 
         <section id="panel-mcp" class="card tab-panel" role="tabpanel" aria-labelledby="tab-mcp" data-panel="mcp" hidden>
           <div class="section-heading">
-            <div><h2>Model Context Protocol</h2><p>Exponha a avaliação local para WebMCP, Claude Code e Codex.</p></div>
+            <div><h2>Integrações MCP</h2><p>Configure separadamente o WebMCP do navegador e o servidor MCP local dos assistentes.</p></div>
             <span id="mcp-status" class="pill" role="status">Carregando…</span>
           </div>
 
-          <label class="privacy-option"><input id="mcp-enabled" type="checkbox" role="switch"><span><strong>Habilitar WebMCP no navegador</strong><small>Registra <code>evaluate_ai_prompt</code> nos sites compatíveis somente quando o nível Heurística estiver ativo.</small></span></label>
-          <p class="notice">WebMCP atende agentes que operam dentro do Chrome. Codex Desktop e Claude Code usam o servidor MCP local abaixo; o arquivo de configuração exportado inclui o catálogo ativo, categorias, políticas e ofuscação da extensão. Baixe-o novamente após alterar essas opções ou atualizar regras.</p>
+          <h3>1. WebMCP — ferramentas web no navegador</h3>
+          <label class="privacy-option"><input id="mcp-enabled" type="checkbox" role="switch"><span><strong>Habilitar WebMCP</strong><small>Expõe <code>evaluate_ai_prompt</code> para ferramentas web compatíveis quando o modo Híbrido estiver ativo. Desmarque para remover o registro.</small></span></label>
+          <p class="notice">O WebMCP opera somente nas páginas compatíveis abertas no navegador. Ele não instala um processo local e não configura Claude Code nem Codex.</p>
+
+          <h3>2. Servidor MCP local — assistentes instalados</h3>
+          <p class="notice">O servidor local roda por stdio no seu computador e integra Claude Code e Codex. Baixe os dois arquivos e execute o script da sua plataforma. O mesmo script instala, atualiza ou remove a integração e, opcionalmente, os arquivos locais.</p>
 
           <div class="mcp-downloads">
             <a id="download-mcp-server" class="button-link" href="../mcp/ai-safety-mcp.cjs" download="ai-safety-mcp.cjs">Baixar servidor MCP</a>
@@ -143,6 +147,11 @@ $clients = switch ($clientOption) {
   "1" { @("claude") }
   "2" { @("codex") }
   "3" { @("claude", "codex") }
+}
+$removeFiles = $false
+if ($action -eq "remove") {
+  $removeFiles = (Read-Host "Também apagar servidor e configuração locais? [s/N]") -match '^[sSyY]$'
+  if ($removeFiles -and $clients.Count -ne 2) { throw "Para apagar os arquivos locais, selecione Ambos para não quebrar outra integração." }
 }
 
 $installDir = Join-Path $HOME ".ai-safety-guard"
@@ -266,10 +275,15 @@ if ($action -eq "install") {
   }
   Write-Host "Instalação concluída. Reinicie os clientes selecionados."
 } else {
-  Write-Host "Integração removida dos clientes selecionados. Os arquivos locais foram mantidos."
+  if ($removeFiles) {
+    Remove-Item -LiteralPath $server -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $configFile -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $installDir -Force -ErrorAction SilentlyContinue
+    Write-Host "Integrações e arquivos locais removidos."
+  } else { Write-Host "Integração removida dos clientes selecionados. Os arquivos locais foram mantidos." }
 }</code></pre>
               </div>
-              <p class="fine-print">O script mescla os hooks e mantém as demais configurações. Na remoção, preserva os arquivos locais e altera apenas os clientes escolhidos.</p>
+              <p class="fine-print">O script preserva configurações não relacionadas. Na remoção, você escolhe entre retirar apenas a integração ou apagar também os arquivos locais.</p>
             </div>
           </div>
 
@@ -303,6 +317,12 @@ case "$CLIENT_OPTION" in
   3) CONFIGURE_CLAUDE=1; CONFIGURE_CODEX=1 ;;
   *) echo "Opção inválida." &gt;&amp;2; exit 1 ;;
 esac
+REMOVE_FILES=0
+if [ "$ACTION" = "remove" ]; then
+  read -r -p "Também apagar servidor e configuração locais? [s/N]: " REMOVE_OPTION
+  case "$REMOVE_OPTION" in s|S|y|Y) REMOVE_FILES=1 ;; esac
+  [ "$REMOVE_FILES" -eq 0 ] || [ "$CLIENT_OPTION" = "3" ] || { echo "Selecione Ambos para apagar os arquivos locais." &gt;&amp;2; exit 1; }
+fi
 
 INSTALL_DIR="$HOME/.ai-safety-guard"
 SERVER="$INSTALL_DIR/ai-safety-mcp.cjs"
@@ -389,7 +409,7 @@ if [ "$ACTION" = "install" ]; then
   [ "$CONFIGURE_CODEX" -eq 0 ] || codex mcp list
   echo "Instalação concluída. Reinicie o cliente selecionado."
 else
-  if [ "$CONFIGURE_CLAUDE" -eq 1 ] &amp;&amp; [ "$CONFIGURE_CODEX" -eq 1 ]; then
+  if [ "$REMOVE_FILES" -eq 1 ]; then
     rm -f "$SERVER" "$CONFIG_FILE"
     rmdir "$INSTALL_DIR" 2&gt;/dev/null || true
   fi

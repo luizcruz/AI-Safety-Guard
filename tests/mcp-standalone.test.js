@@ -31,6 +31,24 @@ test("standalone bundle is packaged and blocks risky hook prompts", () => {
   assert.equal(safe.status, 0);
 });
 
+test("standalone hook ignores Claude Code ephemeral worktrees by default", () => {
+  const ignored = spawnSync(process.execPath, [bundle, "--hook"], {
+    input: JSON.stringify({ hook_event_name: "UserPromptSubmit", cwd: path.join(os.tmpdir(), "project", ".claude", "worktrees", "session-1"), prompt: "CPF 111.222.111-12" }),
+    encoding: "utf8",
+    timeout: 5_000
+  });
+  assert.equal(ignored.status, 0, ignored.stderr);
+  assert.equal(ignored.stdout, "");
+
+  const scanned = spawnSync(process.execPath, [bundle, "--hook"], {
+    input: JSON.stringify({ cwd: path.join(os.tmpdir(), "project", ".claude", "worktrees", "session-1"), prompt: "CPF 111.222.111-12" }),
+    encoding: "utf8",
+    timeout: 5_000,
+    env: { ...process.env, AI_SAFETY_SCAN_EPHEMERAL: "1" }
+  });
+  assert.equal(scanned.status, 2);
+});
+
 test("standalone bundle returns a clean Claude response with an obfuscated prompt", () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "ai-safety-standalone-redacted-"));
   try {

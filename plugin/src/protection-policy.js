@@ -22,8 +22,7 @@
   }
 
   function enforceNanoAvailability(mode, available) {
-    const normalized = normalizeMode(mode);
-    return normalized === "heuristic" && !available ? DEFAULT_MODE : normalized;
+    return normalizeMode(mode);
   }
 
   function createEmissionGate({ windowMs = 250, now = Date.now } = {}) {

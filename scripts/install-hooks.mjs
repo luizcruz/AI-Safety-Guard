@@ -8,10 +8,11 @@ import { fileURLToPath } from "node:url";
 const repository = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const installationHome = process.env.AI_SAFETY_INSTALL_HOME || os.homedir();
 const requested = process.argv.find((argument) => argument.startsWith("--target="))?.split("=")[1] || "all";
+const remove = process.argv.includes("--remove");
 const targets = requested === "all" ? ["claude", "codex"] : [requested];
 if (targets.some((target) => !["claude", "codex"].includes(target))) throw new Error("Use --target=claude, --target=codex, or --target=all");
 
-for (const target of targets) install(target);
+for (const target of targets) remove ? uninstall(target) : install(target);
 
 function install(target) {
   const hooksDirectory = path.join(installationHome, `.${target}`, "hooks");
@@ -25,4 +26,13 @@ function install(target) {
   const configPath = path.join(runtimeDirectory, "config.json");
   if (!fs.existsSync(configPath)) fs.writeFileSync(configPath, `${JSON.stringify({ mode: "heuristic" }, null, 2)}\n`, { mode: 0o600 });
   process.stdout.write(`Installed ${target} hook at ${hooksDirectory}\n`);
+}
+
+function uninstall(target) {
+  const hooksDirectory = path.join(installationHome, `.${target}`, "hooks");
+  const bridge = path.join(hooksDirectory, "evaluator-bridge.js");
+  const runtimeDirectory = path.join(hooksDirectory, "ai-safety-runtime");
+  if (fs.existsSync(bridge)) fs.rmSync(bridge, { force: true });
+  if (fs.existsSync(runtimeDirectory)) fs.rmSync(runtimeDirectory, { recursive: true, force: true });
+  process.stdout.write(`Removed ${target} AI Safety hook runtime from ${hooksDirectory}\n`);
 }
