@@ -6,6 +6,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
+const bundledRules = require("../plugin/src/rules.js");
 
 const bundle = path.join(__dirname, "..", "plugin", "mcp", "ai-safety-mcp.cjs");
 
@@ -28,6 +29,24 @@ test("standalone bundle is packaged and blocks risky hook prompts", () => {
     timeout: 5_000
   });
   assert.equal(safe.status, 0);
+});
+
+test("standalone hook ignores Claude Code ephemeral worktrees by default", () => {
+  const ignored = spawnSync(process.execPath, [bundle, "--hook"], {
+    input: JSON.stringify({ hook_event_name: "UserPromptSubmit", cwd: path.join(os.tmpdir(), "project", ".claude", "worktrees", "session-1"), prompt: "CPF 111.222.111-12" }),
+    encoding: "utf8",
+    timeout: 5_000
+  });
+  assert.equal(ignored.status, 0, ignored.stderr);
+  assert.equal(ignored.stdout, "");
+
+  const scanned = spawnSync(process.execPath, [bundle, "--hook"], {
+    input: JSON.stringify({ cwd: path.join(os.tmpdir(), "project", ".claude", "worktrees", "session-1"), prompt: "CPF 111.222.111-12" }),
+    encoding: "utf8",
+    timeout: 5_000,
+    env: { ...process.env, AI_SAFETY_SCAN_EPHEMERAL: "1" }
+  });
+  assert.equal(scanned.status, 2);
 });
 
 test("standalone bundle returns a clean Claude response with an obfuscated prompt", () => {
@@ -66,6 +85,38 @@ test("standalone bundle reads adjacent exported configuration", () => {
       timeout: 5_000
     });
     assert.equal(result.status, 0);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("standalone hook uses the exported active rules catalog snapshot", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "ai-safety-standalone-catalog-"));
+  try {
+    const target = path.join(directory, "ai-safety-mcp.cjs");
+    const configPath = path.join(directory, "config.json");
+    const customCatalog = {
+      ...bundledRules,
+      version: "99.0.0",
+      patterns: [...bundledRules.patterns, {
+        category: "personal",
+        label: "Extension custom catalog marker",
+        source: "\\bEXTENSION-CATALOG-[A-Z0-9]{6}\\b",
+        flags: "g",
+        score: 99,
+        validator: null
+      }]
+    };
+    fs.copyFileSync(bundle, target);
+    fs.writeFileSync(configPath, JSON.stringify({ mode: "heuristic", rulesCatalog: customCatalog }));
+    const result = spawnSync(process.execPath, [target, "--hook"], {
+      input: JSON.stringify({ prompt: "Review EXTENSION-CATALOG-A1B2C3" }),
+      encoding: "utf8",
+      timeout: 5_000,
+      env: { ...process.env, AI_SAFETY_CONFIG: configPath }
+    });
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /Extension custom catalog marker/);
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }

@@ -115,5 +115,5 @@
     return { version: 1, enabled: false, mode, decision: "allow", blocked: false, confidence: 0, categories: [], policyIds: [], findings: [], engines: { deterministic: "not-run", policies: "not-run", semantic: "not-run" } };
   }
 
-  return Object.freeze({ evaluatePrompt, mergeSemantic, obfuscatePrompt, MAX_TEXT_LENGTH, MAX_FINDINGS });
+  return Object.freeze({ evaluatePrompt, mergeSemantic, obfuscatePrompt, updateCatalog: detector.updateCatalog, MAX_TEXT_LENGTH, MAX_FINDINGS });
 });

@@ -9,10 +9,9 @@
   const UNSUPPORTED_MESSAGE = "Seu Browser não suporta modelo de IA do Chrome local";
   const MAX_INPUT_LENGTH = 8_000;
   const DEFAULT_TIMEOUT_MS = 45_000;
-  const LANGUAGE_OPTIONS = Object.freeze({
-    expectedInputs: Object.freeze([{ type: "text", languages: Object.freeze(["en", "es", "fr", "de", "ja"]) }]),
-    expectedOutputs: Object.freeze([{ type: "text", languages: Object.freeze(["en"]) }])
-  });
+  const AVAILABILITY_TIMEOUT_MS = 5_000;
+  const INSTALL_TIMEOUT_MS = 10 * 60_000;
+  const LANGUAGE_OPTIONS = Object.freeze({});
   const RESPONSE_SCHEMA = Object.freeze({
     type: "object",
     properties: {
@@ -43,22 +42,34 @@
     return override || resolveDefaultModel();
   }
 
-  async function availability(languageModel) {
+  function withTimeout(promise, timeoutMs, message, onTimeout) {
+    let timeoutId;
+    const timeout = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => {
+        if (typeof onTimeout === "function") onTimeout();
+        reject(new Error(message));
+      }, timeoutMs);
+    });
+    return Promise.race([Promise.resolve(promise), timeout]).finally(() => clearTimeout(timeoutId));
+  }
+
+  async function availability(languageModel, timeoutMs = AVAILABILITY_TIMEOUT_MS) {
     const model = resolveModel(languageModel);
     if (!model || typeof model.availability !== "function" || typeof model.create !== "function") return "unavailable";
     try {
-      const state = await model.availability(LANGUAGE_OPTIONS);
+      const state = await withTimeout(model.availability(LANGUAGE_OPTIONS), timeoutMs, "Tempo limite ao verificar o Gemini Nano");
       return ["available", "downloadable", "downloading"].includes(state) ? state : "unavailable";
     } catch {
       return "unavailable";
     }
   }
 
-  async function createSession(languageModel, onProgress) {
+  async function createSession(languageModel, onProgress, signal) {
     const model = resolveModel(languageModel);
     if (!model) throw new Error(UNSUPPORTED_MESSAGE);
     return model.create({
       ...LANGUAGE_OPTIONS,
+      ...(signal ? { signal } : {}),
       monitor(monitor) {
         if (!monitor || typeof monitor.addEventListener !== "function") return;
         monitor.addEventListener("downloadprogress", (event) => {
@@ -76,10 +87,16 @@
     }
   }
 
-  async function install({ languageModel, onProgress } = {}) {
+  async function install({ languageModel, onProgress, timeoutMs = INSTALL_TIMEOUT_MS } = {}) {
     const state = await availability(languageModel);
     if (state === "unavailable") throw new Error(UNSUPPORTED_MESSAGE);
-    const session = await createSession(languageModel, onProgress);
+    const controller = typeof AbortController === "function" ? new AbortController() : null;
+    const session = await withTimeout(
+      createSession(languageModel, onProgress, controller && controller.signal),
+      Math.max(1, Number(timeoutMs) || INSTALL_TIMEOUT_MS),
+      "Tempo limite ao instalar o Gemini Nano",
+      () => controller && controller.abort()
+    );
     destroySession(session);
     return { state: "available", downloaded: state !== "available" };
   }
@@ -191,5 +208,5 @@
     // Sessions are deliberately one-shot so prompts never share model context.
   }
 
-  return Object.freeze({ availability, install, classify, toDetection, normalizeClassification, resetSession, UNSUPPORTED_MESSAGE, RESPONSE_SCHEMA, MAX_INPUT_LENGTH, DEFAULT_TIMEOUT_MS, LANGUAGE_OPTIONS });
+  return Object.freeze({ availability, install, classify, toDetection, normalizeClassification, resetSession, UNSUPPORTED_MESSAGE, RESPONSE_SCHEMA, MAX_INPUT_LENGTH, DEFAULT_TIMEOUT_MS, AVAILABILITY_TIMEOUT_MS, INSTALL_TIMEOUT_MS, LANGUAGE_OPTIONS });
 });

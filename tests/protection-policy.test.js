@@ -30,11 +30,11 @@ test("modo heurística bloqueia qualquer score acionável a partir de 50", () =>
   assert.equal(actionFor("heuristic", invalidCpf.decision), "block");
 });
 
-test("modo detecção bloqueia regras e heurística requer Gemini Nano", () => {
+test("modo detecção bloqueia regras e híbrido permanece selecionado sem Gemini Nano", () => {
   assert.equal(actionFor("detect", "block"), "block");
   assert.equal(actionFor("detect", "warn"), "block");
   assert.equal(actionFor("detect", "allow"), "allow");
-  assert.equal(enforceNanoAvailability("heuristic", false), "detect");
+  assert.equal(enforceNanoAvailability("heuristic", false), "heuristic");
   assert.equal(enforceNanoAvailability("heuristic", true), "heuristic");
   assert.equal(enforceNanoAvailability("warn", false), "warn");
 });

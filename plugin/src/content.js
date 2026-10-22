@@ -26,10 +26,12 @@
   const MAX_LIVE_SCAN_CHARS = 20_000;
   const MAX_PROMPT_CHARS = 100_000;
   const NANO_TIMEOUT_MS = 45_000;
+  const NANO_MESSAGE_TIMEOUT_MS = 50_000;
   let settings = DEFAULTS;
   let overlay = null;
   let internalSend = false;
   let heuristicBusy = false;
+  let nanoReady = null;
   let typingTimer = null;
   let unsupportedNoticeShown = false;
   const fileInputRecords = new WeakMap();
@@ -52,11 +54,13 @@
   chrome.storage.local.get(["rulesCatalog", "nanoStatus", "heuristicPolicies"], ({ rulesCatalog, nanoStatus, heuristicPolicies }) => {
     if (rulesCatalog) applyRemoteCatalog(rulesCatalog);
     settings.policies = AISafetyPolicies.normalizePolicies(heuristicPolicies);
-    if (nanoStatus && nanoStatus.state === "unavailable") riskIndicator.set("unsupported", AISafetyNano.UNSUPPORTED_MESSAGE);
+    if (nanoStatus) nanoReady = nanoStatus.state === "available" ? true : nanoStatus.state === "unavailable" ? false : null;
+    if (nanoReady === false) riskIndicator.set("unsupported", AISafetyNano.UNSUPPORTED_MESSAGE);
   });
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === "local" && changes.rulesCatalog && changes.rulesCatalog.newValue) applyRemoteCatalog(changes.rulesCatalog.newValue);
     if (area === "local" && changes.heuristicPolicies) settings.policies = AISafetyPolicies.normalizePolicies(changes.heuristicPolicies.newValue);
+    if (area === "local" && changes.nanoStatus) nanoReady = changes.nanoStatus.newValue && changes.nanoStatus.newValue.state === "available" ? true : changes.nanoStatus.newValue && changes.nanoStatus.newValue.state === "unavailable" ? false : null;
     if (area === "sync") {
       settings = normalizeSettings({
         enabledCategories: changes.enabledCategories ? changes.enabledCategories.newValue : settings.enabledCategories,
@@ -346,6 +350,10 @@
         handleDetection(deterministic, input);
         return;
       }
+      if (nanoReady === false || (nanoReady !== true && !await ensureNanoAvailable())) {
+        replaySubmission(replay, input);
+        return;
+      }
       riskIndicator.set("analyzing", "Gemini Nano analisando…");
       const { classification } = await requestNano("NANO_CLASSIFY", { text: originalText, policies: settings.policies, timeoutMs: NANO_TIMEOUT_MS });
       if (readInput(input) !== originalText) {
@@ -361,7 +369,7 @@
       riskIndicator.set("safe", "Nenhum risco identificado");
       replaySubmission(replay, input);
     } catch (error) {
-      await disableHeuristic(error);
+      await markNanoUnavailable(error);
       if (readInput(input) === originalText) replaySubmission(replay, input);
     } finally {
       heuristicBusy = false;
@@ -383,26 +391,32 @@
   async function ensureNanoAvailable() {
     try {
       const { state } = await requestNano("NANO_AVAILABILITY");
-      if (state === "available") return true;
+      if (state === "available") {
+        nanoReady = true;
+        return true;
+      }
     } catch { /* handled by the common fallback below */ }
-    await disableHeuristic(new Error(AISafetyNano.UNSUPPORTED_MESSAGE));
+    await markNanoUnavailable(new Error(AISafetyNano.UNSUPPORTED_MESSAGE));
     return false;
   }
 
   async function requestNano(type, payload = {}) {
-    const response = await chrome.runtime.sendMessage({ type, ...payload });
+    let timeoutId;
+    const timeoutMs = type === "NANO_AVAILABILITY" ? AISafetyNano.AVAILABILITY_TIMEOUT_MS + 2_000 : NANO_MESSAGE_TIMEOUT_MS;
+    const timeout = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => reject(new Error("Tempo limite do Gemini Nano excedido")), timeoutMs);
+    });
+    const response = await Promise.race([chrome.runtime.sendMessage({ type, ...payload }), timeout]).finally(() => clearTimeout(timeoutId));
     if (!response || response.ok !== true) throw new Error((response && response.error) || AISafetyNano.UNSUPPORTED_MESSAGE);
     return response;
   }
 
-  async function disableHeuristic(error) {
+  async function markNanoUnavailable(error) {
     AISafetyNano.resetSession();
-    settings.mode = AISafetyProtectionPolicy.DEFAULT_MODE;
-    await Promise.all([
-      chrome.storage.sync.set({ mode: settings.mode }),
-      chrome.storage.local.set({ nanoStatus: { state: "unavailable", message: (error && error.message) || AISafetyNano.UNSUPPORTED_MESSAGE } })
-    ]);
-    riskIndicator.set("unsupported", AISafetyNano.UNSUPPORTED_MESSAGE);
+    const message = (error && error.message) || AISafetyNano.UNSUPPORTED_MESSAGE;
+    nanoReady = false;
+    await chrome.storage.local.set({ nanoStatus: { state: "unavailable", message } });
+    riskIndicator.set("unsupported", "Híbrido ativo por regras locais");
     showUnsupportedNotice();
   }
 
@@ -523,7 +537,7 @@
     notice.setAttribute("role", "alert");
     notice.style.cssText = "position:fixed;left:18px;bottom:18px;z-index:2147483646;max-width:390px;padding:14px 16px;border-radius:12px;background:#7f1d1d;color:#fff;box-shadow:0 12px 32px rgba(0,0,0,.3);font:600 13px/1.45 system-ui,sans-serif";
     const text = document.createElement("span");
-    text.textContent = `${AISafetyNano.UNSUPPORTED_MESSAGE}. O modo Detecção foi ativado.`;
+    text.textContent = `${AISafetyNano.UNSUPPORTED_MESSAGE}. O modo Híbrido continua ativo com as regras locais.`;
     const open = document.createElement("button");
     open.type = "button";
     open.textContent = "Abrir opções";

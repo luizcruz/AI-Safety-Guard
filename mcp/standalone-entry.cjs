@@ -34,7 +34,7 @@ async function handleRequest(request) {
     return {
       protocolVersion: request.params && request.params.protocolVersion || "2025-06-18",
       capabilities: { tools: { listChanged: false } },
-      serverInfo: { name: "ai-safety-guard", version: "2.3.0" },
+      serverInfo: { name: "ai-safety-guard", version: "2.4.1" },
       instructions: "Call evaluate_prompt before submitting user text to an AI. Do not submit prompts whose decision is block."
     };
   }
@@ -76,6 +76,7 @@ async function runHook() {
   const prompt = extractPrompt(payload);
   if (!prompt) return;
   const config = loadConfig();
+  if (shouldIgnoreWorkingDirectory(payload, config)) return;
   const result = evaluator.evaluatePrompt(prompt, config);
   if (!result.blocked) return;
   const reason = formatBlockReason(prompt, result, config);
@@ -99,12 +100,31 @@ function loadConfig() {
     if (!stat.isFile() || stat.size > MAX_CONFIG_BYTES) throw new Error("Invalid AI Safety configuration file");
     stored = JSON.parse(fs.readFileSync(configuredPath, "utf8"));
   }
-  return {
+  const config = {
     mode: process.env.AI_SAFETY_MODE || stored.mode || "heuristic",
     enabledCategories: Array.isArray(stored.enabledCategories) ? stored.enabledCategories : undefined,
     obfuscateSensitiveData: stored.obfuscateSensitiveData === true,
-    policies: Array.isArray(stored.policies) ? stored.policies : undefined
+    policies: Array.isArray(stored.policies) ? stored.policies : undefined,
+    ignoredWorkingDirectories: Array.isArray(stored.ignoredWorkingDirectories) ? stored.ignoredWorkingDirectories : []
   };
+  if (stored.rulesCatalog) detector.updateCatalog(stored.rulesCatalog);
+  return config;
+}
+
+function shouldIgnoreWorkingDirectory(payload, config) {
+  if (process.env.AI_SAFETY_SCAN_EPHEMERAL === "1" || !payload || typeof payload !== "object") return false;
+  const cwd = typeof payload.cwd === "string" ? path.resolve(payload.cwd) : "";
+  if (!cwd) return false;
+  const normalized = cwd.replace(/\\/g, "/").toLowerCase();
+  if (/(^|\/)\.claude\/worktrees(?:\/|$)/.test(normalized)) return true;
+  const configured = [
+    ...(Array.isArray(config.ignoredWorkingDirectories) ? config.ignoredWorkingDirectories : []),
+    ...String(process.env.AI_SAFETY_IGNORE_DIRS || "").split(path.delimiter)
+  ].filter(Boolean);
+  return configured.some((directory) => {
+    const ignored = path.resolve(String(directory)).replace(/\\/g, "/").toLowerCase().replace(/\/$/, "");
+    return normalized === ignored || normalized.startsWith(`${ignored}/`);
+  });
 }
 
 function formatBlockReason(prompt, result, config) {

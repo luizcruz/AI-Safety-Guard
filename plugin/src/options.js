@@ -199,22 +199,27 @@
   }
 
   async function refreshNanoStatus() {
-    const state = await AISafetyNano.availability();
+    let state;
+    try {
+      state = await AISafetyNano.availability();
+    } catch (error) {
+      return setNanoUnavailable(error.message);
+    }
     if (state === "available") {
       return setNanoReady();
     }
     if (state === "downloadable" || state === "downloading") {
       nanoAvailable = false;
-      heuristicInput.disabled = true;
+      heuristicInput.disabled = false;
       nanoTestButton.disabled = true;
       nanoState.textContent = state === "downloading" ? "Baixando" : "Instalação pendente";
-      nanoMessage.textContent = "O modelo local precisa ser instalado para habilitar testes e o modo Heurística.";
+      nanoMessage.textContent = "O modo Híbrido está protegido pelas regras locais. Instale o modelo para adicionar análise semântica.";
       nanoMessage.className = "notice";
       nanoModeLabel.textContent = "Modelo pendente";
       installNano.hidden = false;
       installNano.textContent = state === "downloading" ? "Continuar instalação" : "Instalar Gemini Nano";
       await chrome.storage.local.set({ nanoStatus: { state, message: nanoMessage.textContent } });
-      return enforceFallback();
+      return;
     }
     return setNanoUnavailable(AISafetyNano.UNSUPPORTED_MESSAGE);
   }
@@ -234,29 +239,16 @@
 
   async function setNanoUnavailable(message) {
     nanoAvailable = false;
-    heuristicInput.disabled = true;
+    heuristicInput.disabled = false;
     nanoTestButton.disabled = true;
     nanoState.textContent = "Indisponível";
-    nanoMessage.textContent = AISafetyNano.UNSUPPORTED_MESSAGE;
-    nanoMessage.className = "notice error";
-    nanoModeLabel.textContent = "Não suportado";
+    nanoMessage.textContent = `${message || AISafetyNano.UNSUPPORTED_MESSAGE}. O modo Híbrido continua protegido pelas regras locais.`;
+    nanoMessage.className = "notice";
+    nanoModeLabel.textContent = "Fallback por regras";
     nanoProgress.hidden = true;
     installNano.hidden = false;
     installNano.textContent = "Verificar novamente";
-    await chrome.storage.local.set({ nanoStatus: { state: "unavailable", message: message || AISafetyNano.UNSUPPORTED_MESSAGE } });
-    await enforceFallback();
-  }
-
-  async function enforceFallback() {
-    const { mode } = await chrome.storage.sync.get({ mode: AISafetyProtectionPolicy.DEFAULT_MODE });
-    const safeMode = AISafetyProtectionPolicy.enforceNanoAvailability(mode, nanoAvailable);
-    if (safeMode !== mode) {
-      await chrome.storage.sync.set({ mode: safeMode });
-      const fallback = modeInputs.find((input) => input.value === safeMode);
-      if (fallback) fallback.checked = true;
-      updateObfuscationAvailability(safeMode);
-      showSaveStatus("Heurística desativada; Detecção ativada.", true);
-    }
+    await chrome.storage.local.set({ nanoStatus: { state: "unavailable", message: nanoMessage.textContent } });
   }
 
   installNano.addEventListener("click", async () => {
@@ -333,10 +325,11 @@
     try {
       const [syncSettings, localSettings] = await Promise.all([
         chrome.storage.sync.get({ enabledCategories: Object.keys(AISafetyGuard.CATEGORIES), obfuscateSensitiveData: false }),
-        chrome.storage.local.get({ heuristicPolicies: null })
+        chrome.storage.local.get({ heuristicPolicies: null, rulesCatalog: null })
       ]);
       const policies = localSettings.heuristicPolicies || AISafetyPolicies.serializePolicies(heuristicPolicies, [...deletedDefaultPolicyIds]);
-      downloadJson("config.json", { mode: "heuristic", enabledCategories: syncSettings.enabledCategories, obfuscateSensitiveData: syncSettings.obfuscateSensitiveData === true, policies });
+      const rulesCatalog = localSettings.rulesCatalog || AISafetyGuardRules;
+      downloadJson("config.json", { mode: "heuristic", enabledCategories: syncSettings.enabledCategories, obfuscateSensitiveData: syncSettings.obfuscateSensitiveData === true, ignoredWorkingDirectories: [], rulesCatalog, policies });
       mcpDownloadStatus.textContent = "Configuração baixada.";
     } catch (error) {
       mcpDownloadStatus.textContent = `Falha: ${error.message}`;
@@ -356,12 +349,7 @@
 
   async function saveProtection() {
     const selected = modeInputs.find((input) => input.checked)?.value;
-    const mode = AISafetyProtectionPolicy.enforceNanoAvailability(selected, nanoAvailable);
-    if (selected === "heuristic" && mode !== selected) {
-      const fallback = modeInputs.find((input) => input.value === mode);
-      if (fallback) fallback.checked = true;
-      showSaveStatus(AISafetyNano.UNSUPPORTED_MESSAGE, true);
-    }
+    const mode = AISafetyProtectionPolicy.normalizeMode(selected);
     await chrome.storage.sync.set({
       enabledCategories: [...categoryInputs].filter(([, input]) => input.checked).map(([key]) => key),
       mode,
