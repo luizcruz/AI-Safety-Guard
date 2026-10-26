@@ -129,6 +129,17 @@ test("encaminha Gemini Nano para documento offscreen da extensão", async () => 
   assert.deepEqual(forwarded, { type: "NANO_AVAILABILITY", target: "nano-offscreen" });
 });
 
+test("limita espera quando o contexto offscreen ou sua resposta trava", async () => {
+  for (const stage of ["response", "creation"]) {
+    const hanging = () => new Promise(() => undefined);
+    const chromeApi = {
+      runtime: { getURL: (path) => path, getContexts: async () => [], sendMessage: hanging },
+      offscreen: { createDocument: stage === "creation" ? hanging : async () => undefined }
+    };
+    await assert.rejects(requestNano(chromeApi, { type: "NANO_AVAILABILITY" }, 5), /Tempo limite/);
+  }
+});
+
 test("registra eventos do Chrome, descarta cache antigo e persiste catálogo atualizado", async () => {
   const state = { apiUrl: "https://rules.example", apiToken: "secret", rulesVersion: "1.1.0" };
   const listeners = {};

@@ -178,6 +178,7 @@
     apiToken.value = remote.apiToken;
     showRulesStatus(remote.rulesLastError ? `Falha: ${remote.rulesLastError}` : `Regras ativas: v${remote.rulesVersion}`, Boolean(remote.rulesLastError));
     showAuditStatus(remote.auditLog);
+    showSaveStatus("Configuração carregada", false);
     await refreshNanoStatus();
   }
 
@@ -229,11 +230,12 @@
     heuristicInput.disabled = false;
     nanoTestButton.disabled = false;
     nanoState.textContent = "Disponível";
-    nanoMessage.textContent = "Gemini Nano instalado e pronto para análise semântica local.";
+    nanoMessage.textContent = "Chrome informa que o Gemini Nano está disponível. Use Avaliar risco para confirmar a execução. Se falhar, o Híbrido continua com regras locais.";
     nanoMessage.className = "notice success";
     nanoModeLabel.textContent = "Pronto";
     nanoProgress.hidden = true;
-    installNano.hidden = true;
+    installNano.hidden = false;
+    installNano.textContent = "Validar Gemini Nano";
     await chrome.storage.local.set({ nanoStatus: { state: "available", message: nanoMessage.textContent } });
   }
 
@@ -287,6 +289,7 @@
       if (detection.decision === "allow") showNanoTestResult("Risco baixo — nenhuma exposição sensível identificada.", false, true);
       else showNanoTestResult(`Risco ${severity}: ${detection.confidence}/100 — ${category}. ${classification.reason}${policySummary}`, true);
     } catch (error) {
+      await setNanoUnavailable(error.message);
       showNanoTestResult(`Falha no teste local: ${error.message}`, true);
     } finally {
       nanoTestButton.disabled = !nanoAvailable;

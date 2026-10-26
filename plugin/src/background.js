@@ -30,11 +30,18 @@ if (typeof importScripts === "function" && typeof globalThis.AISafetyNano === "u
     await offscreenCreation;
   }
 
-  async function requestNano(chromeApi, message) {
-    await ensureOffscreenDocument(chromeApi);
-    const response = await chromeApi.runtime.sendMessage({ ...message, target: "nano-offscreen" });
-    if (!response || response.ok !== true) throw new Error((response && response.error) || "Gemini Nano indisponível");
-    return response;
+  async function requestNano(chromeApi, message, timeoutMs = message.type === "NANO_AVAILABILITY" ? 7_000 : 50_000) {
+    let timeoutId;
+    const timeout = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => reject(new Error("Tempo limite do Gemini Nano excedido")), timeoutMs);
+    });
+    const request = async () => {
+      await ensureOffscreenDocument(chromeApi);
+      const response = await chromeApi.runtime.sendMessage({ ...message, target: "nano-offscreen" });
+      if (!response || response.ok !== true) throw new Error((response && response.error) || "Gemini Nano indisponível");
+      return response;
+    };
+    return Promise.race([request(), timeout]).finally(() => clearTimeout(timeoutId));
   }
 
   function compareVersions(left, right) {
