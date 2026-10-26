@@ -32,6 +32,7 @@ test("declara idiomas suportados na disponibilidade e na criação", async () =>
   await nano.availability(model);
   await nano.install({ languageModel: model });
   assert.deepEqual(availabilityOptions, nano.LANGUAGE_OPTIONS);
+  assert.deepEqual(availabilityOptions.expectedOutputs, [{ type: "text", languages: ["en"] }]);
   assert.deepEqual(creationOptions.expectedInputs, nano.LANGUAGE_OPTIONS.expectedInputs);
   assert.deepEqual(creationOptions.expectedOutputs, nano.LANGUAGE_OPTIONS.expectedOutputs);
 });
@@ -81,6 +82,7 @@ test("classifica com saída estruturada e converte risco em detecção", async (
   assert.equal("signal" in captured.options, false);
   assert.match(captured.prompt, /USER_TEXT_START[\s\S]*password de produção[\s\S]*USER_TEXT_END/);
   assert.match(captured.prompt, /Assign severity=low[\s\S]*medium[\s\S]*high[\s\S]*critical/);
+  assert.match(captured.prompt, /Write the reason in English/);
   assert.match(captured.prompt, /POLICY_JSON_START[\s\S]*credentials-secrets[\s\S]*POLICY_JSON_END/);
   assert.deepEqual(classification, { risk: true, severity: "high", category: "credentials", reason: "Segredo exposto no texto", sensitiveTerms: ["password de produção"], policyIds: ["credentials-secrets"] });
   const detection = nano.toDetection(classification);
@@ -102,7 +104,8 @@ test("cada classificação usa e encerra uma sessão isolada", async () => {
   let created = 0;
   let destroyed = 0;
   const languageModel = {
-    create: async () => {
+    create: async (options) => {
+      assert.deepEqual(options.expectedOutputs, [{ type: "text", languages: ["en"] }]);
       created += 1;
       return {
         prompt: async () => JSON.stringify({ risk: false, severity: "low", category: "corporate", reason: "public", sensitiveTerms: [], policyIds: [] }),
