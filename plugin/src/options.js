@@ -57,10 +57,21 @@
   initializeTabs();
   initializeMcpPlatformTabs();
   initializeScriptCopyButtons();
-  initialize().catch((error) => {
+  let initializationTimer;
+  const initializationTimeout = new Promise((_, reject) => {
+    initializationTimer = setTimeout(() => reject(new Error("Tempo limite ao carregar configurações. Reabra esta página e consulte a ajuda na aba IA local.")), 10_000);
+  });
+  Promise.race([initialize(), initializationTimeout]).catch((error) => {
     showSaveStatus(error.message, true);
     showRulesStatus(error.message, true);
-  });
+    nanoState.textContent = "Verificação interrompida";
+    nanoMessage.textContent = "Não foi possível concluir a inicialização. Consulte a ajuda abaixo e reabra esta página.";
+    nanoModeLabel.textContent = "IA não confirmada";
+    policyStatus.textContent = "Não foi possível concluir o carregamento";
+    auditStatus.textContent = "Não foi possível concluir o carregamento";
+    mcpStatus.textContent = "Não foi possível concluir o carregamento";
+    nanoProgress.hidden = true;
+  }).finally(() => clearTimeout(initializationTimer));
 
   function initializeTabs() {
     const requested = location.hash.replace(/^#/, "");
@@ -258,7 +269,7 @@
     nanoProgress.hidden = false;
     nanoProgress.value = 0;
     nanoState.textContent = "Instalando";
-    nanoMessage.textContent = "Baixando e preparando o modelo local. Mantenha o Chrome aberto.";
+    nanoMessage.textContent = "Baixando e preparando o modelo local (limite de 10 minutos). Mantenha o Chrome aberto. Se falhar, consulte a ajuda abaixo; as regras locais continuam disponíveis.";
     nanoMessage.className = "notice";
     try {
       await AISafetyNano.install({ onProgress: (value) => { nanoProgress.value = value; } });

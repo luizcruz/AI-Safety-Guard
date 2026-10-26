@@ -16,7 +16,19 @@
   const openOptions = document.querySelector("#open-options");
   let nanoAvailable = false;
 
-  initialize().catch((error) => showError(error.message));
+  slider.disabled = true;
+  let initializationTimer;
+  const initializationTimeout = new Promise((_, reject) => {
+    initializationTimer = setTimeout(() => reject(new Error("Tempo limite ao carregar. Reabra a extensão ou consulte a ajuda.")), 10_000);
+  });
+  Promise.race([initialize(), initializationTimeout]).catch((error) => {
+    if (slider.disabled) {
+      modeName.textContent = "Configuração indisponível";
+      description.textContent = "Não foi possível consultar o nível salvo. Reabra a extensão.";
+    }
+    nanoStatus.textContent = "IA local não confirmada. Consulte a ajuda.";
+    showError(error.message);
+  }).finally(() => clearTimeout(initializationTimer));
 
   async function initialize() {
     const [{ mode }, localState] = await Promise.all([
@@ -25,6 +37,7 @@
     ]);
     slider.max = "3";
     render(mode);
+    slider.disabled = false;
     nanoStatus.textContent = (localState.nanoStatus && localState.nanoStatus.message) || "Verificando Gemini Nano…";
     const availability = await AISafetyNano.availability();
     nanoAvailable = availability === "available";

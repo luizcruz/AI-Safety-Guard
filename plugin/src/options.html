@@ -51,6 +51,20 @@
           <progress id="nano-progress" max="1" value="0" hidden></progress>
           <button id="install-nano" type="button" hidden>Instalar Gemini Nano</button>
           <p class="fine-print">O Chrome pode exigir um clique para iniciar o primeiro download.</p>
+          <details class="nano-help">
+            <summary>Ajuda: a IA local não funciona?</summary>
+            <p>Sem Gemini Nano, o modo Híbrido continua com as regras locais, sem análise semântica. Você também pode selecionar Detecção na aba Proteção.</p>
+            <ol>
+              <li>Atualize o Chrome em <code>chrome://settings/help</code> e reinicie o navegador.</li>
+              <li>Confira os <a href="https://developer.chrome.com/docs/ai/prompt-api#review_the_hardware_requirements" target="_blank" rel="noopener noreferrer">requisitos atuais de sistema, memória e espaço em disco</a>. O modelo precisa de download inicial.</li>
+              <li>Copie <code>chrome://on-device-internals</code> para a barra de endereços. Na aba <strong>Broker State</strong>, verifique os erros do modelo.</li>
+              <li>Volte aqui e clique em <strong>Instalar Gemini Nano</strong>, <strong>Validar Gemini Nano</strong> ou <strong>Verificar novamente</strong>, conforme o botão exibido. Mantenha o Chrome aberto e conectado durante o download.</li>
+              <li>Use <strong>Avaliar risco</strong> com uma mensagem fictícia. Para isolar problemas de idioma, teste primeiro em inglês. Português ainda não consta entre os idiomas oficialmente suportados.</li>
+              <li>Se aparecer <q>The model was available but there was not an execution config available for the feature</q>, o aviso sozinho não identifica a causa. Reinicie o Chrome, consulte Broker State e tente novamente. Se persistir, informe a versão do Chrome e o erro ao suporte, sem incluir dados sensíveis.</li>
+            </ol>
+            <p>A consulta de disponibilidade espera até 5 segundos; a análise, até 45 segundos; a instalação, até 10 minutos. Ao expirar, a interface informa a falha. A IA não precisa estar ativa para usar as regras locais.</p>
+            <p>Referências: <a href="https://developer.chrome.com/docs/ai/prompt-api" target="_blank" rel="noopener noreferrer">Prompt API</a> e <a href="https://developer.chrome.com/docs/ai/get-started#troubleshoot_localhost" target="_blank" rel="noopener noreferrer">diagnóstico oficial do Chrome</a>.</p>
+          </details>
 
           <form id="nano-test-form" class="stacked-form">
             <label for="nano-test-input">Mensagem para teste</label>
